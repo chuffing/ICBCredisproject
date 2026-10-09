@@ -70,9 +70,8 @@ export default {
       try {
         const payload = buildTopologyPayload(this.operationReason);
         payload.versionPackageId = this.versionPackageId;
-        const targetPackage = this.store.packages.find(item => item.id === this.versionPackageId);
         const detail = await api.createVersionUpgrade(payload);
-        acceptCreatedTask(detail, { type: "upgrade", version: targetPackage?.version || this.store.topology.version });
+        acceptCreatedTask(detail);
       } catch (error) {
         notify(error.message, "error");
       } finally {

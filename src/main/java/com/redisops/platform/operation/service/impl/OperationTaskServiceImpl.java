@@ -19,6 +19,7 @@ import com.redisops.platform.operation.client.AgentTaskClient;
 import com.redisops.platform.agent.service.AgentRegistrationService;
 import com.redisops.platform.operation.service.OperationTaskService;
 import com.redisops.platform.operation.service.OperationTaskRollbackPlanner;
+import com.redisops.platform.operation.service.OperationTaskCompletionHandler;
 import com.redisops.platform.operation.service.TaskNoService;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -52,6 +53,7 @@ public class OperationTaskServiceImpl implements OperationTaskService {
     private final TransactionTemplate transactionTemplate;
     private final TaskScheduler operationTaskScheduler;
     private final List<OperationTaskRollbackPlanner> rollbackPlanners;
+    private final List<OperationTaskCompletionHandler> completionHandlers;
 
     /** 注入任务持久化、执行器访问和事务组件。 */
     public OperationTaskServiceImpl(OperationTaskMapper taskMapper,
@@ -63,7 +65,8 @@ public class OperationTaskServiceImpl implements OperationTaskService {
                                     TransactionTemplate transactionTemplate,
                                     @Qualifier("operationTaskScheduler")
                                     TaskScheduler operationTaskScheduler,
-                                    List<OperationTaskRollbackPlanner> rollbackPlanners) {
+                                    List<OperationTaskRollbackPlanner> rollbackPlanners,
+                                    List<OperationTaskCompletionHandler> completionHandlers) {
         this.taskMapper = taskMapper;
         this.stepMapper = stepMapper;
         this.taskNoService = taskNoService;
@@ -73,6 +76,7 @@ public class OperationTaskServiceImpl implements OperationTaskService {
         this.transactionTemplate = transactionTemplate;
         this.operationTaskScheduler = operationTaskScheduler;
         this.rollbackPlanners = rollbackPlanners;
+        this.completionHandlers = completionHandlers;
     }
 
     /**
@@ -234,11 +238,16 @@ public class OperationTaskServiceImpl implements OperationTaskService {
             if (!claimStep(step)) {
                 continue;
             }
+
             try {
                 ExecutorInfo executor = agentRegistrationService
                         .requireOnlineExecutor(step.getExecutorId());
-                agentTaskClient.dispatch(executor, taskNo, step.getStepNo(),
-                        step.getOperationType(), step.getRequestParams());
+                agentTaskClient.dispatch(
+                        executor,
+                        taskNo,
+                        step.getStepNo(),
+                        step.getOperationType(),
+                        step.getRequestParams());
             } catch (Exception e) {
                 String reason = shorten("步骤下发失败: " + rootMessage(e), 1000);
                 markStepDispatchFailed(step.getId(), reason);
@@ -315,12 +324,25 @@ public class OperationTaskServiceImpl implements OperationTaskService {
                 .eq(OperationTaskStep::getTaskNo, taskNo)
                 .ne(OperationTaskStep::getStepStatus, "SUCCESS"));
         if (unfinished == 0) {
-            LambdaUpdateWrapper<OperationTask> update = new LambdaUpdateWrapper<>();
-            update.eq(OperationTask::getTaskNo, taskNo)
-                    .in(OperationTask::getTaskStatus, "CREATED", "RUNNING")
-                    .set(OperationTask::getTaskStatus, "SUCCESS")
-                    .set(OperationTask::getEndTime, LocalDateTime.now());
-            taskMapper.update(null, update);
+            try {
+                transactionTemplate.execute(status -> {
+                    // 服务器切换在这里提交redis_info；任意异常都会同时回滚拓扑和SUCCESS状态。
+                    for (OperationTaskCompletionHandler handler : completionHandlers) {
+                        if (handler.supports(task.getTaskType())) {
+                            handler.handleSuccess(task);
+                        }
+                    }
+                    LambdaUpdateWrapper<OperationTask> update = new LambdaUpdateWrapper<>();
+                    update.eq(OperationTask::getTaskNo, taskNo)
+                            .in(OperationTask::getTaskStatus, "CREATED", "RUNNING")
+                            .set(OperationTask::getTaskStatus, "SUCCESS")
+                            .set(OperationTask::getEndTime, LocalDateTime.now());
+                    taskMapper.update(null, update);
+                    return null;
+                });
+            } catch (Exception e) {
+                markTaskFailed(taskNo, "任务步骤已完成，但正式拓扑入库失败: " + rootMessage(e));
+            }
         }
     }
 

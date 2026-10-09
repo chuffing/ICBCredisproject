@@ -27,6 +27,9 @@ public interface AgentRegistrationService {
     /** 查询一台能够接收运维任务的在线执行器。 */
     ExecutorInfo requireOnlineExecutor(String executorId);
 
+    /** 根据用户输入的服务器IP查询一台能够接收运维任务的在线执行器。 */
+    ExecutorInfo requireOnlineExecutorByHostIp(String hostIp);
+
     /** 解密下发任务所需的执行器 Token。 */
     String readDispatchToken(ExecutorInfo executor);
 

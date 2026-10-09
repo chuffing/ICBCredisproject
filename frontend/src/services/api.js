@@ -16,7 +16,10 @@ async function request(url, options = {}) {
 /** 查询已经注册到平台的全部执行器。 */
 export function listAgents() { return request("/api/agent"); }
 
-/** 查询每台执行器最近上报的Redis和Sentinel状态。 */
+/** 查询redis_info中当前正式纳管的Redis与Sentinel实例信息。 */
+export function listManagedRedis() { return request("/api/redis-info/managed"); }
+
+/** 查询执行器定时采集后写入数据库的最新Redis和Sentinel状态。 */
 export function listLatestMetrics() { return request("/api/metric/latest"); }
 
 /** 查询平台中已经校验过的Redis版本包。 */

@@ -174,6 +174,32 @@ public class AgentRegistrationServiceImpl implements AgentRegistrationService {
     }
 
     /**
+     * 根据服务器IP找到唯一的在线执行器。
+     * 服务器切换页面只提交用户输入的IP，执行器编号必须由平台数据库解析，不能由前端伪造。
+     */
+    @Override
+    public ExecutorInfo requireOnlineExecutorByHostIp(String hostIp) {
+        if (!StringUtils.hasText(hostIp)) {
+            throw new IllegalArgumentException("服务器IP不能为空");
+        }
+        List<ExecutorInfo> matches = executorInfoMapper.selectList(
+                new LambdaQueryWrapper<ExecutorInfo>()
+                        .eq(ExecutorInfo::getHostIp, hostIp.trim())
+                        .eq(ExecutorInfo::getManagementStatus, "ACTIVE"));
+        if (matches.isEmpty()) {
+            throw new IllegalArgumentException("没有找到该服务器IP对应的已注册执行器: " + hostIp);
+        }
+        if (matches.size() > 1) {
+            throw new IllegalStateException("服务器IP对应多个启用执行器，请先清理重复注册: " + hostIp);
+        }
+        ExecutorInfo executor = matches.get(0);
+        if (!"ONLINE".equals(executor.getExecutorStatus())) {
+            throw new IllegalStateException("服务器IP对应的执行器当前离线: " + hostIp);
+        }
+        return executor;
+    }
+
+    /**
      * 解密向指定执行器下发任务时需要的 Token。
      *
      * @param executor 已从数据库读取的执行器

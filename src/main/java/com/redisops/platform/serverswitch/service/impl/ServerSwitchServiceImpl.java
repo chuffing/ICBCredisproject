@@ -10,6 +10,8 @@ import com.redisops.platform.operation.model.OperationTaskDetail;
 import com.redisops.platform.operation.service.OperationTaskService;
 import com.redisops.platform.operation.type.AgentOperationType;
 import com.redisops.platform.operation.type.BusinessTaskType;
+import com.redisops.platform.redisinfo.entity.RedisInfo;
+import com.redisops.platform.redisinfo.service.RedisInfoService;
 import com.redisops.platform.serverswitch.model.ServerSwitchNodeRequest;
 import com.redisops.platform.serverswitch.model.ServerSwitchTaskRequest;
 import com.redisops.platform.serverswitch.service.ServerSwitchService;
@@ -34,21 +36,25 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
 
     private static final int REQUIRED_NODE_COUNT = 3;
     private static final int DEFAULT_REDIS_PORT = 6379;
+    private static final int DEFAULT_SENTINEL_PORT = 26379;
 
     private final OperationTaskService operationTaskService;
     private final AgentRegistrationService agentRegistrationService;
     private final VersionPackageService versionPackageService;
     private final ExecutorConfigSnapshotService configSnapshotService;
+    private final RedisInfoService redisInfoService;
 
     /** 注入任务调度、执行器、版本包和平台配置快照服务。 */
     public ServerSwitchServiceImpl(OperationTaskService operationTaskService,
                                    AgentRegistrationService agentRegistrationService,
                                    VersionPackageService versionPackageService,
-                                   ExecutorConfigSnapshotService configSnapshotService) {
+                                   ExecutorConfigSnapshotService configSnapshotService,
+                                   RedisInfoService redisInfoService) {
         this.operationTaskService = operationTaskService;
         this.agentRegistrationService = agentRegistrationService;
         this.versionPackageService = versionPackageService;
         this.configSnapshotService = configSnapshotService;
+        this.redisInfoService = redisInfoService;
     }
 
     /**
@@ -62,9 +68,8 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
         RedisVersionPackage versionPackage = versionPackageService
                 .requireAvailable(request.getVersionPackageId());
         List<ValidatedNode> nodes = validateAndReadNodes(request.getNodes());
-        List<ExecutorInfo> sourceNodes = validateAndReadSourceNodes(
-                request.getSourceNodes(), nodes);
-        ValidatedNode master = findMaster(nodes, request.getMasterExecutorId().trim());
+        List<ExecutorInfo> sourceNodes = readManagedSourceNodes(nodes);
+        ValidatedNode master = findMaster(nodes, request.getMasterHostIp().trim());
 
         CreateOperationTaskRequest taskRequest = new CreateOperationTaskRequest();
         taskRequest.setTaskType(BusinessTaskType.SERVER_SWITCH.name());
@@ -85,8 +90,8 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
         if (request.getVersionPackageId() == null || request.getVersionPackageId() <= 0) {
             throw new IllegalArgumentException("versionPackageId 必须大于 0");
         }
-        if (!StringUtils.hasText(request.getMasterExecutorId())) {
-            throw new IllegalArgumentException("masterExecutorId 不能为空");
+        if (!StringUtils.hasText(request.getMasterHostIp())) {
+            throw new IllegalArgumentException("masterHostIp 不能为空");
         }
         if (!StringUtils.hasText(request.getCreatedBy())) {
             throw new IllegalArgumentException("createdBy 不能为空");
@@ -97,32 +102,28 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
         if (request.getNodes() == null || request.getNodes().size() != REQUIRED_NODE_COUNT) {
             throw new IllegalArgumentException("服务器切换必须且只能包含 3 台新服务器");
         }
-        if (request.getSourceNodes() == null
-                || request.getSourceNodes().size() != REQUIRED_NODE_COUNT) {
-            throw new IllegalArgumentException("服务器切换必须包含当前旧拓扑的 3 台服务器");
-        }
         if (request.getRedisPort() != null
                 && (request.getRedisPort() < 1 || request.getRedisPort() > 65535)) {
             throw new IllegalArgumentException("redisPort 必须在 1 到 65535 之间");
         }
     }
 
-    /** 校验目标执行器唯一且在线，并读取平台保存的可信配置摘要。 */
+    /** 根据用户输入的IP校验目标执行器唯一且在线，并读取平台保存的可信配置摘要。 */
     private List<ValidatedNode> validateAndReadNodes(
             List<ServerSwitchNodeRequest> requestedNodes) {
-        Set<String> executorIds = new HashSet<>();
+        Set<String> hostIps = new HashSet<>();
         List<ValidatedNode> nodes = new ArrayList<>();
         for (ServerSwitchNodeRequest requestedNode : requestedNodes) {
-            if (requestedNode == null || !StringUtils.hasText(requestedNode.getExecutorId())) {
-                throw new IllegalArgumentException("每台新服务器的 executorId 都不能为空");
+            if (requestedNode == null || !StringUtils.hasText(requestedNode.getHostIp())) {
+                throw new IllegalArgumentException("每台新服务器的hostIp都不能为空");
             }
-            String executorId = requestedNode.getExecutorId().trim();
-            if (!executorIds.add(executorId)) {
-                throw new IllegalArgumentException("executorId 不能重复: " + executorId);
+            String hostIp = requestedNode.getHostIp().trim();
+            if (!hostIps.add(hostIp)) {
+                throw new IllegalArgumentException("服务器IP不能重复: " + hostIp);
             }
-            ExecutorInfo executor = agentRegistrationService.requireOnlineExecutor(executorId);
+            ExecutorInfo executor = agentRegistrationService.requireOnlineExecutorByHostIp(hostIp);
             ExecutorConfigSnapshot snapshot = configSnapshotService
-                    .requireActiveSnapshot(executorId);
+                    .requireActiveSnapshot(executor.getExecutorId());
             nodes.add(new ValidatedNode(
                     executor,
                     snapshot.getRedisConfigSha256(),
@@ -131,25 +132,16 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
         return nodes;
     }
 
-    /** 校验旧拓扑执行器在线、唯一，并且不能与新服务器重复。 */
-    private List<ExecutorInfo> validateAndReadSourceNodes(
-            List<ServerSwitchNodeRequest> requestedNodes,
-            List<ValidatedNode> targetNodes) {
+    /** 从redis_info读取旧正式拓扑，并校验旧执行器在线且不与目标服务器重复。 */
+    private List<ExecutorInfo> readManagedSourceNodes(List<ValidatedNode> targetNodes) {
         Set<String> targetIds = new HashSet<>();
         for (ValidatedNode targetNode : targetNodes) {
             targetIds.add(targetNode.executor.getExecutorId());
         }
 
-        Set<String> sourceIds = new HashSet<>();
         List<ExecutorInfo> result = new ArrayList<>();
-        for (ServerSwitchNodeRequest requestedNode : requestedNodes) {
-            if (requestedNode == null || !StringUtils.hasText(requestedNode.getExecutorId())) {
-                throw new IllegalArgumentException("每台旧服务器的 executorId 都不能为空");
-            }
-            String executorId = requestedNode.getExecutorId().trim();
-            if (!sourceIds.add(executorId)) {
-                throw new IllegalArgumentException("旧拓扑 executorId 不能重复: " + executorId);
-            }
+        for (RedisInfo sourceNode : redisInfoService.requireManagedTopology()) {
+            String executorId = sourceNode.getExecutorId();
             if (targetIds.contains(executorId)) {
                 throw new IllegalArgumentException("新旧拓扑不能包含同一执行器: " + executorId);
             }
@@ -158,14 +150,14 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
         return result;
     }
 
-    /** 找到新拓扑中指定的唯一主节点。 */
-    private ValidatedNode findMaster(List<ValidatedNode> nodes, String masterExecutorId) {
+    /** 根据用户输入的主节点IP找到新拓扑中唯一主节点。 */
+    private ValidatedNode findMaster(List<ValidatedNode> nodes, String masterHostIp) {
         for (ValidatedNode node : nodes) {
-            if (masterExecutorId.equals(node.executor.getExecutorId())) {
+            if (masterHostIp.equals(node.executor.getHostIp())) {
                 return node;
             }
         }
-        throw new IllegalArgumentException("masterExecutorId 必须属于本次切换的 3 台新服务器");
+        throw new IllegalArgumentException("masterHostIp必须属于本次切换的3台新服务器");
     }
 
     /** 保存版本、目标拓扑和配置摘要，供审计及失败补偿使用。 */
@@ -183,6 +175,7 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
         params.put("masterExecutorId", master.executor.getExecutorId());
         params.put("masterHost", master.executor.getHostIp());
         params.put("redisPort", redisPort);
+        params.put("sentinelPort", DEFAULT_SENTINEL_PORT);
 
         List<Map<String, String>> nodeParams = new ArrayList<>();
         for (ValidatedNode node : nodes) {

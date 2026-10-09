@@ -8,10 +8,9 @@ import java.util.List;
 public class ServerSwitchTaskRequest {
 
     private Long versionPackageId;
-    private String masterExecutorId;
+    private String masterHostIp;
     private Integer redisPort;
     private List<ServerSwitchNodeRequest> nodes;
-    private List<ServerSwitchNodeRequest> sourceNodes;
     private String createdBy;
     private String operationReason;
 
@@ -21,11 +20,11 @@ public class ServerSwitchTaskRequest {
     /** 设置准备部署到新服务器的版本包主键。 */
     public void setVersionPackageId(Long value) { this.versionPackageId = value; }
 
-    /** 获取新拓扑主节点的执行器编号。 */
-    public String getMasterExecutorId() { return masterExecutorId; }
+    /** 获取用户指定的新拓扑主节点IP。 */
+    public String getMasterHostIp() { return masterHostIp; }
 
-    /** 设置新拓扑主节点的执行器编号。 */
-    public void setMasterExecutorId(String value) { this.masterExecutorId = value; }
+    /** 设置用户指定的新拓扑主节点IP。 */
+    public void setMasterHostIp(String value) { this.masterHostIp = value; }
 
     /** 获取 Redis 端口。 */
     public Integer getRedisPort() { return redisPort; }
@@ -38,12 +37,6 @@ public class ServerSwitchTaskRequest {
 
     /** 设置三台新服务器。 */
     public void setNodes(List<ServerSwitchNodeRequest> value) { this.nodes = value; }
-
-    /** 获取当前旧拓扑的三台服务器。 */
-    public List<ServerSwitchNodeRequest> getSourceNodes() { return sourceNodes; }
-
-    /** 设置当前旧拓扑的三台服务器。 */
-    public void setSourceNodes(List<ServerSwitchNodeRequest> value) { sourceNodes = value; }
 
     /** 获取任务创建人。 */
     public String getCreatedBy() { return createdBy; }

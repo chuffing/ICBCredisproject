@@ -5,11 +5,11 @@ package com.redisops.platform.serverswitch.model;
  */
 public class ServerSwitchNodeRequest {
 
-    private String executorId;
+    private String hostIp;
 
-    /** 获取新服务器上的执行器编号。 */
-    public String getExecutorId() { return executorId; }
+    /** 获取用户输入的新服务器IP。 */
+    public String getHostIp() { return hostIp; }
 
-    /** 设置新服务器上的执行器编号。 */
-    public void setExecutorId(String executorId) { this.executorId = executorId; }
+    /** 设置用户输入的新服务器IP。 */
+    public void setHostIp(String value) { hostIp = value; }
 }

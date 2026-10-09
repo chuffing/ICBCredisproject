@@ -10,7 +10,7 @@
         <article v-for="agent in nodes" :key="`${agent.executorId}-sentinel`"
                  class="status-card" :class="`is-${sentinelHealth(agent).css}`">
           <div class="node-head">
-            <span class="node-title">{{ agent.hostIp }}:26379</span>
+            <span class="node-title">{{ agent.hostIp }}:{{ agent.redisInfo.sentinelPort || 26379 }}</span>
             <span class="badge badge-sentinel">SENTINEL</span>
           </div>
           <div class="node-meta">
@@ -21,38 +21,39 @@
               </span>
             </div>
             <div class="meta-row"><span>监控 MASTER</span><strong>{{ sentinelMaster(agent) }}</strong></div>
-            <div class="meta-row"><span>Sentinel 端口</span><strong>26379</strong></div>
+            <div class="meta-row"><span>Sentinel 端口</span><strong>{{ agent.redisInfo.sentinelPort || 26379 }}</strong></div>
           </div>
         </article>
       </div>
     </template>
   </div>
-  <div v-else class="empty-state">还没有识别到完整的三节点环境，请先确认三台执行器已经注册。</div>
+  <div v-else class="empty-state">redis_info中还没有完整的三节点正式拓扑。</div>
 </template>
 
 <script>
 import NodeCard, { metricHealth } from "./NodeCard.vue";
-import { state, currentNodes, runtimeStatus } from "../store/appStore";
+import { currentNodes, runtimeStatus } from "../store/appStore";
 
 export default {
   name: "EnvironmentPanel",
   components: { NodeCard },
   props: { includeSentinel: { type: Boolean, default: false } },
-  data() { return { store: state }; },
   computed: {
-    /** 返回当前三台正式节点。 */
+    /** 返回redis_info中当前正式纳管的三台节点。 */
     nodes() { return currentNodes(); }
   },
   methods: {
-    /** 返回指定节点最近一次Sentinel健康检查状态。 */
+    /** 返回执行器最近一次定时采集并写入数据库的Sentinel状态。 */
     sentinelHealth(agent) { return metricHealth(runtimeStatus(agent.executorId), "sentinel"); },
-    /** 返回该Sentinel实际记录的MASTER地址。 */
+    /** 优先展示最近采集到的Sentinel监控MASTER。 */
     sentinelMaster(agent) {
       const metric = runtimeStatus(agent.executorId);
       if (metric?.sentinelMasterHost) {
         return `${metric.sentinelMasterHost}:${metric.sentinelMasterPort || 6379}`;
       }
-      return "尚未上报";
+      return agent.redisInfo.masterHost
+        ? `${agent.redisInfo.masterHost}:${agent.redisInfo.masterPort || 6379}`
+        : "未知";
     }
   }
 };

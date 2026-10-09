@@ -9,7 +9,7 @@
 3. 三台新服务器均未激活 Redis 版本，`/opt/redis/current` 不存在，Redis 和 Sentinel 均停止。
 4. 平台已有通过校验的 Redis 版本包。
 5. 平台已为三台新执行器保存各自的 Redis 和 Sentinel 基准配置；配置中的主从地址和 Sentinel 监控地址必须属于新拓扑。
-6. 请求同时声明三台旧拓扑执行器。平台会在切流点停止其 Sentinel；旧 Redis 暂时保留，便于后续人工确认或回退。
+6. `redis_info` 中已有且仅有三台 `MANAGED` 正式节点。平台从数据库读取旧拓扑，不接受前端指定旧执行器。
 
 ## 创建任务接口
 
@@ -21,24 +21,21 @@ Content-Type: application/json
 ```json
 {
   "versionPackageId": 1,
-  "masterExecutorId": "AGENT-NEW-01",
+  "masterHostIp": "10.0.0.11",
   "redisPort": 6379,
   "createdBy": "admin",
   "operationReason": "三台Redis服务器硬件更换",
   "nodes": [
-    {"executorId": "AGENT-NEW-01"},
-    {"executorId": "AGENT-NEW-02"},
-    {"executorId": "AGENT-NEW-03"}
-  ],
-  "sourceNodes": [
-    {"executorId": "AGENT-OLD-01"},
-    {"executorId": "AGENT-OLD-02"},
-    {"executorId": "AGENT-OLD-03"}
+    {"hostIp": "10.0.0.11"},
+    {"hostIp": "10.0.0.12"},
+    {"hostIp": "10.0.0.13"}
   ]
 }
 ```
 
-`nodes` 是三台新服务器，`sourceNodes` 是当前旧拓扑。新旧执行器不能重复。平台读取数据库中已经校验的版本包和新节点加密配置快照，调用方不能自行传入摘要。
+`nodes` 是用户手工输入的三台新服务器IP，`masterHostIp` 必须是其中一台。平台按照IP查询 `executor_info`，确认执行器已注册且在线；旧拓扑只从 `redis_info` 查询。平台随后读取已校验版本包和新节点加密配置快照，调用方不能自行传入执行器编号、旧拓扑或配置摘要。
+
+切换执行期间，目标IP只保存在运维任务审计参数中。27条节点步骤全部成功后，平台才在同一数据库事务中把旧三台改为 `REMOVED`，并把新三台写为 `MANAGED`；任务失败或回滚时不会写入新的正式拓扑。
 
 ## 执行步骤
 

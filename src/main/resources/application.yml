@@ -5,6 +5,11 @@ server:
 spring:
   application:
     name: redis-platform
+  sql:
+    init:
+      # 003脚本只有幂等的CREATE TABLE IF NOT EXISTS，用于已有开发库自动补建redis_info。
+      mode: always
+      schema-locations: classpath:db/mysql/003_redis_info.sql
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: ${PLATFORM_DB_URL:jdbc:mysql://localhost:3306/redis_operation_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}

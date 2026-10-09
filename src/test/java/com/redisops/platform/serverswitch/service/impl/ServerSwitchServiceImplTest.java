@@ -7,6 +7,8 @@ import com.redisops.platform.agent.service.AgentRegistrationService;
 import com.redisops.platform.operation.model.CreateOperationTaskRequest;
 import com.redisops.platform.operation.model.CreateOperationTaskStepRequest;
 import com.redisops.platform.operation.service.OperationTaskService;
+import com.redisops.platform.redisinfo.entity.RedisInfo;
+import com.redisops.platform.redisinfo.service.RedisInfoService;
 import com.redisops.platform.serverswitch.model.ServerSwitchNodeRequest;
 import com.redisops.platform.serverswitch.model.ServerSwitchTaskRequest;
 import com.redisops.platform.versionupgrade.entity.RedisVersionPackage;
@@ -37,6 +39,7 @@ class ServerSwitchServiceImplTest {
     @Mock private AgentRegistrationService agentRegistrationService;
     @Mock private VersionPackageService versionPackageService;
     @Mock private ExecutorConfigSnapshotService configSnapshotService;
+    @Mock private RedisInfoService redisInfoService;
 
     private ServerSwitchServiceImpl service;
 
@@ -47,7 +50,8 @@ class ServerSwitchServiceImplTest {
                 operationTaskService,
                 agentRegistrationService,
                 versionPackageService,
-                configSnapshotService);
+                configSnapshotService,
+                redisInfoService);
     }
 
     /** 应生成十阶段二十七条操作，并在启动新 Sentinel 前停止旧 Sentinel。 */
@@ -66,6 +70,10 @@ class ServerSwitchServiceImplTest {
         prepareSourceNode("AGENT-O1", "10.0.0.21");
         prepareSourceNode("AGENT-O2", "10.0.0.22");
         prepareSourceNode("AGENT-O3", "10.0.0.23");
+        when(redisInfoService.requireManagedTopology()).thenReturn(Arrays.asList(
+                redisInfo("AGENT-O1", "10.0.0.21", "MASTER"),
+                redisInfo("AGENT-O2", "10.0.0.22", "REPLICA"),
+                redisInfo("AGENT-O3", "10.0.0.23", "REPLICA")));
         when(operationTaskService.createAndDispatch(any())).thenReturn(null);
 
         service.createAndDispatch(request());
@@ -122,7 +130,7 @@ class ServerSwitchServiceImplTest {
         ExecutorInfo executor = new ExecutorInfo();
         executor.setExecutorId(executorId);
         executor.setHostIp(hostIp);
-        when(agentRegistrationService.requireOnlineExecutor(executorId))
+        when(agentRegistrationService.requireOnlineExecutorByHostIp(hostIp))
                 .thenReturn(executor);
 
         ExecutorConfigSnapshot snapshot = new ExecutorConfigSnapshot();
@@ -142,26 +150,34 @@ class ServerSwitchServiceImplTest {
                 .thenReturn(executor);
     }
 
-    /** 构造三台新服务器和三台旧服务器的切换请求。 */
+    /** 构造用户手工输入三台新服务器IP的切换请求。 */
     private ServerSwitchTaskRequest request() {
         ServerSwitchTaskRequest request = new ServerSwitchTaskRequest();
         request.setVersionPackageId(8L);
-        request.setMasterExecutorId("AGENT-N1");
+        request.setMasterHostIp("10.0.0.11");
         request.setRedisPort(6379);
         request.setCreatedBy("admin");
         request.setOperationReason("replace three servers");
         request.setNodes(Arrays.asList(
-                node("AGENT-N1"), node("AGENT-N2"), node("AGENT-N3")));
-        request.setSourceNodes(Arrays.asList(
-                node("AGENT-O1"), node("AGENT-O2"), node("AGENT-O3")));
+                node("10.0.0.11"), node("10.0.0.12"), node("10.0.0.13")));
         return request;
     }
 
-    /** 创建请求中的一台新服务器。 */
-    private ServerSwitchNodeRequest node(String executorId) {
+    /** 创建请求中的一台用户输入服务器。 */
+    private ServerSwitchNodeRequest node(String hostIp) {
         ServerSwitchNodeRequest node = new ServerSwitchNodeRequest();
-        node.setExecutorId(executorId);
+        node.setHostIp(hostIp);
         return node;
+    }
+
+    /** 创建redis_info中的一台旧正式节点。 */
+    private RedisInfo redisInfo(String executorId, String hostIp, String role) {
+        RedisInfo info = new RedisInfo();
+        info.setExecutorId(executorId);
+        info.setHostIp(hostIp);
+        info.setRedisRole(role);
+        info.setManagementStatus("MANAGED");
+        return info;
     }
 
     /** 提取计划中按出现顺序排列的不重复阶段编号。 */

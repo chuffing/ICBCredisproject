@@ -1,12 +1,12 @@
 <template>
   <div class="page-stack">
     <section class="panel">
-      <div class="section-heading"><div><h2>当前 Redis 环境</h2><p>切换任务成功前，当前正式纳管关系不会改变。</p></div></div>
+      <div class="section-heading"><div><h2>当前 Redis 环境</h2><p>来自redis_info的当前正式纳管关系。</p></div></div>
       <EnvironmentPanel />
     </section>
 
     <section class="panel">
-      <div class="section-heading"><div><h2>目标 Redis 环境</h2><p>选择三台已经注册执行器并保存过配置快照的新服务器。</p></div></div>
+      <div class="section-heading"><div><h2>目标 Redis 环境</h2><p>输入三台已经注册并启动执行器的新服务器IP。</p></div></div>
       <form @submit.prevent="submit">
         <label class="field target-version-field">
           <span>目标 Redis 版本 <em>*</em></span>
@@ -21,12 +21,12 @@
               <span class="node-title">目标服务器 {{ index + 1 }}</span>
               <span class="badge" :class="role === 'MASTER' ? 'badge-master' : 'badge-replica'">{{ role }}</span>
             </div>
-            <select v-model="targetIds[index]" class="node-select" required>
-              <option value="" disabled>请选择目标服务器</option>
-              <option v-for="agent in candidates" :key="agent.executorId" :value="agent.executorId">
-                {{ agent.hostIp }} · {{ agent.executorName }} · {{ agent.executorStatus === "ONLINE" ? "在线" : "离线" }}
-              </option>
-            </select>
+            <label class="field target-ip-field">
+              <span>服务器IP <em>*</em></span>
+              <input v-model.trim="targetIps[index]" type="text"
+                     :placeholder="role === 'MASTER' ? '请输入MASTER服务器IP' : '请输入REPLICA服务器IP'"
+                     required />
+            </label>
             <div class="node-meta target-node-meta">
               <div class="meta-row"><span>Redis 端口</span><strong>6379</strong></div>
               <div class="meta-row"><span>Redis 配置</span><strong>使用服务器备份</strong></div>
@@ -36,7 +36,7 @@
         </div>
         <div class="form-divider"></div>
         <label class="field"><span>操作原因 <em>*</em></span><textarea v-model.trim="operationReason" placeholder="请输入本次服务器切换原因" required></textarea></label>
-        <div class="form-actions"><button class="button button-primary" type="submit" :disabled="submitting || current.length !== 3 || candidates.length < 3">{{ submitting ? "正在创建…" : "确认切换" }}</button></div>
+        <div class="form-actions"><button class="button button-primary" type="submit" :disabled="submitting || current.length !== 3">{{ submitting ? "正在创建…" : "确认切换" }}</button></div>
       </form>
     </section>
 
@@ -48,7 +48,7 @@
 import EnvironmentPanel from "../components/EnvironmentPanel.vue";
 import TaskProgress from "../components/TaskProgress.vue";
 import * as api from "../services/api";
-import { state, currentNodes, targetCandidates, acceptCreatedTask, notify } from "../store/appStore";
+import { state, currentNodes, acceptCreatedTask, notify } from "../store/appStore";
 
 export default {
   name: "ServerSwitchView",
@@ -57,64 +57,41 @@ export default {
     return {
       store: state,
       roles: ["MASTER", "REPLICA", "REPLICA"],
-      targetIds: ["", "", ""],
+      targetIps: ["", "", ""],
       versionPackageId: null,
       operationReason: "",
       submitting: false
     };
   },
   computed: {
-    /** 当前旧拓扑节点。 */
+    /** 当前旧拓扑由redis_info提供。 */
     current() {
       return currentNodes();
-    },
-    /** 当前拓扑之外的可选目标服务器。 */
-    candidates() {
-      return targetCandidates();
     },
     /** 只允许选择平台校验通过的版本包。 */
     availablePackages() {
       return this.store.packages.filter(item => item.verifyStatus === "PASSED");
     }
   },
-  watch: {
-    /** 执行器列表加载完成后默认填入前三台候选服务器。 */
-    candidates: {
-      immediate: true,
-      handler(value) {
-        if (this.targetIds.every(id => !id) && value.length >= 3) {
-          this.targetIds = value.slice(0, 3).map(agent => agent.executorId);
-        }
-      }
-    }
-  },
   methods: {
-    /** 校验目标节点并创建服务器切换任务。 */
+    /** 校验用户输入的三台IP并创建服务器切换任务。 */
     async submit() {
       this.submitting = true;
       try {
-        if (new Set(this.targetIds).size !== 3) throw new Error("三台目标服务器不能重复");
-        const targets = this.targetIds.map(id => this.store.agents.find(agent => agent.executorId === id));
-        if (targets.some(agent => !agent)) throw new Error("请选择三台有效的目标服务器");
-        if (targets.some(agent => agent.executorStatus !== "ONLINE")) throw new Error("目标服务器存在离线执行器，不能创建切换任务");
+        const targetIps = this.targetIps.map(value => value.trim());
+        if (targetIps.some(value => !value)) throw new Error("三台目标服务器IP都不能为空");
+        if (new Set(targetIps).size !== 3) throw new Error("三台目标服务器IP不能重复");
 
-        const targetPackage = this.store.packages.find(item => item.id === this.versionPackageId);
         const payload = {
           versionPackageId: this.versionPackageId,
-          masterExecutorId: this.targetIds[0],
+          masterHostIp: targetIps[0],
           redisPort: 6379,
-          nodes: this.targetIds.map(executorId => ({ executorId })),
-          sourceNodes: this.current.map(agent => ({ executorId: agent.executorId })),
+          nodes: targetIps.map(hostIp => ({ hostIp })),
           createdBy: "admin",
           operationReason: this.operationReason
         };
         const detail = await api.createServerSwitch(payload);
-        acceptCreatedTask(detail, {
-          type: "switch",
-          nodeIds: [...this.targetIds],
-          masterId: this.targetIds[0],
-          version: targetPackage?.version || null
-        });
+        acceptCreatedTask(detail);
       } catch (error) {
         notify(error.message, "error");
       } finally {

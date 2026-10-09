@@ -1,7 +1,7 @@
 <template>
   <div class="page-stack">
     <section class="panel">
-      <div class="section-heading"><div><h2>Redis 环境状态</h2><p>展示当前纳管节点、执行器心跳以及最近一次上报的 Redis 与 Sentinel 状态。</p></div></div>
+      <div class="section-heading"><div><h2>Redis 环境状态</h2><p>展示redis_info中的正式节点、执行器心跳以及最近一次定时采集状态。</p></div></div>
       <EnvironmentPanel include-sentinel />
     </section>
     <section class="panel">
@@ -44,7 +44,7 @@ export default {
       try {
         const payload = buildTopologyPayload(this.operationReason);
         const detail = await api.createFaultRecovery(payload);
-        acceptCreatedTask(detail, { type: "recovery" });
+        acceptCreatedTask(detail);
       } catch (error) {
         notify(error.message, "error");
       } finally {
