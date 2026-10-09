@@ -1,0 +1,42 @@
+server:
+  address: 0.0.0.0
+  port: ${PLATFORM_SERVER_PORT:8100}
+
+spring:
+  application:
+    name: redis-platform
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${PLATFORM_DB_URL:jdbc:mysql://localhost:3306/redis_operation_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${PLATFORM_DB_USERNAME:root}
+    password: ${PLATFORM_DB_PASSWORD:123456}
+  servlet:
+    multipart:
+      # Spring 接收层的限制应与业务层保持一致。
+      max-file-size: ${PLATFORM_VERSION_PACKAGE_MAX_FILE_SIZE:500MB}
+      max-request-size: ${PLATFORM_VERSION_PACKAGE_MAX_REQUEST_SIZE:510MB}
+
+mybatis-plus:
+  configuration:
+    # Java 属性 executorId 自动映射到数据库字段 executor_id。
+    map-underscore-to-camel-case: true
+
+platform:
+  agent:
+    # 本地开发默认注册码。生产环境必须通过环境变量替换。
+    register-code: ${PLATFORM_AGENT_REGISTER_CODE:redis123}
+    # Token 加密密钥。生产环境必须使用足够长的随机值替换。
+    token-secret: ${PLATFORM_AGENT_TOKEN_SECRET:local-dev-token-key-change-me}
+    # Redis和Sentinel配置正文的加密密钥，生产环境必须通过环境变量替换。
+    config-secret: ${PLATFORM_CONFIG_SECRET:local-dev-config-key-change-me}
+    # 执行器 30 秒发送一次心跳；超过 60 秒没有心跳时平台判定离线。
+    offline-timeout-seconds: ${PLATFORM_AGENT_OFFLINE_TIMEOUT_SECONDS:60}
+  version-package:
+    # 平台保存用户上传版本包的目录；生产环境建议指向独立数据盘。
+    storage-dir: ${PLATFORM_VERSION_PACKAGE_DIR:./data/version-packages}
+    # 默认最多接收 500 MiB，流式保存时还会再次检查实际字节数。
+    max-bytes: ${PLATFORM_VERSION_PACKAGE_MAX_BYTES:524288000}
+
+logging:
+  level:
+    com.redisops.platform: INFO
