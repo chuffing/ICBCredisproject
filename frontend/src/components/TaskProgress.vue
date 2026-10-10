@@ -51,6 +51,7 @@ const TASK_STATUS = {
 const STEP_STATUS = {
   CREATED: { label: "等待", tone: "neutral" },
   DISPATCHED: { label: "执行中", tone: "warning" },
+  RESULT_UNKNOWN: { label: "结果待确认", tone: "warning" },
   SUCCESS: { label: "成功", tone: "success" },
   FAILED: { label: "失败", tone: "danger" },
   CANCELLED: { label: "已取消", tone: "neutral" }

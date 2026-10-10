@@ -3,6 +3,7 @@ package com.redisops.platform.operation.client;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.redisops.platform.operation.model.AgentTaskRequest;
+import com.redisops.platform.operation.model.TaskResultReportRequest;
 import com.redisops.platform.agent.configsnapshot.model.ConfigSnapshotFiles;
 import com.redisops.platform.agent.configsnapshot.service.ExecutorConfigSnapshotService;
 import com.redisops.platform.agent.entity.ExecutorInfo;
@@ -12,13 +13,17 @@ import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.util.UriComponentsBuilder;
 
+import java.net.URI;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Map;
@@ -82,6 +87,37 @@ public class AgentTaskClient {
             throw e;
         } catch (Exception e) {
             throw new IllegalStateException("调用执行器任务接口失败", e);
+        }
+    }
+
+    /**
+     * 主动查询执行器本地保存的最终结果。
+     *
+     * <p>该接口用于修复“实际操作已经完成，但结果回调在网络中丢失”的情况。
+     * 执行器返回404表示该步骤尚未产生最终结果。</p>
+     *
+     * @param executor 目标执行器
+     * @param taskNo 业务任务编号
+     * @param stepNo 步骤序号
+     * @return 已保存的最终结果；未找到时返回null
+     */
+    public TaskResultReportRequest queryTaskResult(ExecutorInfo executor,
+                                                   String taskNo,
+                                                   Integer stepNo) {
+        URI uri = UriComponentsBuilder.fromHttpUrl(
+                        agentBaseUrl(executor) + "/api/agent/task-result")
+                .queryParam("taskNo", taskNo)
+                .queryParam("stepNo", stepNo)
+                .build(true)
+                .toUri();
+        try {
+            ResponseEntity<TaskResultReportRequest> response = restTemplate.exchange(
+                    uri, HttpMethod.GET,
+                    new HttpEntity<Void>(authorizedHeaders(executor)),
+                    TaskResultReportRequest.class);
+            return response.getBody();
+        } catch (HttpClientErrorException.NotFound e) {
+            return null;
         }
     }
 

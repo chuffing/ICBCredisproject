@@ -41,6 +41,12 @@ platform:
     storage-dir: ${PLATFORM_VERSION_PACKAGE_DIR:./data/version-packages}
     # 默认最多接收 500 MiB，流式保存时还会再次检查实际字节数。
     max-bytes: ${PLATFORM_VERSION_PACKAGE_MAX_BYTES:524288000}
+  operation:
+    # 步骤下发10秒后仍无回调时，平台开始主动查询执行器本地结果。
+    result-query-after-seconds: ${PLATFORM_OPERATION_RESULT_QUERY_AFTER_SECONDS:10}
+    # 超过120秒仍无法确认时显示RESULT_UNKNOWN并暂停后续步骤，但继续核对。
+    result-unknown-after-seconds: ${PLATFORM_OPERATION_RESULT_UNKNOWN_AFTER_SECONDS:120}
+    result-reconcile-interval-millis: ${PLATFORM_OPERATION_RESULT_RECONCILE_INTERVAL_MILLIS:10000}
 
 logging:
   level:

@@ -6,15 +6,18 @@ import com.redisops.platform.agent.configsnapshot.service.ExecutorConfigSnapshot
 import com.redisops.platform.agent.entity.ExecutorInfo;
 import com.redisops.platform.agent.service.AgentRegistrationService;
 import com.redisops.platform.versionupgrade.service.VersionPackageService;
+import com.redisops.platform.operation.model.TaskResultReportRequest;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
 import java.nio.charset.StandardCharsets;
+import java.net.URI;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -81,6 +84,47 @@ class AgentTaskClientTest {
         assertEquals(1, body.get("task").size());
         assertEquals(1, body.get("redisFile").size());
         assertEquals(1, body.get("sentinelFile").size());
+    }
+
+    /** 平台应能读取执行器本地保存的最终结果，用于恢复丢失的回调。 */
+    @Test
+    void shouldQueryPersistedTaskResult() {
+        RestTemplate restTemplate = mock(RestTemplate.class);
+        AgentRegistrationService registrationService =
+                mock(AgentRegistrationService.class);
+        AgentTaskClient client = new AgentTaskClient(
+                restTemplate,
+                new ObjectMapper(),
+                registrationService,
+                mock(VersionPackageService.class),
+                mock(ExecutorConfigSnapshotService.class));
+
+        ExecutorInfo executor = new ExecutorInfo();
+        executor.setExecutorId("redis-node-01");
+        executor.setHostIp("10.0.0.11");
+        executor.setExecutorPort(9101);
+        when(registrationService.readDispatchToken(executor)).thenReturn("token-value");
+
+        TaskResultReportRequest expected = new TaskResultReportRequest();
+        expected.setTaskNo("TASK202610100001");
+        expected.setStepNo(1);
+        expected.setAgentId("redis-node-01");
+        expected.setOperationType("STOP_SENTINEL");
+        expected.setStatus("SUCCESS");
+        expected.setResult("{\"success\":true}");
+        when(restTemplate.exchange(
+                any(URI.class),
+                eq(HttpMethod.GET),
+                any(HttpEntity.class),
+                eq(TaskResultReportRequest.class)))
+                .thenReturn(ResponseEntity.ok(expected));
+
+        TaskResultReportRequest actual = client.queryTaskResult(
+                executor, "TASK202610100001", 1);
+
+        assertNotNull(actual);
+        assertEquals("SUCCESS", actual.getStatus());
+        assertEquals("redis-node-01", actual.getAgentId());
     }
 
     /** 生成测试使用的固定长度摘要。 */

@@ -26,6 +26,8 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -41,6 +43,8 @@ import java.util.Date;
  */
 @Service
 public class OperationTaskServiceImpl implements OperationTaskService {
+
+    private static final Logger log = LoggerFactory.getLogger(OperationTaskServiceImpl.class);
 
     private static final int ROLLBACK_STEP_START = 1001;
 
@@ -109,6 +113,18 @@ public class OperationTaskServiceImpl implements OperationTaskService {
         validateResultRequest(request);
         agentRegistrationService.authenticateExecutor(request.getAgentId(), authorization);
 
+        applyResult(request);
+    }
+
+    /**
+     * 保存一条已经通过认证或由平台主动查询得到的结果。
+     *
+     * <p>DISPATCHED 与 RESULT_UNKNOWN 都允许被真实结果覆盖；SUCCESS/FAILED
+     * 重复到达时直接按幂等成功处理。</p>
+     */
+    private void applyResult(TaskResultReportRequest request) {
+        validateResultRequest(request);
+
         OperationTaskStep step = findReportedStep(request);
         if (step == null) {
             throw new IllegalArgumentException("没有找到与回调匹配的任务步骤");
@@ -121,7 +137,8 @@ public class OperationTaskServiceImpl implements OperationTaskService {
         if ("SUCCESS".equals(step.getStepStatus()) || "FAILED".equals(step.getStepStatus())) {
             return;
         }
-        if (!"DISPATCHED".equals(step.getStepStatus())) {
+        if (!"DISPATCHED".equals(step.getStepStatus())
+                && !"RESULT_UNKNOWN".equals(step.getStepStatus())) {
             throw new IllegalStateException("当前步骤状态不允许接收结果: " + step.getStepStatus());
         }
 
@@ -130,7 +147,7 @@ public class OperationTaskServiceImpl implements OperationTaskService {
         LocalDateTime now = LocalDateTime.now();
         LambdaUpdateWrapper<OperationTaskStep> update = new LambdaUpdateWrapper<>();
         update.eq(OperationTaskStep::getId, step.getId())
-                .eq(OperationTaskStep::getStepStatus, "DISPATCHED")
+                .in(OperationTaskStep::getStepStatus, "DISPATCHED", "RESULT_UNKNOWN")
                 .set(OperationTaskStep::getStepStatus, success ? "SUCCESS" : "FAILED")
                 .set(OperationTaskStep::getResultJson, summary.resultJson)
                 .set(OperationTaskStep::getErrorCode, summary.errorCode)
@@ -152,6 +169,48 @@ public class OperationTaskServiceImpl implements OperationTaskService {
             return;
         }
         scheduleAdvance(request.getTaskNo());
+    }
+
+    /**
+     * 定时向执行器核对长时间未回调的步骤。
+     *
+     * <p>查询成功时复用正常回调处理流程；仍查不到并超过阈值时只标记
+     * RESULT_UNKNOWN，不自动重做高风险操作，也不推进下一步骤组。</p>
+     */
+    @Override
+    public void reconcileUnconfirmedResults(LocalDateTime queryBefore,
+                                            LocalDateTime unknownBefore) {
+        List<OperationTaskStep> steps = stepMapper.selectList(
+                new LambdaQueryWrapper<OperationTaskStep>()
+                        .in(OperationTaskStep::getStepStatus,
+                                "DISPATCHED", "RESULT_UNKNOWN")
+                        .le(OperationTaskStep::getLastDispatchTime, queryBefore)
+                        .orderByAsc(OperationTaskStep::getLastDispatchTime));
+
+        for (OperationTaskStep step : steps) {
+            try {
+                ExecutorInfo executor = agentRegistrationService
+                        .requireOnlineExecutor(step.getExecutorId());
+                TaskResultReportRequest result = agentTaskClient.queryTaskResult(
+                        executor, step.getTaskNo(), step.getStepNo());
+                if (result != null) {
+                    if (!step.getExecutorId().equals(result.getAgentId())) {
+                        throw new IllegalStateException("执行器返回的 agentId 与步骤不一致");
+                    }
+                    applyResult(result);
+                    continue;
+                }
+            } catch (Exception e) {
+                log.warn("暂时无法核对执行器任务结果: taskNo={}, stepNo={}, executorId={}",
+                        step.getTaskNo(), step.getStepNo(), step.getExecutorId(), e);
+            }
+
+            if ("DISPATCHED".equals(step.getStepStatus())
+                    && step.getLastDispatchTime() != null
+                    && !step.getLastDispatchTime().isAfter(unknownBefore)) {
+                markResultUnknown(step);
+            }
+        }
     }
 
     /**
@@ -238,16 +297,11 @@ public class OperationTaskServiceImpl implements OperationTaskService {
             if (!claimStep(step)) {
                 continue;
             }
-
             try {
                 ExecutorInfo executor = agentRegistrationService
                         .requireOnlineExecutor(step.getExecutorId());
-                agentTaskClient.dispatch(
-                        executor,
-                        taskNo,
-                        step.getStepNo(),
-                        step.getOperationType(),
-                        step.getRequestParams());
+                agentTaskClient.dispatch(executor, taskNo, step.getStepNo(),
+                        step.getOperationType(), step.getRequestParams());
             } catch (Exception e) {
                 String reason = shorten("步骤下发失败: " + rootMessage(e), 1000);
                 markStepDispatchFailed(step.getId(), reason);
@@ -292,7 +346,7 @@ public class OperationTaskServiceImpl implements OperationTaskService {
                 beginFailureHandling(taskNo, step.getFailureReason());
                 return;
             }
-            if ("DISPATCHED".equals(step.getStepStatus())) {
+            if (isWaitingForResult(step)) {
                 return;
             }
         }
@@ -427,7 +481,7 @@ public class OperationTaskServiceImpl implements OperationTaskService {
                         "自动回滚失败: " + safeReason(step.getFailureReason()));
                 return;
             }
-            if ("DISPATCHED".equals(step.getStepStatus())) {
+            if (isWaitingForResult(step)) {
                 return;
             }
         }
@@ -539,6 +593,24 @@ public class OperationTaskServiceImpl implements OperationTaskService {
             }
         }
         return false;
+    }
+
+    /** 判断步骤是否仍在等待执行器给出可确认的最终结果。 */
+    private boolean isWaitingForResult(OperationTaskStep step) {
+        return "DISPATCHED".equals(step.getStepStatus())
+                || "RESULT_UNKNOWN".equals(step.getStepStatus());
+    }
+
+    /** 把长期无法确认的步骤从已下发改为结果待确认。 */
+    private void markResultUnknown(OperationTaskStep step) {
+        LambdaUpdateWrapper<OperationTaskStep> update = new LambdaUpdateWrapper<>();
+        update.eq(OperationTaskStep::getId, step.getId())
+                .eq(OperationTaskStep::getStepStatus, "DISPATCHED")
+                .set(OperationTaskStep::getStepStatus, "RESULT_UNKNOWN")
+                .set(OperationTaskStep::getErrorCode, "RESULT_REPORT_TIMEOUT")
+                .set(OperationTaskStep::getFailureReason,
+                        "执行器尚未返回可确认结果，平台已暂停后续步骤并持续核对");
+        stepMapper.update(null, update);
     }
 
     /** 把空失败原因转换为稳定的默认说明。 */
