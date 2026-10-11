@@ -13,37 +13,26 @@ import com.redisops.platform.agent.service.AgentRegistrationService;
 import com.redisops.platform.agent.configsnapshot.service.ExecutorConfigSnapshotService;
 import com.redisops.platform.recovery.service.FaultRecoveryService;
 import com.redisops.platform.operation.service.OperationTaskService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * 把一次完整拓扑故障恢复拆成执行器能够执行的本机原子操作。
  */
 @Service
+@RequiredArgsConstructor
 public class FaultRecoveryServiceImpl implements FaultRecoveryService {
 
-    private static final int REQUIRED_NODE_COUNT = 3;
     private static final int DEFAULT_REDIS_PORT = 6379;
     private final OperationTaskService operationTaskService;
     private final AgentRegistrationService agentRegistrationService;
     private final ExecutorConfigSnapshotService configSnapshotService;
-
-    /** 注入通用任务调度、执行器注册和平台配置快照服务。 */
-    public FaultRecoveryServiceImpl(OperationTaskService operationTaskService,
-                                    AgentRegistrationService agentRegistrationService,
-                                    ExecutorConfigSnapshotService configSnapshotService) {
-        this.operationTaskService = operationTaskService;
-        this.agentRegistrationService = agentRegistrationService;
-        this.configSnapshotService = configSnapshotService;
-    }
 
     /**
      * 校验三节点恢复参数，并生成停止、恢复配置和重新启动拓扑的六个步骤组。
@@ -53,67 +42,53 @@ public class FaultRecoveryServiceImpl implements FaultRecoveryService {
      */
     @Override
     public OperationTaskDetail createAndDispatch(FaultRecoveryTaskRequest request) {
-        validateBasicRequest(request);
 
+        // 1. 确定Redis端口。
         int redisPort = request.getRedisPort() == null
-                ? DEFAULT_REDIS_PORT : request.getRedisPort();
-        List<ValidatedNode> nodes = validateNodesAndReadExecutors(request.getNodes());
+                ? DEFAULT_REDIS_PORT
+                : request.getRedisPort();
+        // 2. 查询三台执行器，并获取配置快照。
+        List<ValidatedNode> nodes = loadValidatedNodes(request.getNodes());
+
+        // 3. 确定故障恢复的主节点。
         ValidatedNode master = findMaster(nodes, request.getMasterExecutorId().trim());
 
+        // 4. 创建请求对象。
         CreateOperationTaskRequest taskRequest = new CreateOperationTaskRequest();
+        // 设置任务类型
         taskRequest.setTaskType(BusinessTaskType.FAULT_RECOVERY.name());
+        // 设置创建人
         taskRequest.setCreatedBy(request.getCreatedBy().trim());
+        // 设置操作原因
         taskRequest.setOperationReason(request.getOperationReason().trim());
+        // 生成审计参数
         taskRequest.setRequestParams(buildAuditParams(nodes, master, redisPort));
+        // 生成故障恢复步骤
         taskRequest.setSteps(buildRecoverySteps(nodes, master, redisPort));
 
-        // 复用通用调度器完成数据库落库、步骤屏障、下发和结果汇总。
+        // 5. 将组装好的故障恢复任务交给公共运维任务模块，由它负责保存数据库、调度步骤和下发任务。
         return operationTaskService.createAndDispatch(taskRequest);
     }
 
-    /** 校验任务级必填字段、节点数量和 Redis 端口。 */
-    private void validateBasicRequest(FaultRecoveryTaskRequest request) {
-        if (request == null) {
-            throw new IllegalArgumentException("故障恢复请求不能为空");
-        }
-        if (!StringUtils.hasText(request.getCreatedBy())) {
-            throw new IllegalArgumentException("createdBy 不能为空");
-        }
-        if (!StringUtils.hasText(request.getOperationReason())) {
-            throw new IllegalArgumentException("operationReason 不能为空");
-        }
-        if (!StringUtils.hasText(request.getMasterExecutorId())) {
-            throw new IllegalArgumentException("masterExecutorId 不能为空");
-        }
-        if (request.getNodes() == null || request.getNodes().size() != REQUIRED_NODE_COUNT) {
-            throw new IllegalArgumentException("故障恢复必须且只能包含 3 台服务器");
-        }
-        if (request.getRedisPort() != null
-                && (request.getRedisPort() < 1 || request.getRedisPort() > 65535)) {
-            throw new IllegalArgumentException("redisPort 必须在 1 到 65535 之间");
-        }
-    }
 
-    /** 校验执行器编号唯一性、在线状态，并从平台读取可信配置摘要。 */
-    private List<ValidatedNode> validateNodesAndReadExecutors(
+    /** 。 */
+    private List<ValidatedNode> loadValidatedNodes(
             List<FaultRecoveryNodeRequest> requestedNodes) {
-        Set<String> executorIds = new HashSet<>();
+
+        // 创建一个空列表用来保存经过处理之后的节点对象。
         List<ValidatedNode> validatedNodes = new ArrayList<>();
 
         for (FaultRecoveryNodeRequest requestedNode : requestedNodes) {
-            if (requestedNode == null || !StringUtils.hasText(requestedNode.getExecutorId())) {
-                throw new IllegalArgumentException("每个节点的 executorId 都不能为空");
-            }
+            // 获取执行器编号并去除首尾空格。
             String executorId = requestedNode.getExecutorId().trim();
-            if (!executorIds.add(executorId)) {
-                throw new IllegalArgumentException("executorId 不能重复: " + executorId);
-            }
 
-            // 创建任务前先确保三台执行器都在线，避免恢复到一半才发现节点无法连接。
+            // 查询编号为executorId的执行器是否启用、在线状态。
             ExecutorInfo executor = agentRegistrationService.requireOnlineExecutor(executorId);
-            // 摘要只能来自平台数据库，调用方不能自行提供或覆盖。
+
+            // 获取执行器的配置快照。
             ExecutorConfigSnapshot snapshot = configSnapshotService
                     .requireActiveSnapshot(executorId);
+            // 组装validatedNode对象
             validatedNodes.add(new ValidatedNode(
                     executor,
                     snapshot.getRedisConfigSha256(),
@@ -155,22 +130,29 @@ public class FaultRecoveryServiceImpl implements FaultRecoveryService {
         return params;
     }
 
-    /**
-     * 生成完整拓扑恢复计划。
-     * 同一个 stepNo 可以并行下发；下一 stepNo 必须等待上一组全部成功。
-     */
+    /** 根据恢复拓扑生成六组运维步骤，并为每条步骤指定目标执行器。 */
     private List<CreateOperationTaskStepRequest> buildRecoverySteps(
             List<ValidatedNode> nodes, ValidatedNode master, int redisPort) {
+
+        // 创建一个空列表steps，用于保存所有待执行的操作。
         List<CreateOperationTaskStepRequest> steps = new ArrayList<>();
 
-        // 第 1、2 组先关闭整个旧拓扑，避免复制和 Sentinel 自动切换干扰配置恢复。
+        // 第 1 组，关闭三台sentinel。
         for (ValidatedNode node : nodes) {
-            addStep(steps, 1, node.executor.getExecutorId(),
-                    AgentOperationType.STOP_SENTINEL, Collections.emptyMap());
+            addStep(steps, // 保存步骤的列表
+                    1, // 步骤组编号
+                    node.executor.getExecutorId(), // 执行该操作的执行器
+                    AgentOperationType.STOP_SENTINEL, // 需要执行的操作类型
+                    Collections.emptyMap()); // 该操作没有额外参数
         }
+
+        // 第 2 组，关闭三台redis。
         for (ValidatedNode node : nodes) {
-            addStep(steps, 2, node.executor.getExecutorId(),
-                    AgentOperationType.STOP_REDIS, Collections.emptyMap());
+            addStep(steps,
+                    2,
+                    node.executor.getExecutorId(),
+                    AgentOperationType.STOP_REDIS,
+                    Collections.emptyMap());
         }
 
         // 第 3 组由每台执行器校验本机备份摘要，只有与平台记录一致才恢复配置。
@@ -178,12 +160,17 @@ public class FaultRecoveryServiceImpl implements FaultRecoveryService {
             Map<String, String> restoreParams = new LinkedHashMap<>();
             restoreParams.put("redisConfigSha256", node.redisConfigSha256);
             restoreParams.put("sentinelConfigSha256", node.sentinelConfigSha256);
-            addStep(steps, 3, node.executor.getExecutorId(),
-                    AgentOperationType.RESTORE_CONFIG, restoreParams);
+            addStep(steps,
+                    3,
+                    node.executor.getExecutorId(),
+                    AgentOperationType.RESTORE_CONFIG,
+                    restoreParams);
         }
 
         // 第 4 组先启动主节点，避免从节点启动时找不到复制源。
-        addStep(steps, 4, master.executor.getExecutorId(),
+        addStep(steps,
+                4,
+                master.executor.getExecutorId(),
                 AgentOperationType.START_REDIS,
                 singleParam("expectedRole", "MASTER"));
 
@@ -196,8 +183,11 @@ public class FaultRecoveryServiceImpl implements FaultRecoveryService {
             replicaParams.put("expectedRole", "REPLICA");
             replicaParams.put("expectedMasterHost", master.executor.getHostIp());
             replicaParams.put("expectedMasterPort", String.valueOf(redisPort));
-            addStep(steps, 5, node.executor.getExecutorId(),
-                    AgentOperationType.START_REDIS, replicaParams);
+            addStep(steps,
+                    5,
+                    node.executor.getExecutorId(),
+                    AgentOperationType.START_REDIS,
+                    replicaParams);
         }
 
         // 第 6 组启动三台 Sentinel，并确认它们最终都监控恢复后的主节点。
@@ -205,8 +195,11 @@ public class FaultRecoveryServiceImpl implements FaultRecoveryService {
         sentinelParams.put("expectedMasterHost", master.executor.getHostIp());
         sentinelParams.put("expectedMasterPort", String.valueOf(redisPort));
         for (ValidatedNode node : nodes) {
-            addStep(steps, 6, node.executor.getExecutorId(),
-                    AgentOperationType.START_SENTINEL, sentinelParams);
+            addStep(steps,
+                    6,
+                    node.executor.getExecutorId(),
+                    AgentOperationType.START_SENTINEL,
+                    sentinelParams);
         }
         return steps;
     }

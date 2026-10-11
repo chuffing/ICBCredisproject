@@ -9,6 +9,8 @@ import com.redisops.platform.agent.model.RegisterRequest;
 import com.redisops.platform.agent.entity.ExecutorInfo;
 import com.redisops.platform.agent.mapper.ExecutorInfoMapper;
 import com.redisops.platform.agent.service.AgentRegistrationService;
+import com.redisops.platform.agent.type.ExecutorManagementStatus;
+import com.redisops.platform.agent.type.ExecutorOnlineStatus;
 import com.redisops.platform.security.service.TokenCipherService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -73,7 +75,7 @@ public class AgentRegistrationServiceImpl implements AgentRegistrationService {
         executor.setExecutorPort(request.getAgentPort() == null
                 ? DEFAULT_AGENT_PORT : request.getAgentPort());
         executor.setOsName(request.getOs());
-        executor.setExecutorStatus("ONLINE");
+        executor.setExecutorStatus(ExecutorOnlineStatus.ONLINE.name());
         executor.setLastHeartbeatTime(now);
         executor.setTokenCiphertext(tokenCipherService.encrypt(token));
 
@@ -160,14 +162,15 @@ public class AgentRegistrationServiceImpl implements AgentRegistrationService {
         if (!StringUtils.hasText(executorId)) {
             throw new IllegalArgumentException("executorId 不能为空");
         }
+        // 根据执行器编号查询对应执行器。
         ExecutorInfo executor = findByExecutorId(executorId.trim());
         if (executor == null) {
             throw new IllegalArgumentException("执行器不存在: " + executorId);
         }
-        if (!"ACTIVE".equals(executor.getManagementStatus())) {
+        if (!ExecutorManagementStatus.ACTIVE.name().equals(executor.getManagementStatus())) {
             throw new IllegalStateException("执行器已停用: " + executorId);
         }
-        if (!"ONLINE".equals(executor.getExecutorStatus())) {
+        if (!ExecutorOnlineStatus.ONLINE.name().equals(executor.getExecutorStatus())) {
             throw new IllegalStateException("执行器当前离线: " + executorId);
         }
         return executor;
@@ -255,6 +258,8 @@ public class AgentRegistrationServiceImpl implements AgentRegistrationService {
 
     /** 根据平台执行器编号查询记录。 */
     private ExecutorInfo findByExecutorId(String executorId) {
+        // 创建一个用于查询ExecutorInfo数据的条件构造器。
+        // MP只能借助Getter方法来定位属性。
         return executorInfoMapper.selectOne(new LambdaQueryWrapper<ExecutorInfo>()
                 .eq(ExecutorInfo::getExecutorId, executorId));
     }

@@ -36,6 +36,14 @@ platform:
     config-secret: ${PLATFORM_CONFIG_SECRET:local-dev-config-key-change-me}
     # 执行器 30 秒发送一次心跳；超过 60 秒没有心跳时平台判定离线。
     offline-timeout-seconds: ${PLATFORM_AGENT_OFFLINE_TIMEOUT_SECONDS:60}
+  agent-client:
+    # 与执行器或网关实际提供的协议和路由保持一致；接口路径以 / 开头。
+    # 目标 IP 和端口继续使用执行器注册信息。
+    scheme: ${PLATFORM_AGENT_CLIENT_SCHEME:http}
+    task-path: ${PLATFORM_AGENT_CLIENT_TASK_PATH:/api/agent/task}
+    task-result-path: ${PLATFORM_AGENT_CLIENT_TASK_RESULT_PATH:/api/agent/task-result}
+    version-task-path: ${PLATFORM_AGENT_CLIENT_VERSION_TASK_PATH:/api/agent/version-task}
+    config-task-path: ${PLATFORM_AGENT_CLIENT_CONFIG_TASK_PATH:/api/agent/config-task}
   version-package:
     # 平台保存用户上传版本包的目录；生产环境建议指向独立数据盘。
     storage-dir: ${PLATFORM_VERSION_PACKAGE_DIR:./data/version-packages}

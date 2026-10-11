@@ -3,11 +3,13 @@ package com.redisops.platform.operation.client;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.redisops.platform.operation.model.AgentTaskRequest;
+import com.redisops.platform.operation.config.AgentClientProperties;
 import com.redisops.platform.operation.model.TaskResultReportRequest;
 import com.redisops.platform.agent.configsnapshot.model.ConfigSnapshotFiles;
 import com.redisops.platform.agent.configsnapshot.service.ExecutorConfigSnapshotService;
 import com.redisops.platform.agent.entity.ExecutorInfo;
 import com.redisops.platform.agent.service.AgentRegistrationService;
+import com.redisops.platform.operation.type.AgentOperationType;
 import com.redisops.platform.versionupgrade.service.VersionPackageService;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.ByteArrayResource;
@@ -39,22 +41,25 @@ public class AgentTaskClient {
     private final AgentRegistrationService agentRegistrationService;
     private final VersionPackageService versionPackageService;
     private final ExecutorConfigSnapshotService configSnapshotService;
+    private final AgentClientProperties clientProperties;
 
     /** 注入 HTTP、JSON 和执行器认证组件。 */
     public AgentTaskClient(RestTemplate restTemplate,
                            ObjectMapper objectMapper,
                            AgentRegistrationService agentRegistrationService,
                            VersionPackageService versionPackageService,
-                           ExecutorConfigSnapshotService configSnapshotService) {
+                           ExecutorConfigSnapshotService configSnapshotService,
+                           AgentClientProperties clientProperties) {
         this.restTemplate = restTemplate;
         this.objectMapper = objectMapper;
         this.agentRegistrationService = agentRegistrationService;
         this.versionPackageService = versionPackageService;
         this.configSnapshotService = configSnapshotService;
+        this.clientProperties = clientProperties;
     }
 
     /**
-     * 把一个数据库步骤发送给目标执行器。
+     * 根据操作类型组装任务请求，并通过HTTP下发给目标执行器。
      *
      * @param executor 目标执行器
      * @param taskNo 业务任务编号
@@ -64,6 +69,7 @@ public class AgentTaskClient {
      */
     public void dispatch(ExecutorInfo executor, String taskNo, Integer stepNo,
                          String operationType, String paramsJson) {
+
         try {
             AgentTaskRequest request = new AgentTaskRequest();
             request.setTaskNo(taskNo);
@@ -72,11 +78,14 @@ public class AgentTaskClient {
             request.setParams(readParams(paramsJson));
 
             ResponseEntity<String> response;
-            if ("DEPLOY_VERSION".equals(operationType)) {
+            if (AgentOperationType.DEPLOY_VERSION.name().equals(operationType)) {
+                // 平台需要向执行器发送安装包。
                 response = dispatchVersionPackage(executor, request);
-            } else if ("DEPLOY_CONFIG".equals(operationType)) {
+            } else if (AgentOperationType.DEPLOY_CONFIG.name().equals(operationType)) {
+                // 平台需要向执行器发送配置文件。
                 response = dispatchConfigFiles(executor, request);
             } else {
+                // 平台只需要向执行器发送JSON参数。
                 response = dispatchJsonTask(executor, request);
             }
             if (!response.getStatusCode().is2xxSuccessful()) {
@@ -105,7 +114,7 @@ public class AgentTaskClient {
                                                    String taskNo,
                                                    Integer stepNo) {
         URI uri = UriComponentsBuilder.fromHttpUrl(
-                        agentBaseUrl(executor) + "/api/agent/task-result")
+                        agentBaseUrl(executor) + clientProperties.getTaskResultPath())
                 .queryParam("taskNo", taskNo)
                 .queryParam("stepNo", stepNo)
                 .build(true)
@@ -121,14 +130,21 @@ public class AgentTaskClient {
         }
     }
 
-    /** 使用普通 JSON 接口下发不带文件的原子操作。 */
+    /** 通过HTTP POST向执行器发送普通JSON运维任务。 */
     private ResponseEntity<String> dispatchJsonTask(ExecutorInfo executor,
                                                     AgentTaskRequest request) {
+
+        // 读取执行器的认证token，创建HTTP请求头
         HttpHeaders headers = authorizedHeaders(executor);
+        // 指定请求体格式
         headers.setContentType(MediaType.APPLICATION_JSON);
-        String url = agentBaseUrl(executor) + "/api/agent/task";
+        // 构造执行器地址
+        String url = agentBaseUrl(executor) + clientProperties.getTaskPath();
+        // 发送POST请求
         return restTemplate.postForEntity(
-                url, new HttpEntity<>(request, headers), String.class);
+                url,
+                new HttpEntity<>(request, headers), // 用来封装发送给执行器的HTTP请求体和请求头。
+                String.class); // 希望把响应体解析为什么类型
     }
 
     /**
@@ -151,7 +167,7 @@ public class AgentTaskClient {
 
         HttpHeaders requestHeaders = authorizedHeaders(executor);
         requestHeaders.setContentType(MediaType.MULTIPART_FORM_DATA);
-        String url = agentBaseUrl(executor) + "/api/agent/version-task";
+        String url = agentBaseUrl(executor) + clientProperties.getVersionTaskPath();
         return restTemplate.postForEntity(
                 url, new HttpEntity<>(body, requestHeaders), String.class);
     }
@@ -177,7 +193,7 @@ public class AgentTaskClient {
 
         HttpHeaders requestHeaders = authorizedHeaders(executor);
         requestHeaders.setContentType(MediaType.MULTIPART_FORM_DATA);
-        String url = agentBaseUrl(executor) + "/api/agent/config-task";
+        String url = agentBaseUrl(executor) + clientProperties.getConfigTaskPath();
         return restTemplate.postForEntity(
                 url, new HttpEntity<>(body, requestHeaders), String.class);
     }
@@ -211,9 +227,10 @@ public class AgentTaskClient {
         return headers;
     }
 
-    /** 根据执行器注册地址构造 HTTP 根地址。 */
+    /** 根据配置协议和执行器注册地址构造访问根地址。 */
     private String agentBaseUrl(ExecutorInfo executor) {
-        return "http://" + executor.getHostIp() + ":" + executor.getExecutorPort();
+        return clientProperties.getScheme() + "://"
+                + executor.getHostIp() + ":" + executor.getExecutorPort();
     }
 
     /** 把数据库中的参数 JSON 转换为执行器需要的 Map。 */

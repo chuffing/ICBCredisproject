@@ -7,7 +7,10 @@ import com.redisops.platform.agent.entity.ExecutorInfo;
 import com.redisops.platform.agent.service.AgentRegistrationService;
 import com.redisops.platform.versionupgrade.service.VersionPackageService;
 import com.redisops.platform.operation.model.TaskResultReportRequest;
+import com.redisops.platform.operation.config.AgentClientProperties;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -18,6 +21,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.nio.charset.StandardCharsets;
 import java.net.URI;
+import java.nio.file.Paths;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -45,7 +49,8 @@ class AgentTaskClientTest {
                 new ObjectMapper(),
                 registrationService,
                 versionPackageService,
-                snapshotService);
+                snapshotService,
+                new AgentClientProperties());
 
         ExecutorInfo executor = new ExecutorInfo();
         executor.setExecutorId("AGENT-N1");
@@ -97,7 +102,8 @@ class AgentTaskClientTest {
                 new ObjectMapper(),
                 registrationService,
                 mock(VersionPackageService.class),
-                mock(ExecutorConfigSnapshotService.class));
+                mock(ExecutorConfigSnapshotService.class),
+                new AgentClientProperties());
 
         ExecutorInfo executor = new ExecutorInfo();
         executor.setExecutorId("redis-node-01");
@@ -125,6 +131,80 @@ class AgentTaskClientTest {
         assertNotNull(actual);
         assertEquals("SUCCESS", actual.getStatus());
         assertEquals("redis-node-01", actual.getAgentId());
+    }
+
+    /** 三种下发方式都应使用配置协议与路径，同时保留认证头。 */
+    @ParameterizedTest
+    @CsvSource({
+            "STOP_SENTINEL,/internal/task",
+            "DEPLOY_VERSION,/internal/version",
+            "DEPLOY_CONFIG,/internal/config"
+    })
+    @SuppressWarnings("unchecked")
+    void shouldUseConfiguredDispatchEndpoints(String operationType, String expectedPath) {
+        RestTemplate restTemplate = mock(RestTemplate.class);
+        AgentRegistrationService registrationService = mock(AgentRegistrationService.class);
+        VersionPackageService packageService = mock(VersionPackageService.class);
+        ExecutorConfigSnapshotService snapshotService = mock(ExecutorConfigSnapshotService.class);
+        AgentClientProperties properties = new AgentClientProperties();
+        properties.setScheme("https");
+        properties.setTaskPath("/internal/task");
+        properties.setVersionTaskPath("/internal/version");
+        properties.setConfigTaskPath("/internal/config");
+        AgentTaskClient client = new AgentTaskClient(restTemplate, new ObjectMapper(),
+                registrationService, packageService, snapshotService, properties);
+
+        ExecutorInfo executor = new ExecutorInfo();
+        executor.setExecutorId("AGENT-N1");
+        executor.setHostIp("10.0.0.11");
+        executor.setExecutorPort(9443);
+        when(registrationService.readDispatchToken(executor)).thenReturn("token-value");
+        when(packageService.requirePackageFile("6.2.19", "package-hash"))
+                .thenReturn(Paths.get("redis-6.2.19.tar.gz"));
+        when(snapshotService.readActiveConfigFiles("AGENT-N1"))
+                .thenReturn(new ConfigSnapshotFiles(
+                        "redis-config".getBytes(StandardCharsets.UTF_8), repeat("a", 64),
+                        "sentinel-config".getBytes(StandardCharsets.UTF_8), repeat("b", 64)));
+        String expectedUrl = "https://10.0.0.11:9443" + expectedPath;
+        when(restTemplate.postForEntity(eq(expectedUrl), any(HttpEntity.class), eq(String.class)))
+                .thenReturn(new ResponseEntity<>("accepted", HttpStatus.ACCEPTED));
+
+        client.dispatch(executor, "TASK-CONFIG-1", 1, operationType,
+                "{\"version\":\"6.2.19\",\"packageSha256\":\"package-hash\","
+                        + "\"redisConfigSha256\":\"" + repeat("a", 64)
+                        + "\",\"sentinelConfigSha256\":\"" + repeat("b", 64) + "\"}");
+
+        ArgumentCaptor<HttpEntity> requestCaptor = ArgumentCaptor.forClass(HttpEntity.class);
+        verify(restTemplate).postForEntity(eq(expectedUrl), requestCaptor.capture(), eq(String.class));
+        assertEquals("Bearer token-value", requestCaptor.getValue().getHeaders().getFirst("Authorization"));
+    }
+
+    /** 结果查询应使用配置路径，保留任务编号和步骤序号。 */
+    @Test
+    void shouldUseConfiguredResultEndpoint() {
+        RestTemplate restTemplate = mock(RestTemplate.class);
+        AgentRegistrationService registrationService = mock(AgentRegistrationService.class);
+        AgentClientProperties properties = new AgentClientProperties();
+        properties.setScheme("https");
+        properties.setTaskResultPath("/internal/result");
+        AgentTaskClient client = new AgentTaskClient(restTemplate, new ObjectMapper(),
+                registrationService, mock(VersionPackageService.class),
+                mock(ExecutorConfigSnapshotService.class), properties);
+        ExecutorInfo executor = new ExecutorInfo();
+        executor.setHostIp("10.0.0.11");
+        executor.setExecutorPort(9443);
+        when(registrationService.readDispatchToken(executor)).thenReturn("token-value");
+        when(restTemplate.exchange(any(URI.class), eq(HttpMethod.GET),
+                any(HttpEntity.class), eq(TaskResultReportRequest.class)))
+                .thenReturn(ResponseEntity.ok(new TaskResultReportRequest()));
+
+        client.queryTaskResult(executor, "TASK-CONFIG-1", 2);
+
+        ArgumentCaptor<URI> uriCaptor = ArgumentCaptor.forClass(URI.class);
+        verify(restTemplate).exchange(uriCaptor.capture(), eq(HttpMethod.GET),
+                any(HttpEntity.class), eq(TaskResultReportRequest.class));
+        assertEquals("https://10.0.0.11:9443/internal/result?taskNo=TASK-CONFIG-1&stepNo=2",
+                uriCaptor.getValue().toString());
     }
 
     /** 生成测试使用的固定长度摘要。 */

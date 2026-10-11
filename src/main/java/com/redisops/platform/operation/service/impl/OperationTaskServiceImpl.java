@@ -2,6 +2,7 @@ package com.redisops.platform.operation.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.redisops.platform.operation.model.CreateOperationTaskRequest;
@@ -15,12 +16,15 @@ import com.redisops.platform.operation.mapper.OperationTaskMapper;
 import com.redisops.platform.operation.mapper.OperationTaskStepMapper;
 import com.redisops.platform.operation.type.AgentOperationType;
 import com.redisops.platform.operation.type.BusinessTaskType;
+import com.redisops.platform.operation.type.TaskStatus;
+import com.redisops.platform.operation.type.StepStatus;
 import com.redisops.platform.operation.client.AgentTaskClient;
 import com.redisops.platform.agent.service.AgentRegistrationService;
 import com.redisops.platform.operation.service.OperationTaskService;
 import com.redisops.platform.operation.service.OperationTaskRollbackPlanner;
 import com.redisops.platform.operation.service.OperationTaskCompletionHandler;
 import com.redisops.platform.operation.service.TaskNoService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.TaskScheduler;
@@ -42,7 +46,8 @@ import java.util.Date;
  * 创建、下发并汇总运维任务步骤。
  */
 @Service
-public class OperationTaskServiceImpl implements OperationTaskService {
+@RequiredArgsConstructor
+public class OperationTaskServiceImpl extends ServiceImpl<OperationTaskMapper, OperationTask> implements OperationTaskService  {
 
     private static final Logger log = LoggerFactory.getLogger(OperationTaskServiceImpl.class);
 
@@ -59,30 +64,6 @@ public class OperationTaskServiceImpl implements OperationTaskService {
     private final List<OperationTaskRollbackPlanner> rollbackPlanners;
     private final List<OperationTaskCompletionHandler> completionHandlers;
 
-    /** 注入任务持久化、执行器访问和事务组件。 */
-    public OperationTaskServiceImpl(OperationTaskMapper taskMapper,
-                                    OperationTaskStepMapper stepMapper,
-                                    TaskNoService taskNoService,
-                                    AgentRegistrationService agentRegistrationService,
-                                    AgentTaskClient agentTaskClient,
-                                    ObjectMapper objectMapper,
-                                    TransactionTemplate transactionTemplate,
-                                    @Qualifier("operationTaskScheduler")
-                                    TaskScheduler operationTaskScheduler,
-                                    List<OperationTaskRollbackPlanner> rollbackPlanners,
-                                    List<OperationTaskCompletionHandler> completionHandlers) {
-        this.taskMapper = taskMapper;
-        this.stepMapper = stepMapper;
-        this.taskNoService = taskNoService;
-        this.agentRegistrationService = agentRegistrationService;
-        this.agentTaskClient = agentTaskClient;
-        this.objectMapper = objectMapper;
-        this.transactionTemplate = transactionTemplate;
-        this.operationTaskScheduler = operationTaskScheduler;
-        this.rollbackPlanners = rollbackPlanners;
-        this.completionHandlers = completionHandlers;
-    }
-
     /**
      * 创建任务和全部步骤，事务提交后只下发第一个步骤组。
      *
@@ -91,13 +72,17 @@ public class OperationTaskServiceImpl implements OperationTaskService {
      */
     @Override
     public synchronized OperationTaskDetail createAndDispatch(CreateOperationTaskRequest request) {
+
+        // 1. 校验公共运维任务结构
         validateCreateRequest(request);
 
+        // 2. 提交数据库事务
         OperationTaskDetail created = transactionTemplate.execute(status -> persistTask(request));
         if (created == null) {
             throw new IllegalStateException("任务创建事务没有返回结果");
         }
 
+        // 3. 下发任务
         dispatchNextStepGroup(created.getTask().getTaskNo());
         return getTaskDetail(created.getTask().getTaskNo());
     }
@@ -134,21 +119,21 @@ public class OperationTaskServiceImpl implements OperationTaskService {
         }
 
         // 执行器可能因网络重试重复上报相同结果，已经结束的步骤按幂等成功处理。
-        if ("SUCCESS".equals(step.getStepStatus()) || "FAILED".equals(step.getStepStatus())) {
+        if (StepStatus.SUCCESS.name().equals(step.getStepStatus()) || StepStatus.FAILED.name().equals(step.getStepStatus())) {
             return;
         }
-        if (!"DISPATCHED".equals(step.getStepStatus())
-                && !"RESULT_UNKNOWN".equals(step.getStepStatus())) {
+        if (!StepStatus.DISPATCHED.name().equals(step.getStepStatus())
+                && !StepStatus.RESULT_UNKNOWN.name().equals(step.getStepStatus())) {
             throw new IllegalStateException("当前步骤状态不允许接收结果: " + step.getStepStatus());
         }
 
-        boolean success = "SUCCESS".equals(request.getStatus());
+        boolean success = StepStatus.SUCCESS.name().equals(request.getStatus());
         ResultSummary summary = parseResult(request.getResult());
         LocalDateTime now = LocalDateTime.now();
         LambdaUpdateWrapper<OperationTaskStep> update = new LambdaUpdateWrapper<>();
         update.eq(OperationTaskStep::getId, step.getId())
-                .in(OperationTaskStep::getStepStatus, "DISPATCHED", "RESULT_UNKNOWN")
-                .set(OperationTaskStep::getStepStatus, success ? "SUCCESS" : "FAILED")
+                .in(OperationTaskStep::getStepStatus, StepStatus.DISPATCHED.name(), StepStatus.RESULT_UNKNOWN.name())
+                .set(OperationTaskStep::getStepStatus, success ? StepStatus.SUCCESS.name() : StepStatus.FAILED.name())
                 .set(OperationTaskStep::getResultJson, summary.resultJson)
                 .set(OperationTaskStep::getErrorCode, summary.errorCode)
                 .set(OperationTaskStep::getFailureReason, success ? null : summary.message)
@@ -183,7 +168,7 @@ public class OperationTaskServiceImpl implements OperationTaskService {
         List<OperationTaskStep> steps = stepMapper.selectList(
                 new LambdaQueryWrapper<OperationTaskStep>()
                         .in(OperationTaskStep::getStepStatus,
-                                "DISPATCHED", "RESULT_UNKNOWN")
+                                StepStatus.DISPATCHED.name(), StepStatus.RESULT_UNKNOWN.name())
                         .le(OperationTaskStep::getLastDispatchTime, queryBefore)
                         .orderByAsc(OperationTaskStep::getLastDispatchTime));
 
@@ -205,7 +190,7 @@ public class OperationTaskServiceImpl implements OperationTaskService {
                         step.getTaskNo(), step.getStepNo(), step.getExecutorId(), e);
             }
 
-            if ("DISPATCHED".equals(step.getStepStatus())
+            if (StepStatus.DISPATCHED.name().equals(step.getStepStatus())
                     && step.getLastDispatchTime() != null
                     && !step.getLastDispatchTime().isAfter(unknownBefore)) {
                 markResultUnknown(step);
@@ -238,7 +223,7 @@ public class OperationTaskServiceImpl implements OperationTaskService {
     private OperationTaskDetail persistTask(CreateOperationTaskRequest request) {
         long activeCount = taskMapper.selectCount(new LambdaQueryWrapper<OperationTask>()
                 .in(OperationTask::getTaskStatus,
-                        "CREATED", "RUNNING", "ROLLING_BACK"));
+                        TaskStatus.CREATED.name(), TaskStatus.RUNNING.name(), TaskStatus.ROLLING_BACK.name()));
         if (activeCount > 0) {
             throw new IllegalStateException("当前已有正在进行的高风险运维任务");
         }
@@ -247,7 +232,7 @@ public class OperationTaskServiceImpl implements OperationTaskService {
         OperationTask task = new OperationTask();
         task.setTaskNo(taskNo);
         task.setTaskType(request.getTaskType().trim());
-        task.setTaskStatus("CREATED");
+        task.setTaskStatus(TaskStatus.CREATED.name());
         task.setRequestParams(writeJson(request.getRequestParams()));
         task.setCreatedBy(request.getCreatedBy().trim());
         task.setOperationReason(request.getOperationReason().trim());
@@ -255,32 +240,51 @@ public class OperationTaskServiceImpl implements OperationTaskService {
 
         List<OperationTaskStep> steps = new ArrayList<>();
         for (CreateOperationTaskStepRequest requestedStep : request.getSteps()) {
+
             OperationTaskStep step = new OperationTaskStep();
+
             step.setTaskNo(taskNo);
             step.setStepNo(requestedStep.getStepNo());
             step.setExecutorId(requestedStep.getExecutorId().trim());
             step.setOperationType(requestedStep.getOperationType().trim());
-            step.setStepStatus("CREATED");
+            step.setStepStatus(StepStatus.CREATED.name());
             step.setRequestParams(writeJson(requestedStep.getParams()));
             step.setDispatchCount(0);
-            stepMapper.insert(step);
             steps.add(step);
         }
-        return new OperationTaskDetail(task, steps);
+
+        // 批量插入全部步骤
+        int insertedCount = stepMapper.insertBatch(steps);
+        if(insertedCount != steps.size()) {
+            throw new IllegalStateException("运维步骤批量插入数量不一致");
+        }
+
+        // 重新查询已保存的步骤，获取数据库生成的主键等信息。
+        List<OperationTaskStep> savedSteps = stepMapper.selectList(
+                new LambdaQueryWrapper<OperationTaskStep>()
+                        .eq(OperationTaskStep::getTaskNo, taskNo)
+                        .orderByAsc(OperationTaskStep::getStepNo)
+                        .orderByAsc(OperationTaskStep::getExecutorId)
+        );
+
+        return new OperationTaskDetail(task, savedSteps);
     }
 
-    /** 原子认领并下发编号最小的 CREATED 步骤组。 */
+    /** 按步骤组调度任务，并根据每条步骤的执行器编号下发操作。 */
     private void dispatchNextStepGroup(String taskNo) {
+
+        // 如果任务不存在或者已经结束就直接退出。
         OperationTask task = taskMapper.selectOne(new LambdaQueryWrapper<OperationTask>()
                 .eq(OperationTask::getTaskNo, taskNo));
         if (task == null || isFinalTaskStatus(task.getTaskStatus())) {
             return;
         }
 
+        // 查询属于当前任务且状态为CREATED的所有步骤，并按照stepNo从小到大排序。
         List<OperationTaskStep> createdSteps = stepMapper.selectList(
                 new LambdaQueryWrapper<OperationTaskStep>()
                         .eq(OperationTaskStep::getTaskNo, taskNo)
-                        .eq(OperationTaskStep::getStepStatus, "CREATED")
+                        .eq(OperationTaskStep::getStepStatus, StepStatus.CREATED.name())
                         .orderByAsc(OperationTaskStep::getStepNo)
                         .orderByAsc(OperationTaskStep::getExecutorId));
         if (createdSteps.isEmpty()) {
@@ -288,20 +292,30 @@ public class OperationTaskServiceImpl implements OperationTaskService {
             return;
         }
 
+        // 取得下一组需要执行的步骤编号。
         int nextStepNo = createdSteps.get(0).getStepNo();
+
+        // 将任务主记录状态更新为RUNNING。
         markTaskRunning(taskNo);
         for (OperationTaskStep step : createdSteps) {
+
             if (step.getStepNo() != nextStepNo) {
                 break;
             }
+            // 认领运维步骤。
             if (!claimStep(step)) {
                 continue;
             }
             try {
+                // 确认目标执行器存在并且出于启用、在线状态。
                 ExecutorInfo executor = agentRegistrationService
                         .requireOnlineExecutor(step.getExecutorId());
-                agentTaskClient.dispatch(executor, taskNo, step.getStepNo(),
-                        step.getOperationType(), step.getRequestParams());
+                agentTaskClient.dispatch(
+                        executor,
+                        taskNo,
+                        step.getStepNo(),
+                        step.getOperationType(),
+                        step.getRequestParams());
             } catch (Exception e) {
                 String reason = shorten("步骤下发失败: " + rootMessage(e), 1000);
                 markStepDispatchFailed(step.getId(), reason);
@@ -320,8 +334,8 @@ public class OperationTaskServiceImpl implements OperationTaskService {
         LocalDateTime now = LocalDateTime.now();
         LambdaUpdateWrapper<OperationTaskStep> update = new LambdaUpdateWrapper<>();
         update.eq(OperationTaskStep::getId, step.getId())
-                .eq(OperationTaskStep::getStepStatus, "CREATED")
-                .set(OperationTaskStep::getStepStatus, "DISPATCHED")
+                .eq(OperationTaskStep::getStepStatus, StepStatus.CREATED.name())
+                .set(OperationTaskStep::getStepStatus, StepStatus.DISPATCHED.name())
                 .set(OperationTaskStep::getStartTime, now)
                 .set(OperationTaskStep::getLastDispatchTime, now)
                 .setSql("dispatch_count = dispatch_count + 1");
@@ -337,12 +351,12 @@ public class OperationTaskServiceImpl implements OperationTaskService {
         List<OperationTaskStep> allSteps = stepMapper.selectList(
                 new LambdaQueryWrapper<OperationTaskStep>()
                         .eq(OperationTaskStep::getTaskNo, taskNo));
-        if ("ROLLING_BACK".equals(task.getTaskStatus())) {
+        if (TaskStatus.ROLLING_BACK.name().equals(task.getTaskStatus())) {
             advanceRollback(task, allSteps);
             return;
         }
         for (OperationTaskStep step : allSteps) {
-            if ("FAILED".equals(step.getStepStatus())) {
+            if (StepStatus.FAILED.name().equals(step.getStepStatus())) {
                 beginFailureHandling(taskNo, step.getFailureReason());
                 return;
             }
@@ -370,13 +384,13 @@ public class OperationTaskServiceImpl implements OperationTaskService {
         if (task == null || isFinalTaskStatus(task.getTaskStatus())) {
             return;
         }
-        if ("ROLLING_BACK".equals(task.getTaskStatus())) {
+        if (TaskStatus.ROLLING_BACK.name().equals(task.getTaskStatus())) {
             markTaskRolledBackIfFinished(taskNo);
             return;
         }
         long unfinished = stepMapper.selectCount(new LambdaQueryWrapper<OperationTaskStep>()
                 .eq(OperationTaskStep::getTaskNo, taskNo)
-                .ne(OperationTaskStep::getStepStatus, "SUCCESS"));
+                .ne(OperationTaskStep::getStepStatus, StepStatus.SUCCESS.name()));
         if (unfinished == 0) {
             try {
                 transactionTemplate.execute(status -> {
@@ -388,8 +402,8 @@ public class OperationTaskServiceImpl implements OperationTaskService {
                     }
                     LambdaUpdateWrapper<OperationTask> update = new LambdaUpdateWrapper<>();
                     update.eq(OperationTask::getTaskNo, taskNo)
-                            .in(OperationTask::getTaskStatus, "CREATED", "RUNNING")
-                            .set(OperationTask::getTaskStatus, "SUCCESS")
+                            .in(OperationTask::getTaskStatus, TaskStatus.CREATED.name(), TaskStatus.RUNNING.name())
+                            .set(OperationTask::getTaskStatus, TaskStatus.SUCCESS.name())
                             .set(OperationTask::getEndTime, LocalDateTime.now());
                     taskMapper.update(null, update);
                     return null;
@@ -404,8 +418,8 @@ public class OperationTaskServiceImpl implements OperationTaskService {
     private void markTaskRunning(String taskNo) {
         LambdaUpdateWrapper<OperationTask> update = new LambdaUpdateWrapper<>();
         update.eq(OperationTask::getTaskNo, taskNo)
-                .eq(OperationTask::getTaskStatus, "CREATED")
-                .set(OperationTask::getTaskStatus, "RUNNING")
+                .eq(OperationTask::getTaskStatus, TaskStatus.CREATED.name())
+                .set(OperationTask::getTaskStatus, TaskStatus.RUNNING.name())
                 .set(OperationTask::getStartTime, LocalDateTime.now());
         taskMapper.update(null, update);
     }
@@ -414,8 +428,8 @@ public class OperationTaskServiceImpl implements OperationTaskService {
     private void markStepDispatchFailed(Long stepId, String reason) {
         LambdaUpdateWrapper<OperationTaskStep> update = new LambdaUpdateWrapper<>();
         update.eq(OperationTaskStep::getId, stepId)
-                .eq(OperationTaskStep::getStepStatus, "DISPATCHED")
-                .set(OperationTaskStep::getStepStatus, "FAILED")
+                .eq(OperationTaskStep::getStepStatus, StepStatus.DISPATCHED.name())
+                .set(OperationTaskStep::getStepStatus, StepStatus.FAILED.name())
                 .set(OperationTaskStep::getErrorCode, "DISPATCH_FAILED")
                 .set(OperationTaskStep::getFailureReason, reason)
                 .set(OperationTaskStep::getEndTime, LocalDateTime.now());
@@ -426,8 +440,8 @@ public class OperationTaskServiceImpl implements OperationTaskService {
     private void markTaskFailed(String taskNo, String reason) {
         LambdaUpdateWrapper<OperationTask> update = new LambdaUpdateWrapper<>();
         update.eq(OperationTask::getTaskNo, taskNo)
-                .notIn(OperationTask::getTaskStatus, "SUCCESS", "FAILED", "ROLLED_BACK")
-                .set(OperationTask::getTaskStatus, "FAILED")
+                .notIn(OperationTask::getTaskStatus, TaskStatus.SUCCESS.name(), TaskStatus.FAILED.name(), TaskStatus.ROLLED_BACK.name())
+                .set(OperationTask::getTaskStatus, TaskStatus.FAILED.name())
                 .set(OperationTask::getFailureReason, shorten(reason, 1000))
                 .set(OperationTask::getEndTime, LocalDateTime.now());
         taskMapper.update(null, update);
@@ -441,7 +455,7 @@ public class OperationTaskServiceImpl implements OperationTaskService {
         if (task == null || isFinalTaskStatus(task.getTaskStatus())) {
             return;
         }
-        if ("ROLLING_BACK".equals(task.getTaskStatus())) {
+        if (TaskStatus.ROLLING_BACK.name().equals(task.getTaskStatus())) {
             scheduleAdvance(taskNo);
             return;
         }
@@ -454,8 +468,8 @@ public class OperationTaskServiceImpl implements OperationTaskService {
 
         LambdaUpdateWrapper<OperationTask> taskUpdate = new LambdaUpdateWrapper<>();
         taskUpdate.eq(OperationTask::getTaskNo, taskNo)
-                .in(OperationTask::getTaskStatus, "CREATED", "RUNNING")
-                .set(OperationTask::getTaskStatus, "ROLLING_BACK")
+                .in(OperationTask::getTaskStatus, TaskStatus.CREATED.name(), TaskStatus.RUNNING.name())
+                .set(OperationTask::getTaskStatus, TaskStatus.ROLLING_BACK.name())
                 .set(OperationTask::getFailureReason, shorten(safeReason(reason), 1000))
                 .set(OperationTask::getEndTime, null);
         taskMapper.update(null, taskUpdate);
@@ -464,8 +478,8 @@ public class OperationTaskServiceImpl implements OperationTaskService {
         LambdaUpdateWrapper<OperationTaskStep> stepUpdate = new LambdaUpdateWrapper<>();
         stepUpdate.eq(OperationTaskStep::getTaskNo, taskNo)
                 .lt(OperationTaskStep::getStepNo, ROLLBACK_STEP_START)
-                .eq(OperationTaskStep::getStepStatus, "CREATED")
-                .set(OperationTaskStep::getStepStatus, "CANCELLED")
+                .eq(OperationTaskStep::getStepStatus, StepStatus.CREATED.name())
+                .set(OperationTaskStep::getStepStatus, StepStatus.CANCELLED.name())
                 .set(OperationTaskStep::getEndTime, LocalDateTime.now());
         stepMapper.update(null, stepUpdate);
         scheduleAdvance(taskNo);
@@ -476,7 +490,7 @@ public class OperationTaskServiceImpl implements OperationTaskService {
      */
     private void advanceRollback(OperationTask task, List<OperationTaskStep> allSteps) {
         for (OperationTaskStep step : allSteps) {
-            if (isRollbackStep(step) && "FAILED".equals(step.getStepStatus())) {
+            if (isRollbackStep(step) && StepStatus.FAILED.name().equals(step.getStepStatus())) {
                 markTaskFailed(task.getTaskNo(),
                         "自动回滚失败: " + safeReason(step.getFailureReason()));
                 return;
@@ -529,7 +543,7 @@ public class OperationTaskServiceImpl implements OperationTaskService {
             step.setStepNo(requestedStep.getStepNo());
             step.setExecutorId(requestedStep.getExecutorId().trim());
             step.setOperationType(requestedStep.getOperationType().trim());
-            step.setStepStatus("CREATED");
+            step.setStepStatus(StepStatus.CREATED.name());
             step.setRequestParams(writeJson(requestedStep.getParams()));
             step.setDispatchCount(0);
             stepMapper.insert(step);
@@ -546,12 +560,12 @@ public class OperationTaskServiceImpl implements OperationTaskService {
                 new LambdaQueryWrapper<OperationTaskStep>()
                         .eq(OperationTaskStep::getTaskNo, taskNo)
                         .ge(OperationTaskStep::getStepNo, ROLLBACK_STEP_START)
-                        .ne(OperationTaskStep::getStepStatus, "SUCCESS"));
+                        .ne(OperationTaskStep::getStepStatus, StepStatus.SUCCESS.name()));
         if (rollbackCount > 0 && unfinished == 0) {
             LambdaUpdateWrapper<OperationTask> update = new LambdaUpdateWrapper<>();
             update.eq(OperationTask::getTaskNo, taskNo)
-                    .eq(OperationTask::getTaskStatus, "ROLLING_BACK")
-                    .set(OperationTask::getTaskStatus, "ROLLED_BACK")
+                    .eq(OperationTask::getTaskStatus, TaskStatus.ROLLING_BACK.name())
+                    .set(OperationTask::getTaskStatus, TaskStatus.ROLLED_BACK.name())
                     .set(OperationTask::getEndTime, LocalDateTime.now());
             taskMapper.update(null, update);
         }
@@ -581,8 +595,8 @@ public class OperationTaskServiceImpl implements OperationTaskService {
 
     /** 判断任务是否已经处于不能再推进的最终状态。 */
     private boolean isFinalTaskStatus(String status) {
-        return "SUCCESS".equals(status) || "FAILED".equals(status)
-                || "ROLLED_BACK".equals(status);
+        return TaskStatus.SUCCESS.name().equals(status) || TaskStatus.FAILED.name().equals(status)
+                || TaskStatus.ROLLED_BACK.name().equals(status);
     }
 
     /** 判断任务是否已经生成至少一条回滚步骤。 */
@@ -597,16 +611,16 @@ public class OperationTaskServiceImpl implements OperationTaskService {
 
     /** 判断步骤是否仍在等待执行器给出可确认的最终结果。 */
     private boolean isWaitingForResult(OperationTaskStep step) {
-        return "DISPATCHED".equals(step.getStepStatus())
-                || "RESULT_UNKNOWN".equals(step.getStepStatus());
+        return StepStatus.DISPATCHED.name().equals(step.getStepStatus())
+                || StepStatus.RESULT_UNKNOWN.name().equals(step.getStepStatus());
     }
 
     /** 把长期无法确认的步骤从已下发改为结果待确认。 */
     private void markResultUnknown(OperationTaskStep step) {
         LambdaUpdateWrapper<OperationTaskStep> update = new LambdaUpdateWrapper<>();
         update.eq(OperationTaskStep::getId, step.getId())
-                .eq(OperationTaskStep::getStepStatus, "DISPATCHED")
-                .set(OperationTaskStep::getStepStatus, "RESULT_UNKNOWN")
+                .eq(OperationTaskStep::getStepStatus, StepStatus.DISPATCHED.name())
+                .set(OperationTaskStep::getStepStatus, StepStatus.RESULT_UNKNOWN.name())
                 .set(OperationTaskStep::getErrorCode, "RESULT_REPORT_TIMEOUT")
                 .set(OperationTaskStep::getFailureReason,
                         "执行器尚未返回可确认结果，平台已暂停后续步骤并持续核对");
@@ -679,7 +693,7 @@ public class OperationTaskServiceImpl implements OperationTaskService {
                 || !StringUtils.hasText(request.getOperationType())) {
             throw new IllegalArgumentException("taskNo、stepNo、agentId 和 operationType 不能为空");
         }
-        if (!"SUCCESS".equals(request.getStatus()) && !"FAILED".equals(request.getStatus())) {
+        if (!StepStatus.SUCCESS.name().equals(request.getStatus()) && !StepStatus.FAILED.name().equals(request.getStatus())) {
             throw new IllegalArgumentException("status 只能是 SUCCESS 或 FAILED");
         }
         AgentOperationType.fromValue(request.getOperationType());

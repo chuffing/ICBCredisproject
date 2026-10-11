@@ -1,5 +1,7 @@
 package com.redisops.platform.operation.service;
 
+import com.baomidou.mybatisplus.extension.service.IService;
+import com.redisops.platform.operation.entity.OperationTask;
 import com.redisops.platform.operation.model.CreateOperationTaskRequest;
 import com.redisops.platform.operation.model.OperationTaskDetail;
 import com.redisops.platform.operation.model.TaskResultReportRequest;
@@ -9,7 +11,7 @@ import java.time.LocalDateTime;
 /**
  * 运维任务创建、调度、结果汇总和查询接口。
  */
-public interface OperationTaskService {
+public interface OperationTaskService extends IService<OperationTask> {
 
     /** 创建任务和步骤并下发第一步骤组。 */
     OperationTaskDetail createAndDispatch(CreateOperationTaskRequest request);

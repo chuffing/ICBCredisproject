@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
  * operation_task 表对应的一条完整运维业务任务。
  */
 @TableName("operation_task")
-public class OperationTask {
+public class OperationTask{
 
     @TableId(type = IdType.AUTO)
     private Long id;
