@@ -1,11 +1,10 @@
 package com.redisops.platform.recovery.controller;
 
 import com.redisops.platform.common.model.ApiResponse;
+import com.redisops.platform.operation.model.OperationTaskDetail;
 import com.redisops.platform.recovery.model.FaultRecoveryNodeRequest;
 import com.redisops.platform.recovery.model.FaultRecoveryTaskRequest;
-import com.redisops.platform.operation.model.OperationTaskDetail;
 import com.redisops.platform.recovery.service.FaultRecoveryService;
-import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -79,7 +78,7 @@ public class FaultRecoveryController {
             throw new IllegalArgumentException("必须指定主节点");
         }
 
-        if(request.getNodes() == null && request.getNodes().size() != 3) {
+        if(request.getNodes() == null || request.getNodes().size() != 3) {
             throw new IllegalArgumentException("故障恢复必须选择3台服务器");
         }
 

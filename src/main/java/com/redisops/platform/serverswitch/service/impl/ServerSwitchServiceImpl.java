@@ -20,7 +20,6 @@ import com.redisops.platform.serverswitch.service.ServerSwitchService;
 import com.redisops.platform.versionupgrade.entity.RedisVersionPackage;
 import com.redisops.platform.versionupgrade.service.VersionPackageService;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -37,7 +36,6 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class ServerSwitchServiceImpl implements ServerSwitchService {
 
-    private static final int REQUIRED_NODE_COUNT = 3;
     private static final int DEFAULT_REDIS_PORT = 6379;
     private static final int DEFAULT_SENTINEL_PORT = 26379;
 
@@ -52,7 +50,6 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
      */
     @Override
     public OperationTaskDetail createAndDispatch(ServerSwitchTaskRequest request) {
-        validateBasicRequest(request);
         int redisPort = request.getRedisPort() == null
                 ? DEFAULT_REDIS_PORT : request.getRedisPort();
         RedisVersionPackage versionPackage = versionPackageService
@@ -72,45 +69,12 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
         return operationTaskService.createAndDispatch(taskRequest);
     }
 
-    /** 校验任务必填字段、节点数量和 Redis 端口。 */
-    private void validateBasicRequest(ServerSwitchTaskRequest request) {
-        if (request == null) {
-            throw new IllegalArgumentException("服务器切换请求不能为空");
-        }
-        if (request.getVersionPackageId() == null || request.getVersionPackageId() <= 0) {
-            throw new IllegalArgumentException("versionPackageId 必须大于 0");
-        }
-        if (!StringUtils.hasText(request.getMasterHostIp())) {
-            throw new IllegalArgumentException("masterHostIp 不能为空");
-        }
-        if (!StringUtils.hasText(request.getCreatedBy())) {
-            throw new IllegalArgumentException("createdBy 不能为空");
-        }
-        if (!StringUtils.hasText(request.getOperationReason())) {
-            throw new IllegalArgumentException("operationReason 不能为空");
-        }
-        if (request.getNodes() == null || request.getNodes().size() != REQUIRED_NODE_COUNT) {
-            throw new IllegalArgumentException("服务器切换必须且只能包含 3 台新服务器");
-        }
-        if (request.getRedisPort() != null
-                && (request.getRedisPort() < 1 || request.getRedisPort() > 65535)) {
-            throw new IllegalArgumentException("redisPort 必须在 1 到 65535 之间");
-        }
-    }
-
-    /** 根据用户输入的IP校验目标执行器唯一且在线，并读取平台保存的可信配置摘要。 */
+    /** 根据已校验的IP读取在线执行器及平台保存的可信配置摘要。 */
     private List<ValidatedNode> validateAndReadNodes(
             List<ServerSwitchNodeRequest> requestedNodes) {
-        Set<String> hostIps = new HashSet<>();
         List<ValidatedNode> nodes = new ArrayList<>();
         for (ServerSwitchNodeRequest requestedNode : requestedNodes) {
-            if (requestedNode == null || !StringUtils.hasText(requestedNode.getHostIp())) {
-                throw new IllegalArgumentException("每台新服务器的hostIp都不能为空");
-            }
             String hostIp = requestedNode.getHostIp().trim();
-            if (!hostIps.add(hostIp)) {
-                throw new IllegalArgumentException("服务器IP不能重复: " + hostIp);
-            }
             ExecutorInfo executor = agentRegistrationService.requireOnlineExecutorByHostIp(hostIp);
             ExecutorConfigSnapshot snapshot = configSnapshotService
                     .requireActiveSnapshot(executor.getExecutorId());

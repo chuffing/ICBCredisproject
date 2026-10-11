@@ -59,9 +59,8 @@ public class VersionPackageServiceImpl extends ServiceImpl<RedisVersionPackageMa
     @Override
     public synchronized VersionPackageData upload(String version, String uploadedBy,
                                                   MultipartFile file) {
-        String normalizedVersion = requireVersion(version);
-        String normalizedUploader = requireText(uploadedBy, "uploadedBy 不能为空");
-        validateUpload(file);
+        String normalizedVersion = version.trim();
+        String normalizedUploader = uploadedBy.trim();
 
         Path temporaryFile = null;
         boolean movedToFinalPath = false;
@@ -174,21 +173,6 @@ public class VersionPackageServiceImpl extends ServiceImpl<RedisVersionPackageMa
             throw new IllegalStateException("平台版本包文件不存在");
         }
         return file;
-    }
-
-    /** 校验上传对象、扩展名和提前可知的文件大小。 */
-    private void validateUpload(MultipartFile file) {
-        if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("版本包不能为空");
-        }
-        String filename = safeOriginalFilename(file.getOriginalFilename());
-        if (!filename.toLowerCase(Locale.ROOT).endsWith(".tar.gz")) {
-            throw new IllegalArgumentException("版本包只允许使用 .tar.gz 格式");
-        }
-        long maximumBytes = requireMaximumBytes();
-        if (file.getSize() > maximumBytes) {
-            throw new IllegalArgumentException("版本包超过允许的大小上限");
-        }
     }
 
     /** 流式写入临时文件，同时计算真实大小和 SHA-256。 */

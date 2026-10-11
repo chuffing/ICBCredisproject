@@ -15,15 +15,12 @@ import com.redisops.platform.versionupgrade.model.VersionUpgradeTaskRequest;
 import com.redisops.platform.versionupgrade.service.VersionPackageService;
 import com.redisops.platform.versionupgrade.service.VersionUpgradeService;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * 把一次三节点版本升级拆成执行器能够执行的本机原子操作。
@@ -32,7 +29,6 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class VersionUpgradeServiceImpl implements VersionUpgradeService {
 
-    private static final int REQUIRED_NODE_COUNT = 3;
     private static final int DEFAULT_REDIS_PORT = 6379;
 
     private final OperationTaskService operationTaskService;
@@ -44,7 +40,6 @@ public class VersionUpgradeServiceImpl implements VersionUpgradeService {
      */
     @Override
     public OperationTaskDetail createAndDispatch(VersionUpgradeTaskRequest request) {
-        validateBasicRequest(request);
         int redisPort = request.getRedisPort() == null
                 ? DEFAULT_REDIS_PORT : request.getRedisPort();
         RedisVersionPackage versionPackage = versionPackageService
@@ -61,45 +56,12 @@ public class VersionUpgradeServiceImpl implements VersionUpgradeService {
         return operationTaskService.createAndDispatch(taskRequest);
     }
 
-    /** 校验任务级字段、三节点数量和 Redis 端口。 */
-    private void validateBasicRequest(VersionUpgradeTaskRequest request) {
-        if (request == null) {
-            throw new IllegalArgumentException("版本升级请求不能为空");
-        }
-        if (request.getVersionPackageId() == null || request.getVersionPackageId() <= 0) {
-            throw new IllegalArgumentException("versionPackageId 必须大于 0");
-        }
-        if (!StringUtils.hasText(request.getMasterExecutorId())) {
-            throw new IllegalArgumentException("masterExecutorId 不能为空");
-        }
-        if (!StringUtils.hasText(request.getCreatedBy())) {
-            throw new IllegalArgumentException("createdBy 不能为空");
-        }
-        if (!StringUtils.hasText(request.getOperationReason())) {
-            throw new IllegalArgumentException("operationReason 不能为空");
-        }
-        if (request.getNodes() == null || request.getNodes().size() != REQUIRED_NODE_COUNT) {
-            throw new IllegalArgumentException("版本升级必须且只能包含 3 台服务器");
-        }
-        if (request.getRedisPort() != null
-                && (request.getRedisPort() < 1 || request.getRedisPort() > 65535)) {
-            throw new IllegalArgumentException("redisPort 必须在 1 到 65535 之间");
-        }
-    }
-
-    /** 校验三台执行器编号唯一且当前在线。 */
+    /** 根据已校验的节点编号读取在线执行器。 */
     private List<ExecutorInfo> validateAndReadExecutors(
             List<VersionUpgradeNodeRequest> requestedNodes) {
-        Set<String> executorIds = new HashSet<>();
         List<ExecutorInfo> executors = new ArrayList<>();
         for (VersionUpgradeNodeRequest requestedNode : requestedNodes) {
-            if (requestedNode == null || !StringUtils.hasText(requestedNode.getExecutorId())) {
-                throw new IllegalArgumentException("每个节点的 executorId 都不能为空");
-            }
             String executorId = requestedNode.getExecutorId().trim();
-            if (!executorIds.add(executorId)) {
-                throw new IllegalArgumentException("executorId 不能重复: " + executorId);
-            }
             executors.add(agentRegistrationService.requireOnlineExecutor(executorId));
         }
         return executors;

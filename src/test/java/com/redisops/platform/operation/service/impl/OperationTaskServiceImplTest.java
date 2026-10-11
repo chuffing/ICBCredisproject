@@ -1,10 +1,8 @@
 package com.redisops.platform.operation.service.impl;
 
-import org.springframework.test.util.ReflectionTestUtils;
-
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.redisops.platform.agent.entity.ExecutorInfo;
@@ -14,39 +12,63 @@ import com.redisops.platform.operation.entity.OperationTask;
 import com.redisops.platform.operation.entity.OperationTaskStep;
 import com.redisops.platform.operation.mapper.OperationTaskMapper;
 import com.redisops.platform.operation.mapper.OperationTaskStepMapper;
-import com.redisops.platform.operation.model.TaskResultReportRequest;
-import com.redisops.platform.operation.entity.OperationTask;
 import com.redisops.platform.operation.model.CreateOperationTaskRequest;
 import com.redisops.platform.operation.model.CreateOperationTaskStepRequest;
 import com.redisops.platform.operation.model.OperationTaskDetail;
+import com.redisops.platform.operation.model.TaskResultReportRequest;
 import com.redisops.platform.operation.service.TaskNoService;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.springframework.scheduling.TaskScheduler;
-import org.springframework.transaction.support.TransactionTemplate;
-import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.times;
 
 /** 验证平台能够核对执行器本地结果，并阻止未知步骤继续推进。 */
 class OperationTaskServiceImplTest {
+
+    /** 内部编排直接调用服务时，仍应拒绝空步骤、重复目标和不连续的步骤编号。 */
+    @Test
+    void shouldKeepTaskRulesForInternalServiceCallers() {
+        for (int scenario = 0; scenario < 3; scenario++) {
+            TestContext context = context();
+            CreateOperationTaskRequest request = new CreateOperationTaskRequest();
+            request.setTaskType("FAULT_RECOVERY");
+            request.setCreatedBy("admin");
+            request.setOperationReason("验证内部调用的任务规则");
+            CreateOperationTaskStepRequest step = new CreateOperationTaskStepRequest();
+            step.setStepNo(scenario == 2 ? 2 : 1);
+            step.setExecutorId("AGENT-A");
+            step.setOperationType("STOP_REDIS");
+            List<CreateOperationTaskStepRequest> steps = new ArrayList<>();
+            steps.add(scenario == 0 ? null : step);
+            if (scenario == 1) {
+                steps.add(step);
+            }
+            request.setSteps(steps);
+            assertThrows(IllegalArgumentException.class, () -> context.service.createAndDispatch(request));
+        }
+    }
 
     /** MP 保存主任务后，应批量保存全部步骤，并且仅下发第一组。 */
     @Test

@@ -1,12 +1,16 @@
 package com.redisops.platform.operation.controller;
 
-import lombok.RequiredArgsConstructor;
 import com.redisops.platform.common.model.ApiResponse;
 import com.redisops.platform.operation.model.CreateOperationTaskRequest;
+import com.redisops.platform.operation.model.CreateOperationTaskStepRequest;
 import com.redisops.platform.operation.model.OperationTaskDetail;
 import com.redisops.platform.operation.service.OperationTaskService;
+import com.redisops.platform.operation.type.AgentOperationType;
+import com.redisops.platform.operation.type.BusinessTaskType;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -34,6 +38,8 @@ public class OperationTaskController {
     public ResponseEntity<ApiResponse<OperationTaskDetail>> create(
             @RequestBody CreateOperationTaskRequest request) {
         try {
+            // 检查入口参数；公共任务规则仍由业务层保证。
+            validateCreateRequest(request);
             OperationTaskDetail detail = operationTaskService.createAndDispatch(request);
             return ResponseEntity.status(HttpStatus.CREATED)
                     .body(ApiResponse.success("任务已创建并开始调度", detail));
@@ -55,12 +61,42 @@ public class OperationTaskController {
     @GetMapping("/{taskNo}")
     public ResponseEntity<ApiResponse<OperationTaskDetail>> detail(
             @PathVariable String taskNo) {
+        if (!StringUtils.hasText(taskNo)) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.failure("INVALID_ARGUMENT", "taskNo 不能为空"));
+        }
         try {
             return ResponseEntity.ok(ApiResponse.success(
                     "查询成功", operationTaskService.getTaskDetail(taskNo)));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(ApiResponse.failure("TASK_NOT_FOUND", e.getMessage()));
+        }
+    }
+
+    /** 校验通用任务入口的必填字段、类型及每个步骤的字段。 */
+    private void validateCreateRequest(CreateOperationTaskRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("任务内容不能为空");
+        }
+        BusinessTaskType.fromValue(request.getTaskType());
+        if (!StringUtils.hasText(request.getCreatedBy())) {
+            throw new IllegalArgumentException("createdBy 不能为空");
+        }
+        if (!StringUtils.hasText(request.getOperationReason())) {
+            throw new IllegalArgumentException("operationReason 不能为空");
+        }
+        if (request.getSteps() == null || request.getSteps().isEmpty()) {
+            throw new IllegalArgumentException("任务至少需要一个执行步骤");
+        }
+        for (CreateOperationTaskStepRequest step : request.getSteps()) {
+            if (step == null || step.getStepNo() == null || step.getStepNo() < 1) {
+                throw new IllegalArgumentException("每个 stepNo 都必须大于 0");
+            }
+            if (!StringUtils.hasText(step.getExecutorId())) {
+                throw new IllegalArgumentException("每个步骤都必须指定 executorId");
+            }
+            AgentOperationType.fromValue(step.getOperationType());
         }
     }
 }

@@ -37,7 +37,6 @@ import org.slf4j.LoggerFactory;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -657,12 +656,9 @@ public class OperationTaskServiceImpl extends ServiceImpl<OperationTaskMapper, O
             throw new IllegalArgumentException("任务至少需要一个执行步骤");
         }
 
-        List<CreateOperationTaskStepRequest> sorted = new ArrayList<>(request.getSteps());
-        sorted.sort(Comparator.comparing(CreateOperationTaskStepRequest::getStepNo,
-                Comparator.nullsFirst(Integer::compareTo)));
         Set<String> uniqueTargets = new HashSet<>();
         Set<Integer> stepNumbers = new HashSet<>();
-        for (CreateOperationTaskStepRequest step : sorted) {
+        for (CreateOperationTaskStepRequest step : request.getSteps()) {
             if (step == null || step.getStepNo() == null || step.getStepNo() < 1) {
                 throw new IllegalArgumentException("每个 stepNo 都必须大于 0");
             }

@@ -70,7 +70,6 @@ public class RedisInfoServiceImpl extends ServiceImpl<RedisInfoMapper, RedisInfo
     @Override
     @Transactional
     public List<RedisInfo> initialize(InitializeRedisInfoRequest request) {
-        validateInitializeRequest(request);
         if (!listManaged().isEmpty()) {
             throw new IllegalStateException("正式Redis拓扑已经初始化，不能重复覆盖");
         }
@@ -82,13 +81,9 @@ public class RedisInfoServiceImpl extends ServiceImpl<RedisInfoMapper, RedisInfo
         String passwordCiphertext = configCipherService.encrypt(request.getRedisPassword());
         LocalDateTime now = LocalDateTime.now();
         String masterHost = findMasterHost(request.getNodes());
-        Set<String> hostIps = new HashSet<>();
 
         for (RedisInfoNodeRequest node : request.getNodes()) {
             String hostIp = node.getHostIp().trim();
-            if (!hostIps.add(hostIp)) {
-                throw new IllegalArgumentException("服务器IP不能重复: " + hostIp);
-            }
             ExecutorInfo executor = agentRegistrationService.requireOnlineExecutorByHostIp(hostIp);
             RedisInfo info = findByExecutorId(executor.getExecutorId());
             if (info == null) {
@@ -159,37 +154,10 @@ public class RedisInfoServiceImpl extends ServiceImpl<RedisInfoMapper, RedisInfo
         requireManagedTopology();
     }
 
-    /** 校验首次初始化请求中的节点、角色、端口和密码。 */
-    private void validateInitializeRequest(InitializeRedisInfoRequest request) {
-        if (request == null || request.getNodes() == null
-                || request.getNodes().size() != REQUIRED_NODE_COUNT) {
-            throw new IllegalArgumentException("初始化正式拓扑必须包含3台服务器");
-        }
-        if (!StringUtils.hasText(request.getRedisPassword())) {
-            throw new IllegalArgumentException("redisPassword不能为空");
-        }
-        if (!StringUtils.hasText(request.getRedisVersion())) {
-            throw new IllegalArgumentException("redisVersion不能为空");
-        }
-        validatePort(request.getRedisPort(), "redisPort");
-        validatePort(request.getSentinelPort(), "sentinelPort");
-        findMasterHost(request.getNodes());
-    }
-
-    /** 校验可选端口的合法范围。 */
-    private void validatePort(Integer port, String fieldName) {
-        if (port != null && (port < 1 || port > 65535)) {
-            throw new IllegalArgumentException(fieldName + "必须在1到65535之间");
-        }
-    }
-
     /** 找到且只允许存在一台MASTER。 */
     private String findMasterHost(List<RedisInfoNodeRequest> nodes) {
         String masterHost = null;
         for (RedisInfoNodeRequest node : nodes) {
-            if (node == null || !StringUtils.hasText(node.getHostIp())) {
-                throw new IllegalArgumentException("每台服务器的hostIp都不能为空");
-            }
             String role = normalizeRole(node.getRole());
             if ("MASTER".equals(role)) {
                 if (masterHost != null) {
