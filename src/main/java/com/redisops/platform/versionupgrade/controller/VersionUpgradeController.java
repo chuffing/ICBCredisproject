@@ -1,5 +1,6 @@
 package com.redisops.platform.versionupgrade.controller;
 
+import lombok.RequiredArgsConstructor;
 import com.redisops.platform.common.model.ApiResponse;
 import com.redisops.platform.operation.model.OperationTaskDetail;
 import com.redisops.platform.versionupgrade.model.VersionUpgradeTaskRequest;
@@ -16,14 +17,10 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/version-upgrade-tasks")
+@RequiredArgsConstructor
 public class VersionUpgradeController {
 
     private final VersionUpgradeService versionUpgradeService;
-
-    /** 注入版本升级业务服务。 */
-    public VersionUpgradeController(VersionUpgradeService versionUpgradeService) {
-        this.versionUpgradeService = versionUpgradeService;
-    }
 
     /** 创建版本升级任务并开始向三台执行器下发版本包。 */
     @PostMapping

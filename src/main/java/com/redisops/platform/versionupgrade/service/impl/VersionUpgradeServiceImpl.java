@@ -1,5 +1,6 @@
 package com.redisops.platform.versionupgrade.service.impl;
 
+import lombok.RequiredArgsConstructor;
 import com.redisops.platform.agent.entity.ExecutorInfo;
 import com.redisops.platform.agent.service.AgentRegistrationService;
 import com.redisops.platform.operation.model.CreateOperationTaskRequest;
@@ -28,6 +29,7 @@ import java.util.Set;
  * 把一次三节点版本升级拆成执行器能够执行的本机原子操作。
  */
 @Service
+@RequiredArgsConstructor
 public class VersionUpgradeServiceImpl implements VersionUpgradeService {
 
     private static final int REQUIRED_NODE_COUNT = 3;
@@ -36,15 +38,6 @@ public class VersionUpgradeServiceImpl implements VersionUpgradeService {
     private final OperationTaskService operationTaskService;
     private final AgentRegistrationService agentRegistrationService;
     private final VersionPackageService versionPackageService;
-
-    /** 注入通用任务调度、执行器注册和版本包服务。 */
-    public VersionUpgradeServiceImpl(OperationTaskService operationTaskService,
-                                     AgentRegistrationService agentRegistrationService,
-                                     VersionPackageService versionPackageService) {
-        this.operationTaskService = operationTaskService;
-        this.agentRegistrationService = agentRegistrationService;
-        this.versionPackageService = versionPackageService;
-    }
 
     /**
      * 创建“部署包、停止拓扑、切换版本、按主从顺序启动”的七阶段计划。

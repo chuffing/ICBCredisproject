@@ -1,5 +1,6 @@
 package com.redisops.platform.agent.service;
 
+import com.baomidou.mybatisplus.extension.service.IService;
 import com.redisops.platform.agent.model.HeartbeatRequest;
 import com.redisops.platform.agent.model.RegisterData;
 import com.redisops.platform.agent.model.RegisterRequest;
@@ -10,7 +11,7 @@ import java.util.List;
 /**
  * 执行器注册、心跳、认证和连接信息查询接口。
  */
-public interface AgentRegistrationService {
+public interface AgentRegistrationService extends IService<ExecutorInfo> {
 
     /** 注册或重新注册执行器。 */
     RegisterData register(RegisterRequest request);

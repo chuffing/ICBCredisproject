@@ -1,5 +1,6 @@
 package com.redisops.platform.security.service.impl;
 
+import lombok.RequiredArgsConstructor;
 import com.redisops.platform.agent.config.AgentPlatformProperties;
 import com.redisops.platform.security.service.TokenCipherService;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,7 @@ import java.util.Base64;
  * 执行器 Token 的加密和解密服务。
  */
 @Service
+@RequiredArgsConstructor
 public class TokenCipherServiceImpl implements TokenCipherService {
 
     private static final int IV_LENGTH = 12;
@@ -25,11 +27,6 @@ public class TokenCipherServiceImpl implements TokenCipherService {
 
     private final AgentPlatformProperties properties;
     private final SecureRandom secureRandom = new SecureRandom();
-
-    /** 注入平台执行器配置。 */
-    public TokenCipherServiceImpl(AgentPlatformProperties properties) {
-        this.properties = properties;
-    }
 
     /**
      * 加密执行器 Token 后再保存到数据库。

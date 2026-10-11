@@ -1,5 +1,6 @@
 package com.redisops.platform.operation.controller;
 
+import lombok.RequiredArgsConstructor;
 import com.redisops.platform.common.model.ApiResponse;
 import com.redisops.platform.operation.model.CreateOperationTaskRequest;
 import com.redisops.platform.operation.model.OperationTaskDetail;
@@ -18,14 +19,10 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/operation-tasks")
+@RequiredArgsConstructor
 public class OperationTaskController {
 
     private final OperationTaskService operationTaskService;
-
-    /** 注入运维任务调度服务。 */
-    public OperationTaskController(OperationTaskService operationTaskService) {
-        this.operationTaskService = operationTaskService;
-    }
 
     /**
      * 创建一条业务任务，保存全部步骤并下发第一组步骤。

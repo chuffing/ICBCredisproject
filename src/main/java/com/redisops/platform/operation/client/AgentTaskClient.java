@@ -1,5 +1,6 @@
 package com.redisops.platform.operation.client;
 
+import lombok.RequiredArgsConstructor;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.redisops.platform.operation.model.AgentTaskRequest;
@@ -34,6 +35,7 @@ import java.util.Map;
  * 平台向执行器下发原子操作的 HTTP 客户端。
  */
 @Service
+@RequiredArgsConstructor
 public class AgentTaskClient {
 
     private final RestTemplate restTemplate;
@@ -42,21 +44,6 @@ public class AgentTaskClient {
     private final VersionPackageService versionPackageService;
     private final ExecutorConfigSnapshotService configSnapshotService;
     private final AgentClientProperties clientProperties;
-
-    /** 注入 HTTP、JSON 和执行器认证组件。 */
-    public AgentTaskClient(RestTemplate restTemplate,
-                           ObjectMapper objectMapper,
-                           AgentRegistrationService agentRegistrationService,
-                           VersionPackageService versionPackageService,
-                           ExecutorConfigSnapshotService configSnapshotService,
-                           AgentClientProperties clientProperties) {
-        this.restTemplate = restTemplate;
-        this.objectMapper = objectMapper;
-        this.agentRegistrationService = agentRegistrationService;
-        this.versionPackageService = versionPackageService;
-        this.configSnapshotService = configSnapshotService;
-        this.clientProperties = clientProperties;
-    }
 
     /**
      * 根据操作类型组装任务请求，并通过HTTP下发给目标执行器。

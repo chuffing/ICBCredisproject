@@ -1,5 +1,6 @@
 package com.redisops.platform.redisinfo.controller;
 
+import lombok.RequiredArgsConstructor;
 import com.redisops.platform.common.model.ApiResponse;
 import com.redisops.platform.redisinfo.entity.RedisInfo;
 import com.redisops.platform.redisinfo.model.InitializeRedisInfoRequest;
@@ -18,14 +19,10 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api/redis-info")
+@RequiredArgsConstructor
 public class RedisInfoController {
 
     private final RedisInfoService redisInfoService;
-
-    /** 注入Redis实例信息服务。 */
-    public RedisInfoController(RedisInfoService redisInfoService) {
-        this.redisInfoService = redisInfoService;
-    }
 
     /** 查询当前正式纳管的三台实例；密码密文字段由实体上的JsonIgnore排除。 */
     @GetMapping("/managed")

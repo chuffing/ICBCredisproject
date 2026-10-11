@@ -1,5 +1,7 @@
 package com.redisops.platform.redisinfo.service.impl;
 
+import lombok.RequiredArgsConstructor;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -27,32 +29,21 @@ import java.util.Set;
  * 使用redis_info保存平台认定的正式拓扑。
  */
 @Service
-public class RedisInfoServiceImpl implements RedisInfoService {
+@RequiredArgsConstructor
+public class RedisInfoServiceImpl extends ServiceImpl<RedisInfoMapper, RedisInfo> implements RedisInfoService {
 
     private static final int REQUIRED_NODE_COUNT = 3;
     private static final int DEFAULT_REDIS_PORT = 6379;
     private static final int DEFAULT_SENTINEL_PORT = 26379;
 
-    private final RedisInfoMapper redisInfoMapper;
     private final AgentRegistrationService agentRegistrationService;
     private final ConfigCipherService configCipherService;
     private final ObjectMapper objectMapper;
 
-    /** 注入Redis实例表、执行器查询、加密和JSON组件。 */
-    public RedisInfoServiceImpl(RedisInfoMapper redisInfoMapper,
-                                AgentRegistrationService agentRegistrationService,
-                                ConfigCipherService configCipherService,
-                                ObjectMapper objectMapper) {
-        this.redisInfoMapper = redisInfoMapper;
-        this.agentRegistrationService = agentRegistrationService;
-        this.configCipherService = configCipherService;
-        this.objectMapper = objectMapper;
-    }
-
     /** 查询当前正式纳管节点，并让MASTER稳定排在第一位。 */
     @Override
     public List<RedisInfo> listManaged() {
-        return redisInfoMapper.selectList(new LambdaQueryWrapper<RedisInfo>()
+        return list(new LambdaQueryWrapper<RedisInfo>()
                 .eq(RedisInfo::getManagementStatus, "MANAGED")
                 .last("ORDER BY CASE WHEN redis_role = 'MASTER' THEN 0 ELSE 1 END, id ASC"));
     }
@@ -107,7 +98,11 @@ public class RedisInfoServiceImpl implements RedisInfoService {
             applyManagedValues(info, executor.getHostIp(), redisPort, sentinelPort,
                     normalizeRole(node.getRole()), request.getRedisVersion().trim(),
                     masterHost, redisPort, passwordCiphertext, now);
-            save(info);
+            if (info.getId() == null) {
+                save(info);
+            } else {
+                updateById(info);
+            }
         }
         return requireManagedTopology();
     }
@@ -135,7 +130,7 @@ public class RedisInfoServiceImpl implements RedisInfoService {
         LocalDateTime now = LocalDateTime.now();
 
         // 先退出旧拓扑，再写入新拓扑；外层任务成功事务保证两部分同时提交或同时回滚。
-        redisInfoMapper.update(null, new LambdaUpdateWrapper<RedisInfo>()
+        update(new LambdaUpdateWrapper<RedisInfo>()
                 .eq(RedisInfo::getManagementStatus, "MANAGED")
                 .set(RedisInfo::getManagementStatus, "REMOVED")
                 .set(RedisInfo::getRemovedTime, now));
@@ -155,7 +150,11 @@ public class RedisInfoServiceImpl implements RedisInfoService {
             }
             applyManagedValues(info, hostIp, redisPort, sentinelPort, role, version,
                     masterHost, redisPort, passwordCiphertext, now);
-            save(info);
+            if (info.getId() == null) {
+                save(info);
+            } else {
+                updateById(info);
+            }
         }
         requireManagedTopology();
     }
@@ -238,18 +237,9 @@ public class RedisInfoServiceImpl implements RedisInfoService {
         info.setRemovedTime(null);
     }
 
-    /** 根据主键是否存在选择插入或更新。 */
-    private void save(RedisInfo info) {
-        if (info.getId() == null) {
-            redisInfoMapper.insert(info);
-        } else {
-            redisInfoMapper.updateById(info);
-        }
-    }
-
     /** 按执行器编号读取当前或历史记录。 */
     private RedisInfo findByExecutorId(String executorId) {
-        return redisInfoMapper.selectOne(new LambdaQueryWrapper<RedisInfo>()
+        return getOne(new LambdaQueryWrapper<RedisInfo>()
                 .eq(RedisInfo::getExecutorId, executorId));
     }
 

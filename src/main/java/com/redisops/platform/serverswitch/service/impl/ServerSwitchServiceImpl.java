@@ -1,5 +1,7 @@
 package com.redisops.platform.serverswitch.service.impl;
 
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import com.redisops.platform.agent.configsnapshot.entity.ExecutorConfigSnapshot;
 import com.redisops.platform.agent.configsnapshot.service.ExecutorConfigSnapshotService;
 import com.redisops.platform.agent.entity.ExecutorInfo;
@@ -32,6 +34,7 @@ import java.util.Set;
  * 把一次三节点服务器切换拆成新服务器上的本机原子操作。
  */
 @Service
+@RequiredArgsConstructor
 public class ServerSwitchServiceImpl implements ServerSwitchService {
 
     private static final int REQUIRED_NODE_COUNT = 3;
@@ -43,19 +46,6 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
     private final VersionPackageService versionPackageService;
     private final ExecutorConfigSnapshotService configSnapshotService;
     private final RedisInfoService redisInfoService;
-
-    /** 注入任务调度、执行器、版本包和平台配置快照服务。 */
-    public ServerSwitchServiceImpl(OperationTaskService operationTaskService,
-                                   AgentRegistrationService agentRegistrationService,
-                                   VersionPackageService versionPackageService,
-                                   ExecutorConfigSnapshotService configSnapshotService,
-                                   RedisInfoService redisInfoService) {
-        this.operationTaskService = operationTaskService;
-        this.agentRegistrationService = agentRegistrationService;
-        this.versionPackageService = versionPackageService;
-        this.configSnapshotService = configSnapshotService;
-        this.redisInfoService = redisInfoService;
-    }
 
     /**
      * 校验三台新服务器，生成预检、部署和启动新拓扑的九阶段计划。
@@ -305,18 +295,10 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
     }
 
     /** 已绑定执行器和平台配置摘要的新服务器。 */
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     private static class ValidatedNode {
         private final ExecutorInfo executor;
         private final String redisConfigSha256;
         private final String sentinelConfigSha256;
-
-        /** 保存构造任务步骤需要的执行器和配置摘要。 */
-        private ValidatedNode(ExecutorInfo executor,
-                              String redisConfigSha256,
-                              String sentinelConfigSha256) {
-            this.executor = executor;
-            this.redisConfigSha256 = redisConfigSha256;
-            this.sentinelConfigSha256 = sentinelConfigSha256;
-        }
     }
 }

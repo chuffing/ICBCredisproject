@@ -1,5 +1,7 @@
 package com.redisops.platform.versionupgrade.service.impl;
 
+import org.springframework.test.util.ReflectionTestUtils;
+
 import com.redisops.platform.versionupgrade.config.VersionPackageProperties;
 import com.redisops.platform.versionupgrade.entity.RedisVersionPackage;
 import com.redisops.platform.versionupgrade.mapper.RedisVersionPackageMapper;
@@ -19,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -77,7 +80,7 @@ class VersionPackageServiceImplTest {
         existing.setPackageName("redis-7.2.5.tar.gz");
 
         RedisVersionPackageMapper mapper = mock(RedisVersionPackageMapper.class);
-        when(mapper.selectOne(any())).thenReturn(existing);
+        when(mapper.selectOne(any(), eq(true))).thenReturn(existing);
         VersionPackageServiceImpl service = service(mapper);
         MockMultipartFile file = new MockMultipartFile(
                 "file", "renamed-redis.tar.gz", "application/gzip", archive);
@@ -90,7 +93,7 @@ class VersionPackageServiceImplTest {
     /** 创建没有重复版本和摘要记录的Mapper。 */
     private RedisVersionPackageMapper emptyMapper() {
         RedisVersionPackageMapper mapper = mock(RedisVersionPackageMapper.class);
-        when(mapper.selectOne(any())).thenReturn(null);
+        when(mapper.selectOne(any(), eq(true))).thenReturn(null);
         return mapper;
     }
 
@@ -99,7 +102,9 @@ class VersionPackageServiceImplTest {
         VersionPackageProperties properties = new VersionPackageProperties();
         properties.setStorageDir(temporaryDirectory.toString());
         properties.setMaxBytes(10 * 1024 * 1024);
-        return new VersionPackageServiceImpl(mapper, properties);
+        VersionPackageServiceImpl service = new VersionPackageServiceImpl(properties);
+        ReflectionTestUtils.setField(service, "baseMapper", mapper);
+        return service;
     }
 
     /** 创建包含必要Redis程序的最小tar.gz测试文件。 */

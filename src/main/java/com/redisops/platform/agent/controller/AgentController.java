@@ -1,5 +1,6 @@
 package com.redisops.platform.agent.controller;
 
+import lombok.RequiredArgsConstructor;
 import com.redisops.platform.common.model.ApiResponse;
 import com.redisops.platform.agent.model.HeartbeatRequest;
 import com.redisops.platform.agent.model.RegisterData;
@@ -22,14 +23,10 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api/agent")
+@RequiredArgsConstructor
 public class AgentController {
 
     private final AgentRegistrationService agentRegistrationService;
-
-    /** 注入执行器注册服务。 */
-    public AgentController(AgentRegistrationService agentRegistrationService) {
-        this.agentRegistrationService = agentRegistrationService;
-    }
 
     /**
      * 注册执行器并返回 agentId 和 Token。

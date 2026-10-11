@@ -1,5 +1,8 @@
 package com.redisops.platform.versionupgrade.service.impl;
 
+import lombok.AccessLevel;
+import lombok.Data;
+import lombok.RequiredArgsConstructor;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.redisops.platform.operation.entity.OperationTask;
@@ -23,16 +26,12 @@ import java.util.Set;
  * 根据版本升级失败阶段生成跨三台服务器的补偿步骤。
  */
 @Service
+@RequiredArgsConstructor
 public class VersionUpgradeRollbackPlanner implements OperationTaskRollbackPlanner {
 
     public static final int ROLLBACK_STEP_START = 1001;
 
     private final ObjectMapper objectMapper;
-
-    /** 注入任务参数 JSON 解析器。 */
-    public VersionUpgradeRollbackPlanner(ObjectMapper objectMapper) {
-        this.objectMapper = objectMapper;
-    }
 
     /** 只处理 VERSION_UPGRADE 业务任务。 */
     @Override
@@ -206,44 +205,19 @@ public class VersionUpgradeRollbackPlanner implements OperationTaskRollbackPlann
     }
 
     /** 从任务 JSON 反序列化的一台节点。 */
+    @Data
     public static class NodeContext {
         private String executorId;
         private String hostIp;
         private String role;
-
-        /** 获取执行器编号。 */
-        public String getExecutorId() { return executorId; }
-
-        /** 设置执行器编号。 */
-        public void setExecutorId(String executorId) { this.executorId = executorId; }
-
-        /** 获取审计记录中的服务器IP。 */
-        public String getHostIp() { return hostIp; }
-
-        /** 设置审计记录中的服务器IP。 */
-        public void setHostIp(String hostIp) { this.hostIp = hostIp; }
-
-        /** 获取审计记录中的Redis角色。 */
-        public String getRole() { return role; }
-
-        /** 设置审计记录中的Redis角色。 */
-        public void setRole(String role) { this.role = role; }
     }
 
     /** 回滚编排需要的不可变拓扑信息。 */
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     private static class UpgradeContext {
         private final String masterExecutorId;
         private final String masterHost;
         private final int redisPort;
         private final List<NodeContext> nodes;
-
-        /** 保存主节点、端口和三台节点。 */
-        private UpgradeContext(String masterExecutorId, String masterHost,
-                               int redisPort, List<NodeContext> nodes) {
-            this.masterExecutorId = masterExecutorId;
-            this.masterHost = masterHost;
-            this.redisPort = redisPort;
-            this.nodes = nodes;
-        }
     }
 }

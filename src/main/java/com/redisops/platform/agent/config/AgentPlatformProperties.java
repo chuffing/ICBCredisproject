@@ -1,5 +1,7 @@
 package com.redisops.platform.agent.config;
 
+import lombok.Data;
+import lombok.ToString;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
@@ -8,36 +10,14 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 @ConfigurationProperties(prefix = "platform.agent")
+@Data
 public class AgentPlatformProperties {
 
+    @ToString.Exclude
     private String registerCode;
+    @ToString.Exclude
     private String tokenSecret;
+    @ToString.Exclude
     private String configSecret;
     private long offlineTimeoutSeconds = 60L;
-
-    /** 获取执行器注册码。 */
-    public String getRegisterCode() { return registerCode; }
-
-    /** 设置执行器注册码。 */
-    public void setRegisterCode(String registerCode) { this.registerCode = registerCode; }
-
-    /** 获取令牌加密密钥。 */
-    public String getTokenSecret() { return tokenSecret; }
-
-    /** 设置令牌加密密钥。 */
-    public void setTokenSecret(String tokenSecret) { this.tokenSecret = tokenSecret; }
-
-    /** 获取配置文件加密密钥。 */
-    public String getConfigSecret() { return configSecret; }
-
-    /** 设置配置文件加密密钥。 */
-    public void setConfigSecret(String configSecret) { this.configSecret = configSecret; }
-
-    /** 获取离线判定秒数。 */
-    public long getOfflineTimeoutSeconds() { return offlineTimeoutSeconds; }
-
-    /** 设置离线判定秒数。 */
-    public void setOfflineTimeoutSeconds(long offlineTimeoutSeconds) {
-        this.offlineTimeoutSeconds = offlineTimeoutSeconds;
-    }
 }

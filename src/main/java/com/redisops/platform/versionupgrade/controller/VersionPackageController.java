@@ -1,5 +1,6 @@
 package com.redisops.platform.versionupgrade.controller;
 
+import lombok.RequiredArgsConstructor;
 import com.redisops.platform.common.model.ApiResponse;
 import com.redisops.platform.versionupgrade.exception.VersionPackageConflictException;
 import com.redisops.platform.versionupgrade.model.VersionPackageData;
@@ -22,14 +23,10 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api/version-packages")
+@RequiredArgsConstructor
 public class VersionPackageController {
 
     private final VersionPackageService versionPackageService;
-
-    /** 注入版本包业务服务。 */
-    public VersionPackageController(VersionPackageService versionPackageService) {
-        this.versionPackageService = versionPackageService;
-    }
 
     /**
      * 上传一个 Redis tar.gz 版本包。
@@ -66,6 +63,6 @@ public class VersionPackageController {
     /** 查询平台已经保存的全部版本包。 */
     @GetMapping
     public ApiResponse<List<VersionPackageData>> list() {
-        return ApiResponse.success("版本包查询成功", versionPackageService.list());
+        return ApiResponse.success("版本包查询成功", versionPackageService.listPackages());
     }
 }

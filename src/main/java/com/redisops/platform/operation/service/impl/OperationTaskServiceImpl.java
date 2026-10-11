@@ -1,5 +1,7 @@
 package com.redisops.platform.operation.service.impl;
 
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -24,7 +26,6 @@ import com.redisops.platform.operation.service.OperationTaskService;
 import com.redisops.platform.operation.service.OperationTaskRollbackPlanner;
 import com.redisops.platform.operation.service.OperationTaskCompletionHandler;
 import com.redisops.platform.operation.service.TaskNoService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.TaskScheduler;
@@ -53,13 +54,13 @@ public class OperationTaskServiceImpl extends ServiceImpl<OperationTaskMapper, O
 
     private static final int ROLLBACK_STEP_START = 1001;
 
-    private final OperationTaskMapper taskMapper;
     private final OperationTaskStepMapper stepMapper;
     private final TaskNoService taskNoService;
     private final AgentRegistrationService agentRegistrationService;
     private final AgentTaskClient agentTaskClient;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
+    @Qualifier("operationTaskScheduler")
     private final TaskScheduler operationTaskScheduler;
     private final List<OperationTaskRollbackPlanner> rollbackPlanners;
     private final List<OperationTaskCompletionHandler> completionHandlers;
@@ -206,7 +207,7 @@ public class OperationTaskServiceImpl extends ServiceImpl<OperationTaskMapper, O
      */
     @Override
     public OperationTaskDetail getTaskDetail(String taskNo) {
-        OperationTask task = taskMapper.selectOne(new LambdaQueryWrapper<OperationTask>()
+        OperationTask task = getOne(new LambdaQueryWrapper<OperationTask>()
                 .eq(OperationTask::getTaskNo, taskNo));
         if (task == null) {
             throw new IllegalArgumentException("任务不存在: " + taskNo);
@@ -221,7 +222,7 @@ public class OperationTaskServiceImpl extends ServiceImpl<OperationTaskMapper, O
 
     /** 在一个数据库事务中写入任务主记录和全部步骤。 */
     private OperationTaskDetail persistTask(CreateOperationTaskRequest request) {
-        long activeCount = taskMapper.selectCount(new LambdaQueryWrapper<OperationTask>()
+        long activeCount = count(new LambdaQueryWrapper<OperationTask>()
                 .in(OperationTask::getTaskStatus,
                         TaskStatus.CREATED.name(), TaskStatus.RUNNING.name(), TaskStatus.ROLLING_BACK.name()));
         if (activeCount > 0) {
@@ -236,7 +237,7 @@ public class OperationTaskServiceImpl extends ServiceImpl<OperationTaskMapper, O
         task.setRequestParams(writeJson(request.getRequestParams()));
         task.setCreatedBy(request.getCreatedBy().trim());
         task.setOperationReason(request.getOperationReason().trim());
-        taskMapper.insert(task);
+        save(task);
 
         List<OperationTaskStep> steps = new ArrayList<>();
         for (CreateOperationTaskStepRequest requestedStep : request.getSteps()) {
@@ -274,7 +275,7 @@ public class OperationTaskServiceImpl extends ServiceImpl<OperationTaskMapper, O
     private void dispatchNextStepGroup(String taskNo) {
 
         // 如果任务不存在或者已经结束就直接退出。
-        OperationTask task = taskMapper.selectOne(new LambdaQueryWrapper<OperationTask>()
+        OperationTask task = getOne(new LambdaQueryWrapper<OperationTask>()
                 .eq(OperationTask::getTaskNo, taskNo));
         if (task == null || isFinalTaskStatus(task.getTaskStatus())) {
             return;
@@ -405,7 +406,7 @@ public class OperationTaskServiceImpl extends ServiceImpl<OperationTaskMapper, O
                             .in(OperationTask::getTaskStatus, TaskStatus.CREATED.name(), TaskStatus.RUNNING.name())
                             .set(OperationTask::getTaskStatus, TaskStatus.SUCCESS.name())
                             .set(OperationTask::getEndTime, LocalDateTime.now());
-                    taskMapper.update(null, update);
+                    update(update);
                     return null;
                 });
             } catch (Exception e) {
@@ -421,7 +422,7 @@ public class OperationTaskServiceImpl extends ServiceImpl<OperationTaskMapper, O
                 .eq(OperationTask::getTaskStatus, TaskStatus.CREATED.name())
                 .set(OperationTask::getTaskStatus, TaskStatus.RUNNING.name())
                 .set(OperationTask::getStartTime, LocalDateTime.now());
-        taskMapper.update(null, update);
+        update(update);
     }
 
     /** 记录步骤在发送给执行器之前发生的失败。 */
@@ -444,7 +445,7 @@ public class OperationTaskServiceImpl extends ServiceImpl<OperationTaskMapper, O
                 .set(OperationTask::getTaskStatus, TaskStatus.FAILED.name())
                 .set(OperationTask::getFailureReason, shorten(reason, 1000))
                 .set(OperationTask::getEndTime, LocalDateTime.now());
-        taskMapper.update(null, update);
+        update(update);
     }
 
     /**
@@ -472,7 +473,7 @@ public class OperationTaskServiceImpl extends ServiceImpl<OperationTaskMapper, O
                 .set(OperationTask::getTaskStatus, TaskStatus.ROLLING_BACK.name())
                 .set(OperationTask::getFailureReason, shorten(safeReason(reason), 1000))
                 .set(OperationTask::getEndTime, null);
-        taskMapper.update(null, taskUpdate);
+        update(taskUpdate);
 
         // 尚未下发的正常步骤必须取消，防止回滚时又继续推进新版本启动流程。
         LambdaUpdateWrapper<OperationTaskStep> stepUpdate = new LambdaUpdateWrapper<>();
@@ -567,7 +568,7 @@ public class OperationTaskServiceImpl extends ServiceImpl<OperationTaskMapper, O
                     .eq(OperationTask::getTaskStatus, TaskStatus.ROLLING_BACK.name())
                     .set(OperationTask::getTaskStatus, TaskStatus.ROLLED_BACK.name())
                     .set(OperationTask::getEndTime, LocalDateTime.now());
-            taskMapper.update(null, update);
+            update(update);
         }
     }
 
@@ -583,7 +584,7 @@ public class OperationTaskServiceImpl extends ServiceImpl<OperationTaskMapper, O
 
     /** 根据任务编号查询任务主记录。 */
     private OperationTask findTask(String taskNo) {
-        return taskMapper.selectOne(new LambdaQueryWrapper<OperationTask>()
+        return getOne(new LambdaQueryWrapper<OperationTask>()
                 .eq(OperationTask::getTaskNo, taskNo));
     }
 
@@ -747,16 +748,10 @@ public class OperationTaskServiceImpl extends ServiceImpl<OperationTaskMapper, O
     }
 
     /** 执行器结果 JSON 的内部解析结果。 */
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     private static class ResultSummary {
         private final String resultJson;
         private final String errorCode;
         private final String message;
-
-        /** 创建执行结果摘要。 */
-        private ResultSummary(String resultJson, String errorCode, String message) {
-            this.resultJson = resultJson;
-            this.errorCode = errorCode;
-            this.message = message;
-        }
     }
 }

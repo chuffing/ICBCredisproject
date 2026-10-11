@@ -1,5 +1,6 @@
 package com.redisops.platform.serverswitch.controller;
 
+import lombok.RequiredArgsConstructor;
 import com.redisops.platform.common.model.ApiResponse;
 import com.redisops.platform.operation.model.OperationTaskDetail;
 import com.redisops.platform.serverswitch.model.ServerSwitchTaskRequest;
@@ -16,14 +17,10 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/server-switch-tasks")
+@RequiredArgsConstructor
 public class ServerSwitchController {
 
     private final ServerSwitchService serverSwitchService;
-
-    /** 注入服务器切换业务服务。 */
-    public ServerSwitchController(ServerSwitchService serverSwitchService) {
-        this.serverSwitchService = serverSwitchService;
-    }
 
     /** 创建服务器切换任务并开始对三台新服务器执行环境预检。 */
     @PostMapping

@@ -1,11 +1,11 @@
 package com.redisops.platform.agent.entity;
 
+import lombok.Data;
+import lombok.ToString;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import lombok.Data;
-
 import java.time.LocalDateTime;
 
 /**
@@ -35,6 +35,8 @@ public class ExecutorInfo {
     /** 管理状态。 */
     private String managementStatus;
     /** 加密令牌。 */
+    @ToString.Exclude
+    @JsonIgnore
     private String tokenCiphertext;
     /** 最后心跳时间。 */
     private LocalDateTime lastHeartbeatTime;
@@ -46,9 +48,5 @@ public class ExecutorInfo {
     private LocalDateTime createTime;
     /** 更新时间。 */
     private LocalDateTime updateTime;
-
-    /** 获取加密令牌；该字段只供平台内部认证使用，不能返回给前端。 */
-    @JsonIgnore
-    public String getTokenCiphertext() { return tokenCiphertext; }
 
 }

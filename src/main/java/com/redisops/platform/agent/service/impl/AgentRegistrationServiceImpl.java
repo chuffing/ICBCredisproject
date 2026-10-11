@@ -1,5 +1,7 @@
 package com.redisops.platform.agent.service.impl;
 
+import lombok.RequiredArgsConstructor;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.redisops.platform.agent.config.AgentPlatformProperties;
@@ -26,22 +28,13 @@ import java.util.UUID;
  * 处理执行器注册、认证、心跳和离线判定。
  */
 @Service
-public class AgentRegistrationServiceImpl implements AgentRegistrationService {
+@RequiredArgsConstructor
+public class AgentRegistrationServiceImpl extends ServiceImpl<ExecutorInfoMapper, ExecutorInfo> implements AgentRegistrationService {
 
     private static final int DEFAULT_AGENT_PORT = 9101;
 
-    private final ExecutorInfoMapper executorInfoMapper;
     private final AgentPlatformProperties properties;
     private final TokenCipherService tokenCipherService;
-
-    /** 注入执行器数据访问和认证组件。 */
-    public AgentRegistrationServiceImpl(ExecutorInfoMapper executorInfoMapper,
-                                        AgentPlatformProperties properties,
-                                        TokenCipherService tokenCipherService) {
-        this.executorInfoMapper = executorInfoMapper;
-        this.properties = properties;
-        this.tokenCipherService = tokenCipherService;
-    }
 
     /**
      * 注册新执行器，或者刷新同名执行器的地址和 Token。
@@ -80,9 +73,9 @@ public class AgentRegistrationServiceImpl implements AgentRegistrationService {
         executor.setTokenCiphertext(tokenCipherService.encrypt(token));
 
         if (executor.getId() == null) {
-            executorInfoMapper.insert(executor);
+            save(executor);
         } else {
-            executorInfoMapper.updateById(executor);
+            updateById(executor);
         }
         return new RegisterData(executor.getExecutorId(), token);
     }
@@ -125,7 +118,7 @@ public class AgentRegistrationServiceImpl implements AgentRegistrationService {
         if (StringUtils.hasText(request.getIp())) {
             update.set(ExecutorInfo::getHostIp, request.getIp().trim());
         }
-        executorInfoMapper.update(null, update);
+        update(update);
     }
 
     /**
@@ -141,13 +134,14 @@ public class AgentRegistrationServiceImpl implements AgentRegistrationService {
         update.eq(ExecutorInfo::getExecutorStatus, "ONLINE")
                 .lt(ExecutorInfo::getLastHeartbeatTime, threshold)
                 .set(ExecutorInfo::getExecutorStatus, "OFFLINE");
-        return executorInfoMapper.update(null, update);
+        // 返回本次实际标记离线的执行器数量。
+        return getBaseMapper().update(null, update);
     }
 
     /** 获取当前所有执行器，供开发阶段检查注册结果。 */
     @Override
     public List<ExecutorInfo> listExecutors() {
-        return executorInfoMapper.selectList(
+        return list(
                 new LambdaQueryWrapper<ExecutorInfo>().orderByAsc(ExecutorInfo::getExecutorName));
     }
 
@@ -185,7 +179,7 @@ public class AgentRegistrationServiceImpl implements AgentRegistrationService {
         if (!StringUtils.hasText(hostIp)) {
             throw new IllegalArgumentException("服务器IP不能为空");
         }
-        List<ExecutorInfo> matches = executorInfoMapper.selectList(
+        List<ExecutorInfo> matches = list(
                 new LambdaQueryWrapper<ExecutorInfo>()
                         .eq(ExecutorInfo::getHostIp, hostIp.trim())
                         .eq(ExecutorInfo::getManagementStatus, "ACTIVE"));
@@ -247,12 +241,12 @@ public class AgentRegistrationServiceImpl implements AgentRegistrationService {
         LambdaUpdateWrapper<ExecutorInfo> update = new LambdaUpdateWrapper<>();
         update.eq(ExecutorInfo::getExecutorId, executorId)
                 .set(ExecutorInfo::getLastReportTime, LocalDateTime.now());
-        executorInfoMapper.update(null, update);
+        update(update);
     }
 
     /** 根据执行器名称查询记录。 */
     private ExecutorInfo findByExecutorName(String executorName) {
-        return executorInfoMapper.selectOne(new LambdaQueryWrapper<ExecutorInfo>()
+        return getOne(new LambdaQueryWrapper<ExecutorInfo>()
                 .eq(ExecutorInfo::getExecutorName, executorName.trim()));
     }
 
@@ -260,7 +254,7 @@ public class AgentRegistrationServiceImpl implements AgentRegistrationService {
     private ExecutorInfo findByExecutorId(String executorId) {
         // 创建一个用于查询ExecutorInfo数据的条件构造器。
         // MP只能借助Getter方法来定位属性。
-        return executorInfoMapper.selectOne(new LambdaQueryWrapper<ExecutorInfo>()
+        return getOne(new LambdaQueryWrapper<ExecutorInfo>()
                 .eq(ExecutorInfo::getExecutorId, executorId));
     }
 

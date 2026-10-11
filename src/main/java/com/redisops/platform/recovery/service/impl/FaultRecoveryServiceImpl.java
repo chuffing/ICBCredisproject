@@ -1,5 +1,7 @@
 package com.redisops.platform.recovery.service.impl;
 
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import com.redisops.platform.operation.model.CreateOperationTaskRequest;
 import com.redisops.platform.operation.model.CreateOperationTaskStepRequest;
 import com.redisops.platform.recovery.model.FaultRecoveryNodeRequest;
@@ -13,7 +15,6 @@ import com.redisops.platform.agent.service.AgentRegistrationService;
 import com.redisops.platform.agent.configsnapshot.service.ExecutorConfigSnapshotService;
 import com.redisops.platform.recovery.service.FaultRecoveryService;
 import com.redisops.platform.operation.service.OperationTaskService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -69,7 +70,6 @@ public class FaultRecoveryServiceImpl implements FaultRecoveryService {
         // 5. 将组装好的故障恢复任务交给公共运维任务模块，由它负责保存数据库、调度步骤和下发任务。
         return operationTaskService.createAndDispatch(taskRequest);
     }
-
 
     /** 。 */
     private List<ValidatedNode> loadValidatedNodes(
@@ -226,18 +226,10 @@ public class FaultRecoveryServiceImpl implements FaultRecoveryService {
     }
 
     /** 已完成参数校验并绑定数据库执行器记录的内部节点模型。 */
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     private static class ValidatedNode {
         private final ExecutorInfo executor;
         private final String redisConfigSha256;
         private final String sentinelConfigSha256;
-
-        /** 保存后续编排需要的执行器和两个配置摘要。 */
-        private ValidatedNode(ExecutorInfo executor,
-                              String redisConfigSha256,
-                              String sentinelConfigSha256) {
-            this.executor = executor;
-            this.redisConfigSha256 = redisConfigSha256;
-            this.sentinelConfigSha256 = sentinelConfigSha256;
-        }
     }
 }

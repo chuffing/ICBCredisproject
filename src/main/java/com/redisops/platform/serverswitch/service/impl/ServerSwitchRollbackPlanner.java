@@ -1,5 +1,7 @@
 package com.redisops.platform.serverswitch.service.impl;
 
+import lombok.Data;
+import lombok.RequiredArgsConstructor;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.redisops.platform.operation.entity.OperationTask;
@@ -20,6 +22,7 @@ import java.util.Map;
  * 在新拓扑启动失败后停止新服务，并在需要时恢复旧拓扑 Sentinel。
  */
 @Service
+@RequiredArgsConstructor
 public class ServerSwitchRollbackPlanner implements OperationTaskRollbackPlanner {
 
     private static final int ROLLBACK_STEP_START = 1001;
@@ -27,11 +30,6 @@ public class ServerSwitchRollbackPlanner implements OperationTaskRollbackPlanner
     private static final int SOURCE_SENTINEL_STOP_STEP = 7;
 
     private final ObjectMapper objectMapper;
-
-    /** 注入任务审计参数解析器。 */
-    public ServerSwitchRollbackPlanner(ObjectMapper objectMapper) {
-        this.objectMapper = objectMapper;
-    }
 
     /** 只处理 SERVER_SWITCH 业务任务。 */
     @Override
@@ -129,13 +127,8 @@ public class ServerSwitchRollbackPlanner implements OperationTaskRollbackPlanner
     }
 
     /** 从任务审计 JSON 反序列化的一台服务器。 */
+    @Data
     public static class NodeContext {
         private String executorId;
-
-        /** 获取执行器编号。 */
-        public String getExecutorId() { return executorId; }
-
-        /** 设置执行器编号。 */
-        public void setExecutorId(String executorId) { this.executorId = executorId; }
     }
 }

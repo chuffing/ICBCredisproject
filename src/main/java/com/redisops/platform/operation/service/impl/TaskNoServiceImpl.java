@@ -1,5 +1,6 @@
 package com.redisops.platform.operation.service.impl;
 
+import lombok.RequiredArgsConstructor;
 import com.redisops.platform.operation.mapper.TaskNoSequenceMapper;
 import com.redisops.platform.operation.service.TaskNoService;
 import org.springframework.stereotype.Service;
@@ -12,16 +13,12 @@ import java.time.format.DateTimeFormatter;
  * 生成 TASKyyyyMMdd0001 格式的业务任务编号。
  */
 @Service
+@RequiredArgsConstructor
 public class TaskNoServiceImpl implements TaskNoService {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.BASIC_ISO_DATE;
 
     private final TaskNoSequenceMapper sequenceMapper;
-
-    /** 注入任务流水数据访问组件。 */
-    public TaskNoServiceImpl(TaskNoSequenceMapper sequenceMapper) {
-        this.sequenceMapper = sequenceMapper;
-    }
 
     /**
      * 原子生成当天的下一个任务编号。

@@ -1,5 +1,6 @@
 package com.redisops.platform.security.service.impl;
 
+import lombok.RequiredArgsConstructor;
 import com.redisops.platform.agent.config.AgentPlatformProperties;
 import com.redisops.platform.security.service.ConfigCipherService;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,7 @@ import java.util.Base64;
  * 使用AES-GCM加密平台保存的Redis和Sentinel配置正文。
  */
 @Service
+@RequiredArgsConstructor
 public class ConfigCipherServiceImpl implements ConfigCipherService {
 
     private static final int IV_LENGTH = 12;
@@ -25,11 +27,6 @@ public class ConfigCipherServiceImpl implements ConfigCipherService {
 
     private final AgentPlatformProperties properties;
     private final SecureRandom secureRandom = new SecureRandom();
-
-    /** 注入平台安全配置。 */
-    public ConfigCipherServiceImpl(AgentPlatformProperties properties) {
-        this.properties = properties;
-    }
 
     /** 加密配置正文并把随机IV放在密文前面。 */
     @Override

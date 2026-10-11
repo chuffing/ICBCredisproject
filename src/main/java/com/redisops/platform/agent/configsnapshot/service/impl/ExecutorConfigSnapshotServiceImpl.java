@@ -1,5 +1,7 @@
 package com.redisops.platform.agent.configsnapshot.service.impl;
 
+import lombok.RequiredArgsConstructor;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.redisops.platform.agent.configsnapshot.model.ConfigSnapshotStatusData;
@@ -23,23 +25,13 @@ import java.util.Base64;
  * 保存平台基准配置，并阻止重新注册静默覆盖已有配置。
  */
 @Service
-public class ExecutorConfigSnapshotServiceImpl implements ExecutorConfigSnapshotService {
+@RequiredArgsConstructor
+public class ExecutorConfigSnapshotServiceImpl extends ServiceImpl<ExecutorConfigSnapshotMapper, ExecutorConfigSnapshot> implements ExecutorConfigSnapshotService {
 
     private static final int MAX_CONFIG_BYTES = 10 * 1024 * 1024;
 
-    private final ExecutorConfigSnapshotMapper snapshotMapper;
     private final AgentRegistrationService agentRegistrationService;
     private final ConfigCipherService configCipherService;
-
-    /** 注入配置快照、执行器认证和配置加密组件。 */
-    public ExecutorConfigSnapshotServiceImpl(
-            ExecutorConfigSnapshotMapper snapshotMapper,
-            AgentRegistrationService agentRegistrationService,
-            ConfigCipherService configCipherService) {
-        this.snapshotMapper = snapshotMapper;
-        this.agentRegistrationService = agentRegistrationService;
-        this.configCipherService = configCipherService;
-    }
 
     /** 查询平台是否已经保存指定执行器的基准配置。 */
     @Override
@@ -78,7 +70,7 @@ public class ExecutorConfigSnapshotServiceImpl implements ExecutorConfigSnapshot
             LambdaUpdateWrapper<ExecutorConfigSnapshot> update = new LambdaUpdateWrapper<>();
             update.eq(ExecutorConfigSnapshot::getId, existing.getId())
                     .set(ExecutorConfigSnapshot::getLastVerifiedTime, now);
-            snapshotMapper.update(null, update);
+            update(update);
             existing.setLastVerifiedTime(now);
             return toStatus(existing);
         }
@@ -96,7 +88,7 @@ public class ExecutorConfigSnapshotServiceImpl implements ExecutorConfigSnapshot
         snapshot.setSnapshotStatus("ACTIVE");
         snapshot.setInitializedTime(now);
         snapshot.setLastVerifiedTime(now);
-        snapshotMapper.insert(snapshot);
+        save(snapshot);
         return toStatus(snapshot);
     }
 
@@ -219,7 +211,7 @@ public class ExecutorConfigSnapshotServiceImpl implements ExecutorConfigSnapshot
 
     /** 根据执行器编号查询当前基准配置。 */
     private ExecutorConfigSnapshot findByExecutorId(String executorId) {
-        return snapshotMapper.selectOne(new LambdaQueryWrapper<ExecutorConfigSnapshot>()
+        return getOne(new LambdaQueryWrapper<ExecutorConfigSnapshot>()
                 .eq(ExecutorConfigSnapshot::getExecutorId, executorId));
     }
 

@@ -1,5 +1,6 @@
 package com.redisops.platform.agent.status.controller;
 
+import lombok.RequiredArgsConstructor;
 import com.redisops.platform.agent.status.entity.ExecutorRuntimeStatus;
 import com.redisops.platform.agent.status.model.MetricReportRequest;
 import com.redisops.platform.agent.status.service.ExecutorRuntimeStatusService;
@@ -18,14 +19,10 @@ import java.util.List;
 /** 接收执行器状态上报，并向页面提供各节点最新状态。 */
 @RestController
 @RequestMapping("/api/metric")
+@RequiredArgsConstructor
 public class ExecutorRuntimeStatusController {
 
     private final ExecutorRuntimeStatusService statusService;
-
-    /** 注入执行器运行状态服务。 */
-    public ExecutorRuntimeStatusController(ExecutorRuntimeStatusService statusService) {
-        this.statusService = statusService;
-    }
 
     /** 认证执行器并保存本次Redis和Sentinel采集结果。 */
     @PostMapping("/report")

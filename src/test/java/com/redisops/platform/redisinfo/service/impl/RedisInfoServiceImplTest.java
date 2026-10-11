@@ -1,5 +1,7 @@
 package com.redisops.platform.redisinfo.service.impl;
 
+import org.springframework.test.util.ReflectionTestUtils;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
@@ -49,9 +51,9 @@ class RedisInfoServiceImplTest {
                 oldNode(6L, "NEW-3", "10.0.1.3", "REPLICA"));
         when(redisInfoMapper.selectList(any())).thenReturn(oldTopology, committedTopology);
 
-        RedisInfoServiceImpl service = new RedisInfoServiceImpl(
-                redisInfoMapper, agentRegistrationService,
+        RedisInfoServiceImpl service = new RedisInfoServiceImpl(agentRegistrationService,
                 configCipherService, new ObjectMapper());
+        ReflectionTestUtils.setField(service, "baseMapper", redisInfoMapper);
         OperationTask task = new OperationTask();
         task.setTaskType("SERVER_SWITCH");
         task.setRequestParams("{" +

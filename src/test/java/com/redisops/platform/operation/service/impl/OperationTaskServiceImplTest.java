@@ -1,5 +1,7 @@
 package com.redisops.platform.operation.service.impl;
 
+import org.springframework.test.util.ReflectionTestUtils;
+
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
@@ -13,25 +15,104 @@ import com.redisops.platform.operation.entity.OperationTaskStep;
 import com.redisops.platform.operation.mapper.OperationTaskMapper;
 import com.redisops.platform.operation.mapper.OperationTaskStepMapper;
 import com.redisops.platform.operation.model.TaskResultReportRequest;
+import com.redisops.platform.operation.entity.OperationTask;
+import com.redisops.platform.operation.model.CreateOperationTaskRequest;
+import com.redisops.platform.operation.model.CreateOperationTaskStepRequest;
+import com.redisops.platform.operation.model.OperationTaskDetail;
 import com.redisops.platform.operation.service.TaskNoService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.TransactionStatus;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.Date;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.times;
 
 /** 验证平台能够核对执行器本地结果，并阻止未知步骤继续推进。 */
 class OperationTaskServiceImplTest {
+
+    /** MP 保存主任务后，应批量保存全部步骤，并且仅下发第一组。 */
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldPersistWholeTaskAndDispatchOnlyFirstGroup() {
+        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""),
+                OperationTask.class);
+        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""),
+                OperationTaskStep.class);
+        OperationTaskMapper tasks = mock(OperationTaskMapper.class);
+        OperationTaskStepMapper steps = mock(OperationTaskStepMapper.class);
+        TaskNoService numbers = mock(TaskNoService.class);
+        AgentRegistrationService registration = mock(AgentRegistrationService.class);
+        AgentTaskClient client = mock(AgentTaskClient.class);
+        TransactionTemplate transactions = mock(TransactionTemplate.class);
+        when(transactions.execute(any())).thenAnswer(invocation ->
+                ((TransactionCallback<Object>) invocation.getArgument(0))
+                        .doInTransaction(mock(TransactionStatus.class)));
+        when(numbers.nextTaskNo()).thenReturn("TASK-MP-1");
+        when(tasks.selectCount(any())).thenReturn(0L);
+        AtomicReference<OperationTask> savedTask = new AtomicReference<>();
+        doAnswer(invocation -> {
+            savedTask.set(invocation.getArgument(0));
+            return 1;
+        }).when(tasks).insert(any(OperationTask.class));
+        when(tasks.selectOne(any(), eq(true))).thenAnswer(invocation -> savedTask.get());
+        List<OperationTaskStep> savedSteps = new ArrayList<>();
+        when(steps.insertBatch(any())).thenAnswer(invocation -> {
+            List<OperationTaskStep> values = invocation.getArgument(0);
+            for (int index = 0; index < values.size(); index++) {
+                values.get(index).setId((long) index + 1);
+            }
+            savedSteps.addAll(values);
+            return values.size();
+        });
+        when(steps.selectList(any())).thenReturn(savedSteps);
+        when(steps.update(any(), any())).thenReturn(1);
+        when(registration.requireOnlineExecutor(any())).thenReturn(new ExecutorInfo());
+        OperationTaskServiceImpl service = new OperationTaskServiceImpl(steps, numbers,
+                registration, client, new ObjectMapper(), transactions, mock(TaskScheduler.class),
+                Collections.emptyList(), Collections.emptyList());
+        ReflectionTestUtils.setField(service, "baseMapper", tasks);
+        CreateOperationTaskRequest request = new CreateOperationTaskRequest();
+        request.setTaskType("FAULT_RECOVERY");
+        request.setCreatedBy("admin");
+        request.setOperationReason("验证分组调度");
+        List<CreateOperationTaskStepRequest> requestedSteps = new ArrayList<>();
+        for (int group = 1; group <= 2; group++) {
+            for (int node = 1; node <= 3; node++) {
+                CreateOperationTaskStepRequest step = new CreateOperationTaskStepRequest();
+                step.setStepNo(group);
+                step.setExecutorId("AGENT-" + node);
+                step.setOperationType(group == 1 ? "STOP_SENTINEL" : "STOP_REDIS");
+                requestedSteps.add(step);
+            }
+        }
+        request.setSteps(requestedSteps);
+
+        OperationTaskDetail detail = service.createAndDispatch(request);
+
+        assertEquals("TASK-MP-1", detail.getTask().getTaskNo());
+        assertEquals(6, detail.getSteps().size());
+        verify(steps).insertBatch(any());
+        verify(client, times(3)).dispatch(any(), eq("TASK-MP-1"), eq(1), eq("STOP_SENTINEL"), any());
+        verify(client, times(3)).dispatch(any(), any(), any(), any(), any());
+    }
 
     /** 回调丢失但执行器保存了SUCCESS时，平台应补记结果并安排推进。 */
     @Test
@@ -88,9 +169,7 @@ class OperationTaskServiceImplTest {
         context.registrationService = mock(AgentRegistrationService.class);
         context.agentTaskClient = mock(AgentTaskClient.class);
         context.scheduler = mock(TaskScheduler.class);
-        context.service = new OperationTaskServiceImpl(
-                mock(OperationTaskMapper.class),
-                context.stepMapper,
+        context.service = new OperationTaskServiceImpl(context.stepMapper,
                 mock(TaskNoService.class),
                 context.registrationService,
                 context.agentTaskClient,
@@ -99,6 +178,7 @@ class OperationTaskServiceImplTest {
                 context.scheduler,
                 Collections.emptyList(),
                 Collections.emptyList());
+        ReflectionTestUtils.setField(context.service, "baseMapper", mock(OperationTaskMapper.class));
         return context;
     }
 

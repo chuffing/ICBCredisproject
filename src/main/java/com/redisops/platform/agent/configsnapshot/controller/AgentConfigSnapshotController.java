@@ -1,5 +1,6 @@
 package com.redisops.platform.agent.configsnapshot.controller;
 
+import lombok.RequiredArgsConstructor;
 import com.redisops.platform.common.model.ApiResponse;
 import com.redisops.platform.agent.configsnapshot.model.ConfigSnapshotStatusData;
 import com.redisops.platform.agent.configsnapshot.model.ConfigSnapshotUploadRequest;
@@ -19,14 +20,10 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/agent/config-snapshot")
+@RequiredArgsConstructor
 public class AgentConfigSnapshotController {
 
     private final ExecutorConfigSnapshotService snapshotService;
-
-    /** 注入执行器配置快照服务。 */
-    public AgentConfigSnapshotController(ExecutorConfigSnapshotService snapshotService) {
-        this.snapshotService = snapshotService;
-    }
 
     /** 查询平台是否已有指定执行器的基准配置。 */
     @GetMapping

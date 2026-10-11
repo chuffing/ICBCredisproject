@@ -1,5 +1,6 @@
 package com.redisops.platform.agent.configsnapshot.service;
 
+import com.baomidou.mybatisplus.extension.service.IService;
 import com.redisops.platform.agent.configsnapshot.model.ConfigSnapshotStatusData;
 import com.redisops.platform.agent.configsnapshot.model.ConfigSnapshotFiles;
 import com.redisops.platform.agent.configsnapshot.model.ConfigSnapshotUploadRequest;
@@ -8,7 +9,7 @@ import com.redisops.platform.agent.configsnapshot.entity.ExecutorConfigSnapshot;
 /**
  * 执行器基准配置初始化、校验和查询接口。
  */
-public interface ExecutorConfigSnapshotService {
+public interface ExecutorConfigSnapshotService extends IService<ExecutorConfigSnapshot> {
 
     /** 查询指定执行器是否已经建立基准配置。 */
     ConfigSnapshotStatusData getStatus(String authorization, String executorId);

@@ -1,5 +1,7 @@
 package com.redisops.platform.agent.status.service.impl;
 
+import lombok.RequiredArgsConstructor;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.redisops.platform.agent.service.AgentRegistrationService;
@@ -16,17 +18,10 @@ import java.util.List;
 
 /** 保存每台执行器最近一次Redis和Sentinel采集结果。 */
 @Service
-public class ExecutorRuntimeStatusServiceImpl implements ExecutorRuntimeStatusService {
+@RequiredArgsConstructor
+public class ExecutorRuntimeStatusServiceImpl extends ServiceImpl<ExecutorRuntimeStatusMapper, ExecutorRuntimeStatus> implements ExecutorRuntimeStatusService {
 
-    private final ExecutorRuntimeStatusMapper statusMapper;
     private final AgentRegistrationService agentRegistrationService;
-
-    /** 注入状态数据访问和执行器认证服务。 */
-    public ExecutorRuntimeStatusServiceImpl(ExecutorRuntimeStatusMapper statusMapper,
-                                            AgentRegistrationService agentRegistrationService) {
-        this.statusMapper = statusMapper;
-        this.agentRegistrationService = agentRegistrationService;
-    }
 
     /** 验证上报身份，并以执行器编号为键覆盖保存最新状态。 */
     @Override
@@ -43,7 +38,7 @@ public class ExecutorRuntimeStatusServiceImpl implements ExecutorRuntimeStatusSe
             ExecutorRuntimeStatus status = new ExecutorRuntimeStatus();
             status.setExecutorId(executorId);
             copyMetric(status, metric, now);
-            statusMapper.insert(status);
+            save(status);
         } else {
             ExecutorRuntimeStatus values = new ExecutorRuntimeStatus();
             copyMetric(values, metric, now);
@@ -62,7 +57,7 @@ public class ExecutorRuntimeStatusServiceImpl implements ExecutorRuntimeStatusSe
                     .set(ExecutorRuntimeStatus::getSentinelErrorMessage, values.getSentinelErrorMessage())
                     .set(ExecutorRuntimeStatus::getCollectTime, values.getCollectTime())
                     .set(ExecutorRuntimeStatus::getReceivedTime, now);
-            statusMapper.update(null, update);
+            update(update);
         }
         // last_report_time 表示平台最近收到该执行器任意状态或任务结果的时间。
         agentRegistrationService.touchLastReportTime(executorId);
@@ -71,7 +66,7 @@ public class ExecutorRuntimeStatusServiceImpl implements ExecutorRuntimeStatusSe
     /** 按执行器编号返回最新状态，供页面与执行器列表关联。 */
     @Override
     public List<ExecutorRuntimeStatus> listLatest() {
-        return statusMapper.selectList(new LambdaQueryWrapper<ExecutorRuntimeStatus>()
+        return list(new LambdaQueryWrapper<ExecutorRuntimeStatus>()
                 .orderByAsc(ExecutorRuntimeStatus::getExecutorId));
     }
 
@@ -109,7 +104,7 @@ public class ExecutorRuntimeStatusServiceImpl implements ExecutorRuntimeStatusSe
 
     /** 根据执行器编号读取现有最新状态。 */
     private ExecutorRuntimeStatus findByExecutorId(String executorId) {
-        return statusMapper.selectOne(new LambdaQueryWrapper<ExecutorRuntimeStatus>()
+        return getOne(new LambdaQueryWrapper<ExecutorRuntimeStatus>()
                 .eq(ExecutorRuntimeStatus::getExecutorId, executorId));
     }
 

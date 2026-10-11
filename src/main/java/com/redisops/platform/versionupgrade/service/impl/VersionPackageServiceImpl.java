@@ -1,5 +1,8 @@
 package com.redisops.platform.versionupgrade.service.impl;
 
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.redisops.platform.versionupgrade.config.VersionPackageProperties;
 import com.redisops.platform.versionupgrade.entity.RedisVersionPackage;
@@ -35,7 +38,8 @@ import java.util.regex.Pattern;
  * 在平台本地以不可变文件方式保存 Redis tar.gz 版本包。
  */
 @Service
-public class VersionPackageServiceImpl implements VersionPackageService {
+@RequiredArgsConstructor
+public class VersionPackageServiceImpl extends ServiceImpl<RedisVersionPackageMapper, RedisVersionPackage> implements VersionPackageService {
 
     private static final int BUFFER_SIZE = 8192;
     private static final int MAX_ARCHIVE_ENTRIES = 100000;
@@ -44,15 +48,7 @@ public class VersionPackageServiceImpl implements VersionPackageService {
             Pattern.compile("[0-9]+(?:\\.[0-9]+){1,3}");
     private static final Pattern SHA256_PATTERN = Pattern.compile("[0-9a-f]{64}");
 
-    private final RedisVersionPackageMapper packageMapper;
     private final VersionPackageProperties properties;
-
-    /** 注入版本包数据库访问和存储配置。 */
-    public VersionPackageServiceImpl(RedisVersionPackageMapper packageMapper,
-                                     VersionPackageProperties properties) {
-        this.packageMapper = packageMapper;
-        this.properties = properties;
-    }
 
     /**
      * 流式保存上传文件、计算 SHA-256、检查 tar.gz 结构并写入元数据。
@@ -111,7 +107,7 @@ public class VersionPackageServiceImpl implements VersionPackageService {
             entity.setVerifyStatus("PASSED");
             entity.setVerifyMessage("平台结构和摘要校验通过，实际程序版本将在Agent部署时复核");
             entity.setUploadedBy(normalizedUploader);
-            packageMapper.insert(entity);
+            save(entity);
             databaseInserted = true;
             return new VersionPackageData(entity);
         } catch (VersionPackageConflictException | IllegalArgumentException e) {
@@ -129,8 +125,8 @@ public class VersionPackageServiceImpl implements VersionPackageService {
 
     /** 查询全部版本包并按创建时间倒序返回。 */
     @Override
-    public List<VersionPackageData> list() {
-        List<RedisVersionPackage> entities = packageMapper.selectList(
+    public List<VersionPackageData> listPackages() {
+        List<RedisVersionPackage> entities = list(
                 new LambdaQueryWrapper<RedisVersionPackage>()
                         .orderByDesc(RedisVersionPackage::getCreateTime));
         List<VersionPackageData> result = new ArrayList<>();
@@ -146,7 +142,7 @@ public class VersionPackageServiceImpl implements VersionPackageService {
         if (packageId == null || packageId <= 0) {
             throw new IllegalArgumentException("versionPackageId 必须大于 0");
         }
-        RedisVersionPackage entity = packageMapper.selectById(packageId);
+        RedisVersionPackage entity = getById(packageId);
         if (entity == null) {
             throw new IllegalArgumentException("版本包不存在: " + packageId);
         }
@@ -165,7 +161,7 @@ public class VersionPackageServiceImpl implements VersionPackageService {
     public Path requirePackageFile(String version, String packageSha256) {
         String normalizedVersion = requireVersion(version);
         String normalizedSha = normalizeSha256(packageSha256);
-        RedisVersionPackage entity = packageMapper.selectOne(
+        RedisVersionPackage entity = getOne(
                 new LambdaQueryWrapper<RedisVersionPackage>()
                         .eq(RedisVersionPackage::getDeclaredVersion, normalizedVersion)
                         .eq(RedisVersionPackage::getPackageHash, normalizedSha)
@@ -307,13 +303,13 @@ public class VersionPackageServiceImpl implements VersionPackageService {
 
     /** 查询指定 SHA-256 是否已经登记。 */
     private RedisVersionPackage findByHash(String sha256) {
-        return packageMapper.selectOne(new LambdaQueryWrapper<RedisVersionPackage>()
+        return getOne(new LambdaQueryWrapper<RedisVersionPackage>()
                 .eq(RedisVersionPackage::getPackageHash, sha256));
     }
 
     /** 查询指定版本号是否已经登记。 */
     private RedisVersionPackage findByVersion(String version) {
-        return packageMapper.selectOne(new LambdaQueryWrapper<RedisVersionPackage>()
+        return getOne(new LambdaQueryWrapper<RedisVersionPackage>()
                 .eq(RedisVersionPackage::getDeclaredVersion, version)
                 .last("LIMIT 1"));
     }
@@ -429,14 +425,9 @@ public class VersionPackageServiceImpl implements VersionPackageService {
     }
 
     /** 保存阶段计算出的文件大小和摘要。 */
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     private static class SavedFile {
         private final long size;
         private final String sha256;
-
-        /** 保存不可变的上传结果。 */
-        private SavedFile(long size, String sha256) {
-            this.size = size;
-            this.sha256 = sha256;
-        }
     }
 }

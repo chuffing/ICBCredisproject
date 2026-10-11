@@ -1,5 +1,6 @@
 package com.redisops.platform.operation.controller;
 
+import lombok.RequiredArgsConstructor;
 import com.redisops.platform.common.model.ApiResponse;
 import com.redisops.platform.operation.model.TaskResultReportRequest;
 import com.redisops.platform.operation.service.OperationTaskService;
@@ -16,14 +17,10 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/task")
+@RequiredArgsConstructor
 public class TaskReportController {
 
     private final OperationTaskService operationTaskService;
-
-    /** 注入运维任务调度服务。 */
-    public TaskReportController(OperationTaskService operationTaskService) {
-        this.operationTaskService = operationTaskService;
-    }
 
     /**
      * 验证执行器身份并保存任务步骤结果。
