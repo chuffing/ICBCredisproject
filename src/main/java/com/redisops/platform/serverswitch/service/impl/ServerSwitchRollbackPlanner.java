@@ -10,6 +10,7 @@ import com.redisops.platform.operation.model.CreateOperationTaskStepRequest;
 import com.redisops.platform.operation.service.OperationTaskRollbackPlanner;
 import com.redisops.platform.operation.type.AgentOperationType;
 import com.redisops.platform.operation.type.BusinessTaskType;
+import com.redisops.platform.operation.type.StepStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -78,7 +79,7 @@ public class ServerSwitchRollbackPlanner implements OperationTaskRollbackPlanner
         for (OperationTaskStep step : steps) {
             if (step.getStepNo() != null
                     && step.getStepNo() < ROLLBACK_STEP_START
-                    && "FAILED".equals(step.getStepStatus())) {
+                    && StepStatus.FAILED.name().equals(step.getStepStatus())) {
                 failedStepNo = Math.min(failedStepNo, step.getStepNo());
             }
         }

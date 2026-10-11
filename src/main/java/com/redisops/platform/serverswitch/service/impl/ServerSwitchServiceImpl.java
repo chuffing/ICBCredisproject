@@ -52,8 +52,12 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
     public OperationTaskDetail createAndDispatch(ServerSwitchTaskRequest request) {
         int redisPort = request.getRedisPort() == null
                 ? DEFAULT_REDIS_PORT : request.getRedisPort();
+
+        // 根据安装包编号查询可用的Redis版本包，不存在或不可用时拒绝升级。
         RedisVersionPackage versionPackage = versionPackageService
                 .requireAvailable(request.getVersionPackageId());
+
+        // 根据升级请求中的执行器编号，查询并返回三台在线执行器的信息。
         List<ValidatedNode> nodes = validateAndReadNodes(request.getNodes());
         List<ExecutorInfo> sourceNodes = readManagedSourceNodes(nodes);
         ValidatedNode master = findMaster(nodes, request.getMasterHostIp().trim());
@@ -69,10 +73,12 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
         return operationTaskService.createAndDispatch(taskRequest);
     }
 
-    /** 根据已校验的IP读取在线执行器及平台保存的可信配置摘要。 */
+    /** 根据升级请求中的执行器编号，查询并返回三台在线执行器的信息。 */
     private List<ValidatedNode> validateAndReadNodes(
             List<ServerSwitchNodeRequest> requestedNodes) {
+
         List<ValidatedNode> nodes = new ArrayList<>();
+
         for (ServerSwitchNodeRequest requestedNode : requestedNodes) {
             String hostIp = requestedNode.getHostIp().trim();
             ExecutorInfo executor = agentRegistrationService.requireOnlineExecutorByHostIp(hostIp);

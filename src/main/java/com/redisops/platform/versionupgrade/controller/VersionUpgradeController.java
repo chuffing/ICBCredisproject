@@ -18,7 +18,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * 创建三节点 Redis + Sentinel 版本升级任务。
+ * 校验版本升级请求，创建运维任务并启动调度。
  */
 @RestController
 @RequestMapping("/api/version-upgrade-tasks")
@@ -31,10 +31,14 @@ public class VersionUpgradeController {
     @PostMapping
     public ResponseEntity<ApiResponse<OperationTaskDetail>> create(
             @RequestBody VersionUpgradeTaskRequest request) {
+
         try {
-            // 先校验请求字段，再查询版本包和执行器并创建任务。
+            // 校验版本包编号、任务信息、三节点参数及Redis端口。
             validateBasicRequest(request);
+
+            // 校验版本包和三台节点，创建完整升级计划并开始调度。
             OperationTaskDetail detail = versionUpgradeService.createAndDispatch(request);
+
             return ResponseEntity.status(HttpStatus.CREATED)
                     .body(ApiResponse.success("版本升级任务已创建并开始调度", detail));
         } catch (IllegalArgumentException e) {

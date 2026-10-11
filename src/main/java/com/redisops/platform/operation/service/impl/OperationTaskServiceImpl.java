@@ -106,6 +106,8 @@ public class OperationTaskServiceImpl extends ServiceImpl<OperationTaskMapper, O
      * 重复到达时直接按幂等成功处理。</p>
      */
     private void applyResult(TaskResultReportRequest request) {
+
+        // 根据任务编号、步骤编号和执行器编号查询对应的任务步骤。
         OperationTaskStep step = findReportedStep(request);
         if (step == null) {
             throw new IllegalArgumentException("没有找到与回调匹配的任务步骤");
@@ -123,9 +125,14 @@ public class OperationTaskServiceImpl extends ServiceImpl<OperationTaskMapper, O
             throw new IllegalStateException("当前步骤状态不允许接收结果: " + step.getStepStatus());
         }
 
+        // 判断当前执行器的这一条操作是否成功。
         boolean success = StepStatus.SUCCESS.name().equals(request.getStatus());
+
+        // 解析执行器返回的JSON。
         ResultSummary summary = parseResult(request.getResult());
+
         LocalDateTime now = LocalDateTime.now();
+
         LambdaUpdateWrapper<OperationTaskStep> update = new LambdaUpdateWrapper<>();
         update.eq(OperationTaskStep::getId, step.getId())
                 .in(OperationTaskStep::getStepStatus, StepStatus.DISPATCHED.name(), StepStatus.RESULT_UNKNOWN.name())
@@ -134,10 +141,15 @@ public class OperationTaskServiceImpl extends ServiceImpl<OperationTaskMapper, O
                 .set(OperationTaskStep::getErrorCode, summary.errorCode)
                 .set(OperationTaskStep::getFailureReason, success ? null : summary.message)
                 .set(OperationTaskStep::getEndTime, now);
+
+        // 这次SQL更新影响的记录数量。
         int changed = stepMapper.update(null, update);
+        // 没有符合条件的记录被更新。
         if (changed == 0) {
             return;
         }
+
+        // 更新执行器最近上报时间。
         agentRegistrationService.touchLastReportTime(request.getAgentId());
 
         if (!success) {
@@ -342,26 +354,41 @@ public class OperationTaskServiceImpl extends ServiceImpl<OperationTaskMapper, O
 
     /** 当当前步骤组全部成功时，下发下一组；没有下一组时完成任务。 */
     private synchronized void advanceAfterSuccessfulCallback(String taskNo) {
+
+        // 根据任务编号查询任务主表。
         OperationTask task = findTask(taskNo);
+
+        // 判断任务是否已经进入成功、失败或已回滚的最终状态。
         if (task == null || isFinalTaskStatus(task.getTaskStatus())) {
             return;
         }
+
+        // 查询当前任务的所有步骤。
         List<OperationTaskStep> allSteps = stepMapper.selectList(
                 new LambdaQueryWrapper<OperationTaskStep>()
                         .eq(OperationTaskStep::getTaskNo, taskNo));
+
+        // 如果是回滚任务进进入响应的回滚逻辑。
         if (TaskStatus.ROLLING_BACK.name().equals(task.getTaskStatus())) {
             advanceRollback(task, allSteps);
             return;
         }
+
+        // 遍历当前任务的所有步骤。
         for (OperationTaskStep step : allSteps) {
+            // 如果发现失败，就进行失败处理
             if (StepStatus.FAILED.name().equals(step.getStepStatus())) {
                 beginFailureHandling(taskNo, step.getFailureReason());
                 return;
             }
+
+            // 如果发现仍在等待结果的步骤，就暂时不推进。
             if (isWaitingForResult(step)) {
                 return;
             }
         }
+
+        // 如果整个任务尚未结束，且没有失败或等待结果的步骤，就调用dispatchNextStepGroup推进下一组。
         dispatchNextStepGroup(taskNo);
     }
 
@@ -378,10 +405,14 @@ public class OperationTaskServiceImpl extends ServiceImpl<OperationTaskMapper, O
 
     /** 当前所有步骤成功时把任务更新为 SUCCESS。 */
     private void markTaskSuccessIfAllStepsFinished(String taskNo) {
+
         OperationTask task = findTask(taskNo);
+
+        // 如果任务已经是成功、失败或已回滚等最终状态，就不再继续。
         if (task == null || isFinalTaskStatus(task.getTaskStatus())) {
             return;
         }
+
         if (TaskStatus.ROLLING_BACK.name().equals(task.getTaskStatus())) {
             markTaskRolledBackIfFinished(taskNo);
             return;
@@ -392,12 +423,15 @@ public class OperationTaskServiceImpl extends ServiceImpl<OperationTaskMapper, O
         if (unfinished == 0) {
             try {
                 transactionTemplate.execute(status -> {
-                    // 服务器切换在这里提交redis_info；任意异常都会同时回滚拓扑和SUCCESS状态。
+                    // 在任务全部步骤成功后执行对应业务的完成处理。
                     for (OperationTaskCompletionHandler handler : completionHandlers) {
                         if (handler.supports(task.getTaskType())) {
                             handler.handleSuccess(task);
+                            break;
                         }
                     }
+
+                    // 修改任务主表，更新任务状态。
                     LambdaUpdateWrapper<OperationTask> update = new LambdaUpdateWrapper<>();
                     update.eq(OperationTask::getTaskNo, taskNo)
                             .in(OperationTask::getTaskStatus, TaskStatus.CREATED.name(), TaskStatus.RUNNING.name())
@@ -446,7 +480,7 @@ public class OperationTaskServiceImpl extends ServiceImpl<OperationTaskMapper, O
     }
 
     /**
-     * 正常步骤失败后选择对应业务的回滚规划器；没有规划器的任务直接失败。
+     * 根据任务类型选择失败处理方式，无自动回滚方案时将任务标记为失败。
      */
     private void beginFailureHandling(String taskNo, String reason) {
         OperationTask task = findTask(taskNo);
@@ -458,7 +492,9 @@ public class OperationTaskServiceImpl extends ServiceImpl<OperationTaskMapper, O
             return;
         }
 
+        // 根据任务类型，寻找对应的自动回滚规划器。
         OperationTaskRollbackPlanner planner = findRollbackPlanner(task);
+        // 对于无需回滚的任务，直接标记任务失败。
         if (planner == null) {
             markTaskFailed(taskNo, reason);
             return;
@@ -707,10 +743,17 @@ public class OperationTaskServiceImpl extends ServiceImpl<OperationTaskMapper, O
     /** 校验执行器结果 JSON，并提取错误码和说明。 */
     private ResultSummary parseResult(String result) {
         try {
+            // 规范JSON字符串。
             String normalized = StringUtils.hasText(result) ? result : "{}";
+
+            // 把JSON字符串解析成对象。
             JsonNode root = objectMapper.readTree(normalized);
+
+            // 从JSON节点中读取到指定字段的文本值，字段不存在时返回null。
             String errorCode = textValue(root, "errorCode");
             String message = textValue(root, "message");
+
+            // 使用ResultSummary对象封装三个值并返回。
             return new ResultSummary(normalized, errorCode, message);
         } catch (Exception e) {
             throw new IllegalArgumentException("result 不是合法 JSON", e);

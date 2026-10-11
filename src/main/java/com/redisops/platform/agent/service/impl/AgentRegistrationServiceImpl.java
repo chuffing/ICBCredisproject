@@ -185,7 +185,7 @@ public class AgentRegistrationServiceImpl extends ServiceImpl<ExecutorInfoMapper
             throw new IllegalStateException("服务器IP对应多个启用执行器，请先清理重复注册: " + hostIp);
         }
         ExecutorInfo executor = matches.get(0);
-        if (!"ONLINE".equals(executor.getExecutorStatus())) {
+        if (!ExecutorOnlineStatus.ONLINE.name().equals(executor.getExecutorStatus())) {
             throw new IllegalStateException("服务器IP对应的执行器当前离线: " + hostIp);
         }
         return executor;
@@ -216,7 +216,7 @@ public class AgentRegistrationServiceImpl extends ServiceImpl<ExecutorInfoMapper
     public ExecutorInfo authenticateExecutor(String executorId, String authorization) {
         String token = parseBearerToken(authorization);
         ExecutorInfo executor = findByExecutorId(executorId);
-        if (executor == null || !"ACTIVE".equals(executor.getManagementStatus())) {
+        if (executor == null || !ExecutorManagementStatus.ACTIVE.name().equals(executor.getManagementStatus())) {
             throw new SecurityException("执行器不存在或已停用");
         }
         String storedToken = tokenCipherService.decrypt(executor.getTokenCiphertext());

@@ -36,12 +36,16 @@ public class VersionUpgradeServiceImpl implements VersionUpgradeService {
     private final VersionPackageService versionPackageService;
 
     /**
-     * 创建“部署包、停止拓扑、切换版本、按主从顺序启动”的七阶段计划。
+     * 校验升级安装包和三台执行器，生成版本升级步骤并启动任务调度。
      */
     @Override
     public OperationTaskDetail createAndDispatch(VersionUpgradeTaskRequest request) {
+
+        // 确定Redis端口。
         int redisPort = request.getRedisPort() == null
                 ? DEFAULT_REDIS_PORT : request.getRedisPort();
+
+        // 查询安装包。
         RedisVersionPackage versionPackage = versionPackageService
                 .requireAvailable(request.getVersionPackageId());
         List<ExecutorInfo> nodes = validateAndReadExecutors(request.getNodes());

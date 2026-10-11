@@ -135,7 +135,7 @@ public class VersionPackageServiceImpl extends ServiceImpl<RedisVersionPackageMa
         return result;
     }
 
-    /** 查找一条校验通过且文件仍存在的版本包。 */
+    /** 根据安装包编号查询可用的Redis版本包，不存在或不可用时拒绝升级。 */
     @Override
     public RedisVersionPackage requireAvailable(Long packageId) {
         if (packageId == null || packageId <= 0) {
