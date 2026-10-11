@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.redisops.platform.agent.entity.ExecutorInfo;
 import com.redisops.platform.agent.service.AgentRegistrationService;
 import com.redisops.platform.operation.client.AgentTaskClient;
+import com.redisops.platform.operation.controller.TaskReportController;
 import com.redisops.platform.operation.entity.OperationTask;
 import com.redisops.platform.operation.entity.OperationTaskStep;
 import com.redisops.platform.operation.mapper.OperationTaskMapper;
@@ -19,6 +20,8 @@ import com.redisops.platform.operation.model.TaskResultReportRequest;
 import com.redisops.platform.operation.service.TaskNoService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -40,12 +43,59 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /** 验证平台能够核对执行器本地结果，并阻止未知步骤继续推进。 */
 class OperationTaskServiceImplTest {
+
+    /** HTTP 入口校验通过后，仍认证执行器、保存结果并安排下一组。 */
+    @Test
+    void shouldApplyValidatedHttpCallback() {
+        TestContext context = context();
+        when(context.stepMapper.selectOne(any())).thenReturn(dispatchedStep());
+        when(context.stepMapper.update(any(), any())).thenReturn(1);
+        TaskResultReportRequest request = successResult();
+
+        assertEquals(200, new TaskReportController(context.service)
+                .report("Bearer test-token", request).getStatusCodeValue());
+
+        verify(context.registrationService).authenticateExecutor("redis-node-01", "Bearer test-token");
+        verify(context.registrationService).touchLastReportTime("redis-node-01");
+        verify(context.stepMapper).update(any(), any());
+        verify(context.scheduler).schedule(any(Runnable.class), any(Date.class));
+    }
+
+    /** 主动查询绕过 Controller，非法结果仍不得进入步骤查询、更新和后续调度。 */
+    @ParameterizedTest
+    @ValueSource(strings = {"taskNo", "stepNo", "status", "operationType"})
+    void shouldRejectMalformedQueriedResultBeforeApplyingIt(String invalidField) {
+        TestContext context = context();
+        OperationTaskStep step = dispatchedStep();
+        LocalDateTime now = LocalDateTime.now();
+        step.setLastDispatchTime(now.minusSeconds(30));
+        when(context.stepMapper.selectList(any())).thenReturn(Collections.singletonList(step));
+        when(context.registrationService.requireOnlineExecutor("redis-node-01")).thenReturn(executor());
+        TaskResultReportRequest result = successResult();
+        switch (invalidField) {
+            case "taskNo": result.setTaskNo(" "); break;
+            case "stepNo": result.setStepNo(0); break;
+            case "status": result.setStatus("RUNNING"); break;
+            case "operationType": result.setOperationType("OTHER"); break;
+            default: throw new AssertionError("Unknown test field");
+        }
+        when(context.agentTaskClient.queryTaskResult(any(), any(), any())).thenReturn(result);
+
+        context.service.reconcileUnconfirmedResults(now.minusSeconds(10), now.minusSeconds(120));
+
+        verify(context.stepMapper, never()).selectOne(any());
+        verify(context.stepMapper, never()).update(any(), any());
+        verify(context.registrationService, never()).touchLastReportTime(any());
+        verifyNoInteractions(context.scheduler);
+    }
 
     /** 内部编排直接调用服务时，仍应拒绝空步骤、重复目标和不连续的步骤编号。 */
     @Test

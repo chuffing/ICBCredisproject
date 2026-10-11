@@ -9,6 +9,7 @@ import com.redisops.platform.agent.entity.ExecutorInfo;
 import com.redisops.platform.agent.service.AgentRegistrationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -37,6 +38,7 @@ public class AgentController {
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<RegisterData>> register(@RequestBody RegisterRequest request) {
         try {
+            validateRegisterRequest(request);
             RegisterData data = agentRegistrationService.register(request);
             return ResponseEntity.ok(ApiResponse.success("注册成功", data));
         } catch (SecurityException e) {
@@ -60,6 +62,7 @@ public class AgentController {
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestBody HeartbeatRequest request) {
         try {
+            validateHeartbeatRequest(request);
             agentRegistrationService.heartbeat(authorization, request);
             return ResponseEntity.ok(ApiResponse.success("心跳接收成功", null));
         } catch (SecurityException e) {
@@ -79,5 +82,26 @@ public class AgentController {
     @GetMapping
     public ApiResponse<List<ExecutorInfo>> listExecutors() {
         return ApiResponse.success("查询成功", agentRegistrationService.listExecutors());
+    }
+
+    /** 校验注册接口必填参数和端口范围。 */
+    private void validateRegisterRequest(RegisterRequest request) {
+        if (request == null
+                || !StringUtils.hasText(request.getAgentName())
+                || !StringUtils.hasText(request.getHostname())
+                || !StringUtils.hasText(request.getIp())) {
+            throw new IllegalArgumentException("agentName、hostname 和 ip 不能为空");
+        }
+        if (request.getAgentPort() != null
+                && (request.getAgentPort() < 1 || request.getAgentPort() > 65535)) {
+            throw new IllegalArgumentException("agentPort 必须在 1 到 65535 之间");
+        }
+    }
+
+    /** 校验心跳请求中的执行器编号。 */
+    private void validateHeartbeatRequest(HeartbeatRequest request) {
+        if (request == null || !StringUtils.hasText(request.getAgentId())) {
+            throw new IllegalArgumentException("agentId 不能为空");
+        }
     }
 }

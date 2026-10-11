@@ -95,9 +95,7 @@ public class OperationTaskServiceImpl extends ServiceImpl<OperationTaskMapper, O
      */
     @Override
     public synchronized void receiveResult(String authorization, TaskResultReportRequest request) {
-        validateResultRequest(request);
         agentRegistrationService.authenticateExecutor(request.getAgentId(), authorization);
-
         applyResult(request);
     }
 
@@ -108,8 +106,6 @@ public class OperationTaskServiceImpl extends ServiceImpl<OperationTaskMapper, O
      * 重复到达时直接按幂等成功处理。</p>
      */
     private void applyResult(TaskResultReportRequest request) {
-        validateResultRequest(request);
-
         OperationTaskStep step = findReportedStep(request);
         if (step == null) {
             throw new IllegalArgumentException("没有找到与回调匹配的任务步骤");
@@ -179,6 +175,8 @@ public class OperationTaskServiceImpl extends ServiceImpl<OperationTaskMapper, O
                 TaskResultReportRequest result = agentTaskClient.queryTaskResult(
                         executor, step.getTaskNo(), step.getStepNo());
                 if (result != null) {
+                    // 主动查询的结果不会经过 Controller，在此校验后再应用业务状态。
+                    validateQueriedResult(result);
                     if (!step.getExecutorId().equals(result.getAgentId())) {
                         throw new IllegalStateException("执行器返回的 agentId 与步骤不一致");
                     }
@@ -681,8 +679,8 @@ public class OperationTaskServiceImpl extends ServiceImpl<OperationTaskMapper, O
         }
     }
 
-    /** 校验执行结果回调的匹配字段和状态值。 */
-    private void validateResultRequest(TaskResultReportRequest request) {
+    /** 校验主动查询得到的执行器结果；HTTP 回调由 Controller 做基础校验。 */
+    private void validateQueriedResult(TaskResultReportRequest request) {
         if (request == null
                 || !StringUtils.hasText(request.getTaskNo())
                 || request.getStepNo() == null || request.getStepNo() < 1

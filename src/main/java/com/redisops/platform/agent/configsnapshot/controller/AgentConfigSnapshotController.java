@@ -7,6 +7,7 @@ import com.redisops.platform.agent.configsnapshot.model.ConfigSnapshotUploadRequ
 import com.redisops.platform.agent.configsnapshot.service.ExecutorConfigSnapshotService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -31,6 +32,7 @@ public class AgentConfigSnapshotController {
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestParam("agentId") String agentId) {
         try {
+            validateStatusRequest(agentId);
             return ResponseEntity.ok(ApiResponse.success(
                     "配置快照状态查询成功",
                     snapshotService.getStatus(authorization, agentId)));
@@ -49,6 +51,7 @@ public class AgentConfigSnapshotController {
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestBody ConfigSnapshotUploadRequest request) {
         try {
+            validateUploadRequest(request);
             ConfigSnapshotStatusData data = snapshotService.initializeOrVerify(
                     authorization, request);
             return ResponseEntity.ok(ApiResponse.success("配置快照已初始化或校验通过", data));
@@ -61,6 +64,24 @@ public class AgentConfigSnapshotController {
         } catch (IllegalStateException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(ApiResponse.failure("CONFIG_SNAPSHOT_CONFLICT", e.getMessage()));
+        }
+    }
+
+    /** 校验上传请求中的必填字段。 */
+    private void validateUploadRequest(ConfigSnapshotUploadRequest request) {
+        if (request == null
+                || !StringUtils.hasText(request.getAgentId())
+                || !StringUtils.hasText(request.getRedisConfigBase64())
+                || !StringUtils.hasText(request.getSentinelConfigBase64())) {
+            throw new IllegalArgumentException(
+                    "agentId、redisConfigBase64 和 sentinelConfigBase64 不能为空");
+        }
+    }
+
+    /** 校验配置快照查询中的执行器编号。 */
+    private void validateStatusRequest(String executorId) {
+        if (!StringUtils.hasText(executorId)) {
+            throw new IllegalArgumentException("executorId 不能为空");
         }
     }
 }

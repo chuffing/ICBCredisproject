@@ -36,9 +36,6 @@ public class ExecutorConfigSnapshotServiceImpl extends ServiceImpl<ExecutorConfi
     /** 查询平台是否已经保存指定执行器的基准配置。 */
     @Override
     public ConfigSnapshotStatusData getStatus(String authorization, String executorId) {
-        if (!StringUtils.hasText(executorId)) {
-            throw new IllegalArgumentException("executorId 不能为空");
-        }
         String normalizedExecutorId = executorId.trim();
         agentRegistrationService.authenticateExecutor(normalizedExecutorId, authorization);
         ExecutorConfigSnapshot snapshot = findByExecutorId(normalizedExecutorId);
@@ -52,7 +49,6 @@ public class ExecutorConfigSnapshotServiceImpl extends ServiceImpl<ExecutorConfi
     @Transactional(rollbackFor = Exception.class)
     public synchronized ConfigSnapshotStatusData initializeOrVerify(
             String authorization, ConfigSnapshotUploadRequest request) {
-        validateUploadRequest(request);
         String executorId = request.getAgentId().trim();
         agentRegistrationService.authenticateExecutor(executorId, authorization);
 
@@ -146,17 +142,6 @@ public class ExecutorConfigSnapshotServiceImpl extends ServiceImpl<ExecutorConfi
             throw e;
         } catch (RuntimeException e) {
             throw new IllegalStateException("平台配置正文无法解码: " + fileName, e);
-        }
-    }
-
-    /** 校验上传请求中的必填字段。 */
-    private void validateUploadRequest(ConfigSnapshotUploadRequest request) {
-        if (request == null
-                || !StringUtils.hasText(request.getAgentId())
-                || !StringUtils.hasText(request.getRedisConfigBase64())
-                || !StringUtils.hasText(request.getSentinelConfigBase64())) {
-            throw new IllegalArgumentException(
-                    "agentId、redisConfigBase64 和 sentinelConfigBase64 不能为空");
         }
     }
 

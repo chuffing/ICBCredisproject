@@ -27,7 +27,6 @@ public class ExecutorRuntimeStatusServiceImpl extends ServiceImpl<ExecutorRuntim
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void receive(String authorization, MetricReportRequest request) {
-        validate(request);
         String executorId = request.getAgentId().trim();
         agentRegistrationService.authenticateExecutor(executorId, authorization);
 
@@ -87,19 +86,6 @@ public class ExecutorRuntimeStatusServiceImpl extends ServiceImpl<ExecutorRuntim
         target.setSentinelErrorMessage(trimToNull(metric.getSentinelErrorMsg()));
         target.setCollectTime(metric.getCollectTime());
         target.setReceivedTime(receivedTime);
-    }
-
-    /** 检查上报必须包含执行器编号、采集对象和采集时间。 */
-    private void validate(MetricReportRequest request) {
-        if (request == null || !StringUtils.hasText(request.getAgentId())) {
-            throw new IllegalArgumentException("agentId 不能为空");
-        }
-        if (request.getMetric() == null) {
-            throw new IllegalArgumentException("metric 不能为空");
-        }
-        if (request.getMetric().getCollectTime() == null) {
-            throw new IllegalArgumentException("collectTime 不能为空");
-        }
     }
 
     /** 根据执行器编号读取现有最新状态。 */

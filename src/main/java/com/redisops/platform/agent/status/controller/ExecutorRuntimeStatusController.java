@@ -7,6 +7,7 @@ import com.redisops.platform.agent.status.service.ExecutorRuntimeStatusService;
 import com.redisops.platform.common.model.ApiResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -30,6 +31,7 @@ public class ExecutorRuntimeStatusController {
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestBody MetricReportRequest request) {
         try {
+            validateReportRequest(request);
             statusService.receive(authorization, request);
             return ResponseEntity.ok(ApiResponse.success("状态上报已接收", null));
         } catch (SecurityException e) {
@@ -45,5 +47,18 @@ public class ExecutorRuntimeStatusController {
     @GetMapping("/latest")
     public ApiResponse<List<ExecutorRuntimeStatus>> listLatest() {
         return ApiResponse.success("查询成功", statusService.listLatest());
+    }
+
+    /** 检查上报必须包含执行器编号、采集对象和采集时间。 */
+    private void validateReportRequest(MetricReportRequest request) {
+        if (request == null || !StringUtils.hasText(request.getAgentId())) {
+            throw new IllegalArgumentException("agentId 不能为空");
+        }
+        if (request.getMetric() == null) {
+            throw new IllegalArgumentException("metric 不能为空");
+        }
+        if (request.getMetric().getCollectTime() == null) {
+            throw new IllegalArgumentException("collectTime 不能为空");
+        }
     }
 }

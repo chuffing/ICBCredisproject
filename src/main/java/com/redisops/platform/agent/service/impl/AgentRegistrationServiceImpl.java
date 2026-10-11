@@ -45,7 +45,6 @@ public class AgentRegistrationServiceImpl extends ServiceImpl<ExecutorInfoMapper
     @Override
     @Transactional(rollbackFor = Exception.class)
     public RegisterData register(RegisterRequest request) {
-        validateRegisterRequest(request);
         if (!safeEquals(properties.getRegisterCode(), request.getRegisterCode())) {
             throw new SecurityException("注册码错误");
         }
@@ -89,10 +88,6 @@ public class AgentRegistrationServiceImpl extends ServiceImpl<ExecutorInfoMapper
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void heartbeat(String authorization, HeartbeatRequest request) {
-        if (request == null || !StringUtils.hasText(request.getAgentId())) {
-            throw new IllegalArgumentException("agentId 不能为空");
-        }
-
         String headerToken = parseBearerToken(authorization);
         if (!safeEquals(headerToken, request.getToken())) {
             throw new SecurityException("请求头 Token 与请求体 Token 不一致");
@@ -256,20 +251,6 @@ public class AgentRegistrationServiceImpl extends ServiceImpl<ExecutorInfoMapper
         // MP只能借助Getter方法来定位属性。
         return getOne(new LambdaQueryWrapper<ExecutorInfo>()
                 .eq(ExecutorInfo::getExecutorId, executorId));
-    }
-
-    /** 校验注册接口必填参数和端口范围。 */
-    private void validateRegisterRequest(RegisterRequest request) {
-        if (request == null
-                || !StringUtils.hasText(request.getAgentName())
-                || !StringUtils.hasText(request.getHostname())
-                || !StringUtils.hasText(request.getIp())) {
-            throw new IllegalArgumentException("agentName、hostname 和 ip 不能为空");
-        }
-        if (request.getAgentPort() != null
-                && (request.getAgentPort() < 1 || request.getAgentPort() > 65535)) {
-            throw new IllegalArgumentException("agentPort 必须在 1 到 65535 之间");
-        }
     }
 
     /** 从 Authorization 请求头中提取 Bearer Token。 */
