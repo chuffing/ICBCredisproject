@@ -40,12 +40,13 @@
     </select>
 
     <!-- 日周报主从切换统计：总次数与最近切换时间 -->
-    <select id="selectSwitchStats" resultType="java.util.Map">
-        SELECT COUNT(*)          AS "switchTotal",
-               MAX(switch_time)  AS "lastSwitchTime"
+    <select id="selectSwitchStats" resultType="com.danuvius.platform.model.dto.alarm.record.SwitchStatsDTO">
+        SELECT COUNT(*)         AS "switchTotal",
+               MAX(switch_time) AS "lastSwitchTime"
         FROM redis_switch_event
-        WHERE switch_time BETWEEN #{startTime} AND #{endTime}
-          AND switch_type != '0'
+        WHERE switch_time &gt;= #{startTime}
+          AND switch_time &lt;  #{endTime}
+          AND switch_type &lt;&gt; '0'
     </select>
 
 </mapper>

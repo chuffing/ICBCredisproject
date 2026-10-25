@@ -2,6 +2,7 @@ package com.danuvius.platform.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.danuvius.platform.model.dto.alarm.record.AlarmStatsDTO;
 import com.danuvius.platform.model.dto.alarm.record.RecordItemResponse;
 import com.danuvius.platform.model.dto.alarm.record.RecordOverviewResponse;
 import com.danuvius.platform.model.entity.AlarmRecord;
@@ -39,18 +40,9 @@ public interface AlarmRecordMapper extends BaseMapper<AlarmRecord> {
                                                     @Param("limit") int limit);
 
     /*日周报告警统计：总数与分级统计 */
-    List<Map<String, Object>> selectReportAlarmStats(@Param("instanceId") String instanceId,
-                                               @Param("startTime") String startTime,
-                                               @Param("endTime") String endTime);
+    AlarmStatsDTO selectReportAlarmStats(@Param("instanceId") String instanceId,
+                                         @Param("startTime") String startTime,
+                                         @Param("endTime") String endTime);
 
-    /**
-     * 查询指定规则下的未恢复告警，用于自动恢复检查。
-     * 入参 ruleIds 需非空（调用方已保证），避免 IN () 语法错误。
-     *
-     * @param ruleIds 规则id列表，非空
-     * @return 未恢复告警列表（按触发时间升序，便于稳定处理）
-     */
-    // [新增] 自动恢复：按规则id批量查询未恢复告警
-    List<AlarmRecord> selectUnrecoveredByRuleIds(@Param("ruleIds") List<String> ruleIds);
 
 }

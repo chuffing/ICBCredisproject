@@ -52,10 +52,6 @@ public class ParseUtils {
         }
     }
 
-    public static String defaultIfBlank(String value, String def) {
-        return StringUtils.hasText(value) ? value : def;
-    }
-
     public static String joinIds(List<String> ids) {
         return ids == null ? "" : String.join(",", ids);
     }

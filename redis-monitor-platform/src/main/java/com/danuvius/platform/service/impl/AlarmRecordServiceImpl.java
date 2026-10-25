@@ -14,8 +14,6 @@ import com.danuvius.platform.model.entity.AlarmRecord;
 import com.danuvius.platform.model.entity.AlarmRule;
 import com.danuvius.platform.model.entity.AuditLog;
 import com.danuvius.platform.model.entity.RedisInstance;
-import com.danuvius.platform.model.enums.metric.MetricTypeEnum;
-import com.danuvius.platform.model.enums.StatusEnum;
 import com.danuvius.platform.service.AlarmNoticeService;
 import com.danuvius.platform.service.AlarmRecordService;
 import com.danuvius.platform.service.AuditLogService;
@@ -170,7 +168,7 @@ public class AlarmRecordServiceImpl extends ServiceImpl<AlarmRecordMapper, Alarm
         LocalDateTime start = record.getTriggerTime().minusMinutes(30);
         LocalDateTime end;
         //未恢复：当前时间，已恢复：恢复时间+10min
-        if (CommonConstant.STATUS_RECOVER.equals(record.getRecoverStatus()) && record.getRecoverTime() != null) {
+        if (CommonConstant.RECOVER.equals(record.getRecoverStatus()) && record.getRecoverTime() != null) {
             end = record.getRecoverTime().plusMinutes(10);
         } else {
             end = LocalDateTime.now();
@@ -239,7 +237,7 @@ public class AlarmRecordServiceImpl extends ServiceImpl<AlarmRecordMapper, Alarm
             throw new BusinessException(BusinessCode.NOT_FOUND_ERROR.getCode(), "告警记录不存在");
         }
         //已恢复幂等返回，不重复写审计日志
-        if (CommonConstant.STATUS_RECOVER.equals(record.getRecoverStatus())) {
+        if (CommonConstant.RECOVER.equals(record.getRecoverStatus())) {
             return true;
         }
 
@@ -247,7 +245,7 @@ public class AlarmRecordServiceImpl extends ServiceImpl<AlarmRecordMapper, Alarm
         LocalDateTime now = LocalDateTime.now();
         int rows = alarmRecordMapper.update(null,
                 new LambdaUpdateWrapper<AlarmRecord>()
-                        .set(AlarmRecord::getRecoverStatus, CommonConstant.STATUS_RECOVER)
+                        .set(AlarmRecord::getRecoverStatus, CommonConstant.RECOVER)
                         .set(AlarmRecord::getRecoverTime,now)
                         .set(AlarmRecord::getUpdatedTime,now)
                         .eq(AlarmRecord::getId, record.getId())

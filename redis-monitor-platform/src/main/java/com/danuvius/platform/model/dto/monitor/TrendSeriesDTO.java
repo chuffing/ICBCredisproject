@@ -1,19 +1,20 @@
 package com.danuvius.platform.model.dto.monitor;
 
 import lombok.Data;
-
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 实例指标趋势
+ */
 @Data
 public class TrendSeriesDTO implements Serializable {
-    /** 实例id */
+    /** 实例 id */
     private String instanceId;
-
-    /* 网络带宽返回出入两条子序列时，用 metricKey 区分子序列（netInputBandwidth / netOutputBandwidth），单指标时等于请求的 metricKey */
-    /** 子序列指标 key */
-    private String metricKey;
-    /** 时间点数据列表，每项含 bucket 与 value（或 inValue / outValue） */
+    /**
+     * 时间点数据，每项固定为 {bucket: "时间戳", value: 数值或 null}；
+     * 按 timestampList 顺序对齐，缺失点 value=null，供前端断点展示
+     */
     private List<Map<String, Object>> points;
 }

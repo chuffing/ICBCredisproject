@@ -861,7 +861,7 @@ public class AlarmRuleServiceImpl extends ServiceImpl<AlarmRuleMapper, AlarmRule
 
         // 查这些规则下的未恢复告警
         List<AlarmRecord> unrecovered = alarmRecordMapper.selectList(new LambdaQueryWrapper<AlarmRecord>()
-                .eq(AlarmRecord::getRecoverStatus,CommonConstant.STATUS_UNRECOVER)
+                .eq(AlarmRecord::getRecoverStatus,CommonConstant.UNRECOVER)
                 .in(AlarmRecord::getRuleId, ruleIds)
                 .orderByAsc(AlarmRecord::getTriggerTime)
         );
@@ -940,7 +940,7 @@ public class AlarmRuleServiceImpl extends ServiceImpl<AlarmRuleMapper, AlarmRule
         LocalDateTime now = LocalDateTime.now();
         int rows = alarmRecordMapper.update(null,
                 new LambdaUpdateWrapper<AlarmRecord>()
-                        .set(AlarmRecord::getRecoverStatus, CommonConstant.STATUS_RECOVER)
+                        .set(AlarmRecord::getRecoverStatus, CommonConstant.RECOVER)
                         .set(AlarmRecord::getRecoverTime,now)
                         .set(AlarmRecord::getUpdatedTime,now)
                         .eq(AlarmRecord::getId, record.getId())

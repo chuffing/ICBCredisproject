@@ -1,6 +1,7 @@
 package com.danuvius.platform.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.danuvius.platform.model.dto.alarm.record.SwitchStatsDTO;
 import com.danuvius.platform.model.entity.RedisSwitchEvent;
 import org.apache.ibatis.annotations.Param;
 
@@ -15,6 +16,6 @@ public interface RedisSwitchEventMapper extends BaseMapper<RedisSwitchEvent> {
                                                     @Param("limit") int limit);
 
     /* 日周报主从切换统计：总次数与最近切换时间 */
-    List<Map<String, Object>> selectSwitchStats(@Param("startTime") String startTime,
-                                          @Param("endTime") String endTime);
+    SwitchStatsDTO selectSwitchStats(@Param("startTime") String startTime,
+                                     @Param("endTime") String endTime);
 }

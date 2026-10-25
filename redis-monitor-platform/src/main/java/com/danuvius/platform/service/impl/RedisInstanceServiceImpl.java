@@ -3,13 +3,15 @@ package com.danuvius.platform.service.impl;
 import cn.hutool.core.util.IdUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.danuvius.platform.common.constant.CommonConstant;
 import com.danuvius.platform.common.exception.BusinessCode;
 import com.danuvius.platform.common.exception.BusinessException;
 import com.danuvius.platform.mapper.*;
+import com.danuvius.platform.model.dto.alarm.record.AlarmStatsDTO;
+import com.danuvius.platform.model.dto.alarm.record.ReportOverviewStatsDTO;
+import com.danuvius.platform.model.dto.alarm.record.SwitchStatsDTO;
 import com.danuvius.platform.model.dto.metric.MetricCurrentValueDTO;
 import com.danuvius.platform.model.dto.monitor.*;
 import com.danuvius.platform.model.entity.AlarmRule;
@@ -181,20 +183,17 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
             return (MetricCurrentValueResponse) cached;
         }
 
-        List<Map<String, Object>> latestList = redisInstanceMapper.selectLatestMetric(instanceId);
-        Map<String, Object> latest = (latestList == null || latestList.isEmpty())
-                ? Collections.emptyMap() : latestList.get(0);
-        if (latest == null) {
-            latest = Collections.emptyMap();
-        }
+        //取最新2条记录
+        List<MetricLog> lastTwo = metricLogMapper.selectList(
+                new LambdaQueryWrapper<MetricLog>()
+                        .eq(MetricLog::getInstanceId, instanceId)
+                        .orderByDesc(MetricLog::getTm)
+                        .orderByDesc(MetricLog::getId)   // 同tm 时定序，保证 latest/prev 相邻
+                        .last("LIMIT 2")
+        );
 
-        List<Map<String, Object>> prevList = redisInstanceMapper.selectPrevMetric(instanceId);
-        Map<String, Object> prev = (prevList == null || prevList.isEmpty())
-                ? Collections.emptyMap() : prevList.get(0);
-
-        if (prev == null) {
-            prev = Collections.emptyMap();
-        }
+        MetricLog latest = lastTwo.size() > 0 ? lastTwo.get(0) : null;
+        MetricLog prev   = lastTwo.size() > 1 ? lastTwo.get(1) : null;
 
         // 查询启用中的、适用于当前实例的告警规则
         List<AlarmRule> boundRules = alarmRuleMapper.selectList(new LambdaQueryWrapper<AlarmRule>()
@@ -204,60 +203,29 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
                         .like(AlarmRule::getScopeInstanceId, instanceId)
                 )
         );
-
-
-        if (boundRules == null) {
-            boundRules = Collections.emptyList();
-        }
+        Map<String, String> latestMap = toMetricMap(latest);
+        Map<String, String> prevMap   = toMetricMap(prev);
 
         List<MetricCurrentValueDTO> metrics = new ArrayList<>();
-        MetricTypeEnum[] coreMetrics = {
-                MetricTypeEnum.CPU_USAGE,
-                MetricTypeEnum.SERVER_MEM_USAGE,
-                MetricTypeEnum.REDIS_MEM_USED,
-                MetricTypeEnum.QPS,
-                MetricTypeEnum.AVG_LATENCY,
-                MetricTypeEnum.NET_INPUT_BANDWIDTH,
-                MetricTypeEnum.NET_OUTPUT_BANDWIDTH
-        };
+
         //只遍历核心指标
-        for (MetricTypeEnum metricType : coreMetrics) {
+        for (MetricTypeEnum metricType : CommonConstant.CORE_METRICS) {
             MetricCurrentValueDTO m = new MetricCurrentValueDTO();
             m.setMetricKey(metricType.getKey());
             m.setMetricName(metricType.getName());
             m.setUnit(metricType.getUnit());
 
-            //新值
-            Object cur = null;
-            if (latest != null) {
-                cur = latest.get(metricType.getKey());
-            }
+            // 新值：Map 取 String -> BigDecimal
+            BigDecimal cur = parseMetric(latestMap.get(metricType.getKey()));
             m.setCurrentValue(cur);
+            m.setMetricStatus(cur == null
+                    ? AlarmLevelEnum.NO_DATA.getDesc()
+                    : judgeMetricStatus(cur, metricType.getKey(), boundRules));
 
-            //判断是否有数据
-            if (latest == null || cur == null) {
-                m.setMetricStatus(AlarmLevelEnum.NO_DATA.getDesc());
-            } else {
-                m.setMetricStatus(judgeMetricStatus(cur, metricType.getKey(), boundRules));
-            }
+            // 旧值 + 环比
+            BigDecimal pv = parseMetric(prevMap.get(metricType.getKey()));
+            m.setChangeRate5min(calcChangeRate(cur, pv));
 
-            //旧值
-            Object pv = null;
-            if (prev != null) {
-                pv = prev.get(metricType.getKey());
-            }
-            //(新-旧)/旧*100
-            if (cur != null && pv != null) {
-                try {
-                    double c = Double.parseDouble(cur.toString());
-                    double p = Double.parseDouble(pv.toString());
-                    if (p != 0) {
-                        m.setChangeRate5min((c - p) / p * 100);
-                    }
-                } catch (Exception ignored) {
-                    //非数字指标忽略
-                }
-            }
             metrics.add(m);
         }
 
@@ -267,6 +235,44 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
         return resp;
     }
 
+    /** 把采集记录按指标 key 转成 Map；log 为 null 返回空 Map，避免外层判空 */
+    private static Map<String, String> toMetricMap(MetricLog metricLog) {
+        Map<String, String> map = new HashMap<>(16);
+        if (metricLog == null) {
+            return map;
+        }
+        map.put(MetricTypeEnum.CPU_USAGE.getKey(),            metricLog.getCpuPer());
+        map.put(MetricTypeEnum.SERVER_MEM_USAGE.getKey(),     metricLog.getMemServerPer());
+        map.put(MetricTypeEnum.REDIS_MEM_USED.getKey(),       metricLog.getMemUs());
+        map.put(MetricTypeEnum.QPS.getKey(),                  metricLog.getOps());
+        map.put(MetricTypeEnum.AVG_LATENCY.getKey(),          metricLog.getLatency());
+        map.put(MetricTypeEnum.NET_INPUT_BANDWIDTH.getKey(),  metricLog.getIoIik());
+        map.put(MetricTypeEnum.NET_OUTPUT_BANDWIDTH.getKey(), metricLog.getIoIok());
+        return map;
+    }
+
+    /** null/空串/非数字 → null（视为无数据） */
+    private static BigDecimal parseMetric(String raw) {
+        if (raw == null) return null;
+        String s = raw.trim();
+        if (s.isEmpty()) return null;
+        try {
+            return new BigDecimal(s);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** (cur - prev) / prev * 100，保留 2 位；任一无值或 prev 为 0 → null */
+    private static BigDecimal calcChangeRate(BigDecimal cur, BigDecimal prev) {
+        if (cur == null || prev == null || prev.signum() == 0) return null;
+        return cur.subtract(prev)
+                .divide(prev, 6, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100))
+                .setScale(2, RoundingMode.HALF_UP);
+    }
+
+
     /**
      * 根据告警规则判断指标状态，返回指标中文描述
      * @param currentVal
@@ -274,10 +280,10 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
      * @param rules
      * @return
      */
-    private String judgeMetricStatus(Object currentVal, String metricKey, List<AlarmRule> rules) {
+    private String judgeMetricStatus(BigDecimal currentVal, String metricKey, List<AlarmRule> rules) {
         double value;
         try {
-            value = Double.parseDouble(currentVal.toString());
+            value = currentVal.doubleValue();
         } catch (Exception e) {
             return AlarmLevelEnum.NORMAL.getDesc();
         }
@@ -315,68 +321,54 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
      */
     @Override
     public TrendResponse getTrend(TrendRequest req) {
-        String key = CacheKeyUtil.realtimeTrend(req.getMetricKey(), req.getInstanceIds(), req.getTimeRange());
+        // 缓存 key：不再含 metricKey（一次查询已覆盖所有指标）
+        String key = CacheKeyUtil.realtimeTrend(req.getInstanceIds(), req.getTimeRange());
         Object cached = caffeineCache.getIfPresent(key);
         if (cached != null) {
             return (TrendResponse) cached;
         }
 
-        /*确定聚合粒度：近1h=5min、近6h=15min*/
-        boolean near1h = "近1h".equals(req.getTimeRange());
+        boolean near1h = CommonConstant.NEAR_1HOUR.equals(req.getTimeRange());
         LocalDateTime endTime = LocalDateTime.now();
         LocalDateTime startTime = near1h ? endTime.minusHours(1) : endTime.minusHours(6);
         int bucketMinutes = near1h ? 5 : 15;
 
-        /*网络带宽同时返回出入带宽两条子序列*/
-        boolean dualBandwidth = MetricTypeEnum.NET_INPUT_BANDWIDTH.getKey().equals(req.getMetricKey())
-                || MetricTypeEnum.NET_OUTPUT_BANDWIDTH.getKey().equals(req.getMetricKey());
-
+        // 一次查询：返回所有实例 × 所有指标列
         List<Map<String, Object>> rows = redisInstanceMapper.selectTrendData(
-                req.getInstanceIds(), req.getMetricKey(), bucketMinutes, dualBandwidth,
+                req.getInstanceIds(), bucketMinutes,
                 startTime.format(FORMATTER), endTime.format(FORMATTER));
 
-        TrendResponse resp = new TrendResponse();
-        MetricTypeEnum metricType = MetricTypeEnum.of(req.getMetricKey());
-        if (metricType != null) {
-            resp.setMetricName(metricType.getName());
-            resp.setUnit(metricType.getUnit());
-        } else {
-            resp.setMetricName("");
-        }
-        if (dualBandwidth) {
-            resp.setMetricName("网络入/出带宽");
-            resp.setUnit(MetricTypeEnum.NET_INPUT_BANDWIDTH.getUnit());
-        }
-
-        /* 统一时间轴：生成 start~end 按粒度的完整时间点，缺失点补 null 供前端断点展示 */
+        // 统一时间轴
         List<String> timestampList = buildAlignedTimestamps(startTime, endTime, bucketMinutes);
-        resp.setTimestampList(timestampList);
 
-        // 按实例分组
+        // 按实例分组（每行含 bucket + 全部指标列）
         Map<String, List<Map<String, Object>>> grouped = new LinkedHashMap<>();
         for (Map<String, Object> row : rows) {
             String iid = String.valueOf(row.get("instanceId"));
-            List<Map<String, Object>> points = grouped.get(iid);
-            if (points == null) {
-                points = new ArrayList<>();
-                grouped.put(iid, points);
-            }
-            points.add(row);
+            grouped.computeIfAbsent(iid, k -> new ArrayList<>()).add(row);
         }
 
-        List<TrendSeriesDTO> series = new ArrayList<>();
-        for (Map.Entry<String, List<Map<String, Object>>> entry : grouped.entrySet()) {
-            if (dualBandwidth) {
-                series.add(buildAlignedSeries(entry.getKey(), MetricTypeEnum.NET_INPUT_BANDWIDTH.getKey(),
-                        entry.getValue(), timestampList, "inValue"));
-                series.add(buildAlignedSeries(entry.getKey(), MetricTypeEnum.NET_OUTPUT_BANDWIDTH.getKey(),
-                        entry.getValue(), timestampList, "outValue"));
-            } else {
-                series.add(buildAlignedSeries(entry.getKey(), req.getMetricKey(),
-                        entry.getValue(), timestampList, "value"));
+        // 每个核心指标构建一个 TrendMetricDTO
+        List<TrendMetricDTO> metricList = new ArrayList<>(CommonConstant.CORE_METRICS.size());
+        for (MetricTypeEnum mt : CommonConstant.CORE_METRICS) {
+            TrendMetricDTO md = new TrendMetricDTO();
+            md.setMetricKey(mt.getKey());
+            md.setMetricName(mt.getName());
+            md.setUnit(mt.getUnit());
+
+            List<TrendSeriesDTO> seriesList = new ArrayList<>(grouped.size());
+            for (Map.Entry<String, List<Map<String, Object>>> entry : grouped.entrySet()) {
+                // 从该实例的行中，取 mt.getKey() 这一列，按 timestampList 对齐
+                seriesList.add(buildAlignedSeries(
+                        entry.getKey(), entry.getValue(), timestampList, mt.getKey()));
             }
+            md.setSeriesList(seriesList);
+            metricList.add(md);
         }
-        resp.setSeriesList(series);
+
+        TrendResponse resp = new TrendResponse();
+        resp.setTimestampList(timestampList);
+        resp.setMetricList(metricList);
         caffeineCache.put(key, resp);
         return resp;
     }
@@ -403,32 +395,39 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
         return time.withMinute(aligned).withSecond(0).withNano(0);
     }
 
+
     /**
-     * 将单实例采集点对齐到统一时间轴，缺失点补 null。
-     *
-     * @param valueColumn 值列名：value / inValue / outValue
+     *构建按统一时间轴对齐的趋势序列
+     * @param instanceId
+     * @param rows
+     * @param timestampList
+     * @param valueColumn
+     * @return
      */
-    private TrendSeriesDTO buildAlignedSeries(String instanceId, String metricKey,
-                                              List<Map<String, Object>> points,
-                                              List<String> timestampList, String valueColumn) {
+    private TrendSeriesDTO buildAlignedSeries(String instanceId,
+                                              List<Map<String, Object>> rows,
+                                              List<String> timestampList,
+                                              String valueColumn) {
+        // bucket(格式化后) -> 该指标值
+        Map<String, Object> bucketToValue = new HashMap<>(rows.size() * 2);
+        for (Map<String, Object> row : rows) {
+            Object bucket = row.get("bucket");
+            if (bucket == null) continue;
+            bucketToValue.put(formatBucket(bucket), row.get(valueColumn));
+        }
+
+        // 按统一时间轴对齐，缺失补 null
+        List<Map<String, Object>> points = new ArrayList<>(timestampList.size());
+        for (String ts : timestampList) {
+            Map<String, Object> p = new LinkedHashMap<>(2);
+            p.put("bucket", ts);
+            p.put("value", bucketToValue.get(ts));
+            points.add(p);
+        }
+
         TrendSeriesDTO s = new TrendSeriesDTO();
         s.setInstanceId(instanceId);
-        s.setMetricKey(metricKey);
-
-        // bucket -> value
-        Map<String, Object> valueMap = new HashMap<>();
-        for (Map<String, Object> point : points) {
-            valueMap.put(formatBucket(point.get("bucket")), point.get(valueColumn));
-        }
-
-        List<Map<String, Object>> alignedPoints = new ArrayList<>();
-        for (String ts : timestampList) {
-            Map<String, Object> p = new HashMap<>();
-            p.put("bucket", ts);
-            p.put("value", valueMap.get(ts));
-            alignedPoints.add(p);
-        }
-        s.setPoints(alignedPoints);
+        s.setPoints(points);
         return s;
     }
 
@@ -470,22 +469,21 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
 
         List<RedisInstance> instances = selectActiveInstances(CommonConstant.MANAGE_ACTIVE);
 
-        List<AlarmRule> allRules=alarmRuleMapper.selectList(Wrappers.<AlarmRule>lambdaQuery()
+        List<AlarmRule> allRules = alarmRuleMapper.selectList(Wrappers.<AlarmRule>lambdaQuery()
                 .eq(AlarmRule::getEnableStatus, CommonConstant.ENABLE)
         );
-        if (allRules == null) {
-            allRules = Collections.emptyList();
+
+        // instanceName 本身就是 host:port，直接用它做映射，不再手工拼 hostIp:redisPort
+        Map<String, RedisInstance> nameToInstance = new HashMap<>(instances.size() * 2);
+        for (RedisInstance inst : instances) {
+            if (inst.getInstanceName() != null) {
+                nameToInstance.put(inst.getInstanceName(), inst);
+            }
         }
 
         List<TopologyNodeDTO> nodes = new ArrayList<>();
         boolean masterOnline = false;
-        boolean anySlaveDelay = false;
-
-        /* 用实例列表构建 host:port -> instanceId 映射，反查主节点实例id（ */
-        Map<String, String> hostPortToInstanceId = new HashMap<>();
-        for (RedisInstance inst : instances) {
-            hostPortToInstanceId.put(inst.getHostIp() + ":" + inst.getRedisPort(), inst.getInstanceId());
-        }
+        boolean anyReplicaDelay = false;
 
         for (RedisInstance inst : instances) {
             TopologyNodeDTO n = new TopologyNodeDTO();
@@ -495,16 +493,17 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
             n.setPort(inst.getRedisPort());
             n.setRole(inst.getRole());
 
-            String ip = inst.getMasterHostIp() != null ? inst.getMasterHostIp() : "null";
-            String port = inst.getMasterRedisPort() != null ? inst.getMasterRedisPort() : "null";
-            String masterInstanceId = hostPortToInstanceId.get(ip + ":" + port);
-            n.setMasterName((masterInstanceId != null ? masterInstanceId : ip) + ":" + port);
+            // 主节点 host:port，与 instanceName 同一格式，直接反查
+            String masterHostPort = (inst.getMasterHostIp() != null ? inst.getMasterHostIp() : "null")
+                    + ":" + (inst.getMasterRedisPort() != null ? inst.getMasterRedisPort() : "null");
+            RedisInstance master = nameToInstance.get(masterHostPort);
+            n.setMasterName(master != null ? master.getInstanceId() : masterHostPort);
 
-            //从 rms_metric_log 最新记录获取复制延迟（按 executor/instance）
+            // 从 rms_metric_log 最新记录获取复制延迟
             String replDelay = getLatestReplDelay(inst.getInstanceId());
             n.setCopyDelay(replDelay != null ? replDelay : "0");
 
-            //根据告警规则判断复制状态
+            // 根据告警规则判断复制状态
             String copyStatus = judgeReplDelayStatus(inst.getInstanceId(), replDelay, allRules);
             n.setCopyStatus(copyStatus);
 
@@ -512,19 +511,19 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
             if (isMaster) {
                 masterOnline = isOnline(inst);
             } else if ("延迟".equals(copyStatus)) {
-                anySlaveDelay = true;
+                anyReplicaDelay = true;
             }
             nodes.add(n);
         }
-        String topologyStatus;
-        if (masterOnline && !anySlaveDelay) {
-            topologyStatus = "健康";
-        } else if (masterOnline && anySlaveDelay) {
-            topologyStatus = "警告";
-        } else {
-            topologyStatus = "异常";
-        }
 
+        String topologyStatus;
+        if (masterOnline && !anyReplicaDelay) {
+            topologyStatus = CommonConstant.TOPOLOGY_HEALTH;
+        } else if (masterOnline && anyReplicaDelay) {
+            topologyStatus = CommonConstant.TOPOLOGY_WARNING;
+        } else {
+            topologyStatus = CommonConstant.TOPOLOGY_ANOMALY;
+        }
 
         // 最近一次切换事件
         RedisSwitchEvent lastEvent = redisSwitchEventService.selectLatestSwitchEvent();
@@ -561,9 +560,6 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
                 .eq(AlarmRule::getEnableStatus, CommonConstant.ENABLE)
         );
 
-        if (allRules == null) {
-            allRules = Collections.emptyList();
-        }
 
         List<NodeStatusResponse> masterRows = new ArrayList<>();
         List<NodeStatusResponse> slaveRows = new ArrayList<>();
@@ -589,7 +585,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
             m.setCopyDelay(!replDelay.equals("") ? replDelay : "0");
             //复制状态由告警规则判断
             m.setCopyStatus(judgeReplDelayStatus(i.getInstanceId(), replDelay, allRules));
-            m.setRunStatus(StatusEnum.descOf(i.getRunStatus()));
+            m.setRunStatus(RunStatusEnum.descOf(i.getRunStatus()));
             if (CommonConstant.DEFAULT_ROLE_MASTER.equalsIgnoreCase(i.getRole())) {
                 masterRows.add(m);
             } else {
@@ -644,54 +640,51 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
         ReportQueryResponse resp = new ReportQueryResponse();
 
         // 概览统计
-        List<Map<String, Object>> statsList = redisInstanceMapper.selectReportOverviewStats(
+        ReportOverviewStatsDTO stats = redisInstanceMapper.selectReportOverviewStats(
                 instanceId, startText, endText);
-        Map<String, Object> stats = (statsList == null || statsList.isEmpty())
-                ? Collections.emptyMap() : statsList.get(0);
 
         ReportOverviewDTO ov = new ReportOverviewDTO();
-        ov.setCpuAvg(stats.get("cpuAvg").toString());
-        ov.setCpuMax(stats.get("cpuMax").toString());
-        ov.setCpuMaxTim(toLocalDateTime(stats.get("cpuMaxTim")));
-        ov.setRedisMemAvg(stats.get("redisMemAvg").toString());
-        ov.setRedisMemMax(stats.get("redisMemMax").toString());
-        ov.setRedisMemMaxTim(toLocalDateTime(stats.get("redisMemMaxTim")));
-        ov.setQpsAvg(stats.get("qpsAvg").toString());
-        ov.setQpsMax(stats.get("qpsMax").toString());
-        ov.setQpsMaxTim(toLocalDateTime(stats.get("qpsMaxTim")));
-        ov.setLatencyAvg(stats.get("latencyAvg").toString());
-        ov.setLatencyMax(stats.get("latencyMax").toString());
-        ov.setLatencyMaxTim(toLocalDateTime(stats.get("latencyMaxTim")));
+        ov.setCpuAvg(stats.getCpuAvg().toString());
+        ov.setCpuMax(stats.getCpuMax().toString());
+        ov.setCpuMaxTim(stats.getCpuMaxTim());
+        ov.setRedisMemAvg(stats.getRedisMemAvg().toString());
+        ov.setRedisMemMax(stats.getRedisMemMax().toString());
+        ov.setRedisMemMaxTim(stats.getRedisMemMaxTim());
+        ov.setQpsAvg(stats.getQpsAvg().toString());
+        ov.setQpsMax(stats.getQpsMax().toString());
+        ov.setQpsMaxTim(stats.getQpsMaxTim());
+        ov.setLatencyAvg(stats.getLatencyAvg().toString());
+        ov.setLatencyMax(stats.getLatencyMax().toString());
+        ov.setLatencyMaxTim(stats.getLatencyMaxTim());
 
         // 告警统计（按时间范围，可按实例过滤）
-        List<Map<String, Object>> alarmStatsMap = alarmRecordMapper.selectReportAlarmStats(
+        AlarmStatsDTO alarmStats = alarmRecordMapper.selectReportAlarmStats(
                 instanceId, startText, endText);
-        Map<String, Object> alarmStats=alarmStatsMap.isEmpty() ? null : alarmStatsMap.get(0);
-
 
         if (alarmStats == null) {
-            alarmStats = Collections.emptyMap();
-        }
-        ov.setAlarmTotal(toLong(alarmStats.get("alarmTotal")));
+            alarmStats = new AlarmStatsDTO();
+            alarmStats.setAlarmTotal(0L);
+            alarmStats.setInfoCount(0L);
+            alarmStats.setAlarmCount(0L);
+            alarmStats.setSeverityCount(0L);
 
-        ReportOverviewDTO.AlarmSeverityCountDTO severity = new ReportOverviewDTO.AlarmSeverityCountDTO();
-        severity.setInfo(toLong(alarmStats.get("infoCount")));
-        severity.setAlarm(toLong(alarmStats.get("alarmCount")));
-        severity.setSeverity(toLong(alarmStats.get("severityCount")));
-        ov.setAlarmSeverityCount(severity);
+        }
+        ov.setAlarmStatsDTO(alarmStats);
+
 
         // 主从切换统计
-        List<Map<String, Object>> switchStatsMap = switchEventMapper.selectSwitchStats(startText, endText);
-        Map<String, Object> switchStats=switchStatsMap.isEmpty() ? null : switchStatsMap.get(0);
+        SwitchStatsDTO switchStats = switchEventMapper.selectSwitchStats(startText, endText);
 
         if (switchStats == null) {
-            switchStats = Collections.emptyMap();
+            switchStats = new SwitchStatsDTO();
+            switchStats.setSwitchTotal(0L);
+            switchStats.setLastSwitchTime(null);
         }
-        ov.setSwitchTotal(toLong(switchStats.get("switchTotal")));
-        ov.setLastSwitchTime(toLocalDateTime(switchStats.get("lastSwitchTime")));
+        ov.setSwitchTotal(switchStats.getSwitchTotal());
+        ov.setLastSwitchTime(switchStats.getLastSwitchTime());
 
         // 节点可用率/节点数据完整度：实际采集点数 / 理论采集点数（5分钟一个采集周期）
-        long collectCount = toLong(stats.get("collectCount")) == null ? 0L : toLong(stats.get("collectCount"));
+        long collectCount = stats.getCollectCount();
         long theoryMinutes = ChronoUnit.MINUTES.between(startTime, endTime);
         long theoryCount = Math.max(1L, theoryMinutes / 5);
         BigDecimal rate = BigDecimal.valueOf(collectCount)
@@ -794,7 +787,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
                 event.setNodeDisplay((instanceName == null ? "" : instanceName));
                 event.setContent(str(row.get("alarmContent")));
                 event.setHappenTime(toLocalDateTime(row.get("triggerTime")));
-                event.setStatus("1".equals(row.get("recoverStatus")) ? StatusEnum.RECOVER.getDesc() : StatusEnum.UNRECOVER.getDesc());
+                event.setStatus(CommonConstant.RECOVER.equals(row.get("recoverStatus")) ? CommonConstant.RECOVER_DEC : CommonConstant.UNRECOVER_DEC);
                 events.add(event);
             }
         }
@@ -806,7 +799,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
                 event.setContent(event.getEventType()+"：" + event.getNodeDisplay()
                         + "（" + TypeEnum.descOf(str(row.get("switchType"))) + "）");
                 event.setHappenTime(toLocalDateTime(row.get("switchTime")));
-                event.setStatus("1".equals(row.get("switchResult")) ? StatusEnum.SUCCESS.getDesc() : StatusEnum.FAILED.getDesc());
+                event.setStatus(CommonConstant.SWITCH_SUCCESS.equals(row.get("switchResult")) ? CommonConstant.SUCCESS : CommonConstant.FAILURE);
                 events.add(event);
             }
         }
@@ -836,23 +829,6 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
         }
         try {
             return Double.valueOf(value.toString().trim());
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private Long toLong(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof Long) {
-            return (Long) value;
-        }
-        if (value instanceof Number) {
-            return ((Number) value).longValue();
-        }
-        try {
-            return Long.valueOf(value.toString().trim());
         } catch (Exception e) {
             return null;
         }
@@ -986,13 +962,13 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
      */
     private String judgeReplDelayStatus(String instanceId, String replDelay, List<AlarmRule> rules) {
         if (replDelay == null || replDelay.trim().isEmpty()) {
-            return "正常";
+            return CommonConstant.NORMAL;
         }
         double value;
         try {
             value = Double.parseDouble(replDelay.trim());
         } catch (Exception e) {
-            return "正常";
+            return CommonConstant.NORMAL;
         }
 
         //判断是否有规则被触发
@@ -1013,11 +989,11 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
                 continue;
             }
             if (CompareUtil.compareValue(value, rule.getCompareType(), threshold)) {
-                return "延迟";
+                return CommonConstant.DELAY;
             }
         }
         // 无规则 / 规则未触发 → 正常
-        return "正常";
+        return CommonConstant.NORMAL;
     }
 
 

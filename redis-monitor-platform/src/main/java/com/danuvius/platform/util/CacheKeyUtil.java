@@ -15,8 +15,8 @@ public class CacheKeyUtil {
         return "cache:realtime:current:" + instanceId;
     }
 
-    public static String realtimeTrend(String metricKey, List<String> instanceIds, String timeRange) {
-        return "cache:realtime:trend:" + metricKey + ":" + String.join(",", instanceIds) + ":" + timeRange;
+    public static String realtimeTrend(List<String> instanceIds, String timeRange) {
+        return "cache:realtime:trend:" + String.join(",", instanceIds) + ":" + timeRange;
     }
 
     public static String report(String instanceId, String reportType) {

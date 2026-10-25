@@ -74,7 +74,7 @@ public class MonitorController {
      * @return
      */
     @GetMapping("/realtime/trend")
-    public BaseResponse<TrendResponse> trend( TrendRequest req) {
+    public BaseResponse<TrendResponse> trend(TrendRequest req) {
         TrendRequestValidator.validate(req);
 
         return ResultUtils.success(redisInstanceService.getTrend(req));

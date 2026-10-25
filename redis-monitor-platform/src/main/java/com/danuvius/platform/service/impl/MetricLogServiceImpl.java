@@ -1,9 +1,7 @@
 package com.danuvius.platform.service.impl;
 
 import cn.hutool.core.util.IdUtil;
-import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -13,9 +11,7 @@ import com.danuvius.platform.common.exception.BusinessException;
 import com.danuvius.platform.mapper.*;
 import com.danuvius.platform.model.dto.metric.MetricReportItemDTO;
 import com.danuvius.platform.model.entity.*;
-import com.danuvius.platform.model.enums.*;
 import com.danuvius.platform.model.enums.rule.AlarmLevelEnum;
-import com.danuvius.platform.model.enums.instance.RunStatusEnum;
 import com.danuvius.platform.service.MetricLogService;
 import com.danuvius.platform.service.RedisInstanceService;
 import com.danuvius.platform.service.RedisSwitchEventService;
@@ -247,7 +243,7 @@ public class MetricLogServiceImpl extends ServiceImpl<MetricLogMapper, MetricLog
             record.setTriggerValue("");
             record.setUnit("");
             record.setTriggerTime(now);
-            record.setRecoverStatus(CommonConstant.STATUS_UNRECOVER);
+            record.setRecoverStatus(CommonConstant.UNRECOVER);
             record.setCreatedTime(now);
             record.setUpdatedTime(now);
             alarmRecordMapper.insert(record);

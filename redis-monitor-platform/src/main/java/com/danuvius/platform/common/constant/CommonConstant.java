@@ -1,5 +1,7 @@
 package com.danuvius.platform.common.constant;
 
+import com.danuvius.platform.model.enums.metric.MetricTypeEnum;
+
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -30,6 +32,18 @@ public class CommonConstant {
             "netInputBandwidth", "netOutputBandwidth",
             "nodeRunStatus","sentinelStatus","replDelay","pingLatency"
     );
+
+    public static final List<MetricTypeEnum> CORE_METRICS = Arrays.asList(
+            MetricTypeEnum.CPU_USAGE,
+            MetricTypeEnum.SERVER_MEM_USAGE,
+            MetricTypeEnum.REDIS_MEM_USED,
+            MetricTypeEnum.QPS,
+            MetricTypeEnum.AVG_LATENCY,
+            MetricTypeEnum.NET_INPUT_BANDWIDTH,
+            MetricTypeEnum.NET_OUTPUT_BANDWIDTH
+    );
+
+
     /** [校验] 趋势指标 name 合法值（与 MetricTypeEnum 采集指标对齐） */
     public static final List<String> METRIC_NAMES = Arrays.asList(
             "CPU使用率", "服务器内存使用率", "Redis内存使用量", "QPS", "平均延迟",
@@ -75,12 +89,23 @@ public class CommonConstant {
     public static final String OPERATION_TYPE_SERVER_SWITCH = "服务器切换";
 
 
+    public static final String TOPOLOGY_HEALTH = "健康";
+    public static final String TOPOLOGY_WARNING = "警告";
+    public static final String TOPOLOGY_ANOMALY = "异常";
+
+
     public static final String REPORT_TYPE_DAY = "日报";
     public static final String REPORT_TYPE_WEEK = "周报";
+
+
+    public static final String NEAR_1HOUR = "近1h";
 
     /*日周报报告，告警与主从切换统计前端表格类型项*/
     public static final String MASTER_SWITCH = "masterSwitch";
     public static final String MASTER_SWITCH_DESC = "主从切换";
+
+
+
 
 
 
@@ -120,8 +145,10 @@ public class CommonConstant {
 
 
     /*recoverStatus*/
-    public static final String STATUS_UNRECOVER = "0";
-    public static final String STATUS_RECOVER = "1";
+    public static final String UNRECOVER = "0";
+    public static final String RECOVER = "1";
+    public static final String UNRECOVER_DEC = "未恢复";
+    public static final String RECOVER_DEC = "已恢复";
 
     /**
      * redis_switch_event表
@@ -144,6 +171,11 @@ public class CommonConstant {
     /*switchResult*/
     public static final String SWITCH_FAILURE ="0";
     public static final String SWITCH_SUCCESS ="1";
+
+
+    /*ReplDelayStatus*/
+    public static final String NORMAL = "正常";
+    public static final String DELAY = "延迟";
 
 
 
