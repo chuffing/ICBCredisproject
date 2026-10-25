@@ -23,6 +23,8 @@ import com.danuvius.platform.util.StringUtils;
 import com.github.benmanes.caffeine.cache.Cache;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -408,7 +410,38 @@ public class ServerSwitchCompletionService {
             }
         }
 
-        // 10. 清理拓扑和节点列表缓存，下次查询直接读取新纳管关系。
+        // 10. 数据库事务提交成功后清理缓存。
+        // 页面下一次查询时，直接读取新的正式纳管关系。
+        clearTopologyCacheAfterCommit();
+    }
+
+    /**
+     * 数据库事务提交成功后清理拓扑缓存。
+     */
+    private void clearTopologyCacheAfterCommit() {
+
+        // 当前方法正常情况下由finishStage事务调用。
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            clearTopologyCache();
+                        }
+                    }
+            );
+            return;
+        }
+
+        // 如果以后在没有事务的地方调用，数据库操作已经直接提交，
+        // 此时立即清理缓存。
+        clearTopologyCache();
+    }
+
+    /**
+     * 清理Redis、Sentinel和拓扑相关缓存。
+     */
+    private void clearTopologyCache() {
         caffeineCache.invalidate(CacheKeyUtil.instanceList(
                 StatusEnum.ACTIVE.getCode()
         ));

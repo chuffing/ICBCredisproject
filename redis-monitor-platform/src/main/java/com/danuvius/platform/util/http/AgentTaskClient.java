@@ -35,9 +35,8 @@ public class AgentTaskClient {
      *
      * @param executor 执行器信息
      * @param request 运维任务报文
-     * @return 执行器任务接收响应
      */
-    public AgentTaskSubmitResponseVO dispatchTask(
+    public void dispatchTask(
             ExecutorInfo executor,
             AgentTaskRequestDTO request) {
 
@@ -48,7 +47,7 @@ public class AgentTaskClient {
                 + executor.getExecutorPort()
                 + AgentTaskConstants.TASK_PATH;
 
-        // 创建并发送HTTP请求。
+        // 创建并发送HTTP请求，得到执行器response。
         try (HttpResponse response = HttpRequest.post(url)
                 .contentType(ContentType.JSON.getValue())
                 .header(
@@ -64,7 +63,11 @@ public class AgentTaskClient {
             int statusCode = response.getStatus();
             // 获取HTTP响应体。
             String responseBody = response.body();
-            return validateAcceptedResponse(request, statusCode, responseBody);
+
+            validateAcceptedResponse(
+                    request,
+                    statusCode,
+                    responseBody);
 
         } catch (AgentTaskRejectedException
                  | AgentTaskDispatchUnknownException e) {
@@ -91,7 +94,7 @@ public class AgentTaskClient {
     /**
      * 向指定执行器上传Redis源码包并下发版本部署任务。
      */
-    public AgentTaskSubmitResponseVO dispatchVersionTask(
+    public void dispatchVersionTask(
             ExecutorInfo executor,
             AgentTaskRequestDTO request,
             File packageFile) {
@@ -120,7 +123,7 @@ public class AgentTaskClient {
                 .timeout(AgentTaskConstants.VERSION_UPLOAD_TIMEOUT_MS)
                 .execute()) {
 
-            return validateAcceptedResponse(
+            validateAcceptedResponse(
                     request,
                     response.getStatus(),
                     response.body()
@@ -147,7 +150,7 @@ public class AgentTaskClient {
     /**
      * 向指定执行器上传Redis、Sentinel配置并下发配置部署任务。
      */
-    public AgentTaskSubmitResponseVO dispatchConfigTask(
+    public void dispatchConfigTask(
             ExecutorInfo executor,
             AgentTaskRequestDTO request,
             File redisConfigFile,
@@ -180,14 +183,16 @@ public class AgentTaskClient {
                 .timeout(AgentTaskConstants.CONFIG_UPLOAD_TIMEOUT_MS)
                 .execute()) {
 
-            return validateAcceptedResponse(
+            validateAcceptedResponse(
                     request,
                     response.getStatus(),
                     response.body()
             );
+
         } catch (AgentTaskRejectedException
                  | AgentTaskDispatchUnknownException exception) {
             throw exception;
+
         } catch (Exception exception) {
             log.error(
                     "向执行器上传配置文件失败，taskNo={}，stepNo={}，url={}",
@@ -206,7 +211,7 @@ public class AgentTaskClient {
     /**
      * 校验执行器的HTTP状态码、业务响应码和任务编号。
      */
-    private AgentTaskSubmitResponseVO validateAcceptedResponse(
+    private void validateAcceptedResponse(
             AgentTaskRequestDTO request,
             int statusCode,
             String responseBody) {
@@ -257,7 +262,6 @@ public class AgentTaskClient {
                     "执行器响应的任务编号与下发任务不一致"
             );
         }
-        return result;
     }
 
 

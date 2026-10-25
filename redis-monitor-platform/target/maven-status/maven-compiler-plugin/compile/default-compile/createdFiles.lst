@@ -1,3 +1,4 @@
+com\danuvius\platform\service\impl\ServerSwitchCompletionService$1.class
 com\danuvius\platform\controller\OperationTaskController.class
 com\danuvius\platform\model\dto\AgentTaskRequestDTO.class
 com\danuvius\platform\model\vo\AgentTaskSubmitResponseVO.class
