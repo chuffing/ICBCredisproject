@@ -84,10 +84,7 @@ public class ReportFileGenerator {
             appendCard(sb, "平均延迟(ms)", ov.getLatencyAvg(), ov.getLatencyMax(), ov.getLatencyMaxTim());
             sb.append("</div>");
             sb.append("<div class=\"cards\">");
-            appendPlainCard(sb, "告警总次数",
-                    ov.getAlarmStatsDTO() == null
-                            ? null
-                            : ov.getAlarmStatsDTO().getAlarmTotal());
+            appendPlainCard(sb, "告警总次数", ov.getAlarmTotal());
             appendPlainCard(sb, "主从切换总次数", ov.getSwitchTotal());
             appendPlainCard(sb, "最近切换时间", fmt(ov.getLastSwitchTime()));
             appendPlainCard(sb, "Redis服务可用率(%)", ov.getServiceAvailableRate());
@@ -165,10 +162,7 @@ public class ReportFileGenerator {
                         + "　峰值：" + nullSafe(ov.getQpsMax()) + "　" + fmt(ov.getQpsMaxTim())));
                 document.add(new Paragraph("平均延迟(ms)：" + nullSafe(ov.getLatencyAvg())
                         + "　峰值：" + nullSafe(ov.getLatencyMax()) + "　" + fmt(ov.getLatencyMaxTim())));
-                document.add(new Paragraph("告警总次数：" + nullSafe(
-                        ov.getAlarmStatsDTO() == null
-                                ? null
-                                : ov.getAlarmStatsDTO().getAlarmTotal())
+                document.add(new Paragraph("告警总次数：" + nullSafe(ov.getAlarmTotal())
                         + "　主从切换总次数：" + nullSafe(ov.getSwitchTotal())
                         + "　可用率(%)：" + nullSafe(ov.getServiceAvailableRate())
                         + "　主节点数：" + nullSafe(ov.getMasterCount())
