@@ -15,192 +15,95 @@
         <result property="lastHeartbeatTime" column="last_heartbeat_time" jdbcType="TIMESTAMP"/>
     </resultMap>
 
-    <select id="selectInstanceList" resultMap="InstanceItemResultMap">
-        SELECT instance_id,
-               instance_name,
-               host_ip,
-               redis_port,
-               role,
-               redis_version,
-               run_status,
-               last_heartbeat_time,
-               master_host_ip,
-               master_redis_port
-        FROM redis_instance
-        WHERE management_status = #{managementStatus}
-        ORDER BY CASE role WHEN 'MASTER' THEN 0 ELSE 1 END,
-                 instance_name ASC
-    </select>
 
     <!--公共指标列-->
     <sql id="metricColumns">
-        cpu_per        AS "cpuUsage",
-        mem_server_per AS "serverMemUsage",
-        mem_us         AS "redisMemUsed",
-        ops            AS "qps",
-        latency        AS "avgLatency",
-        io_iik         AS "netInputBandwidth",
-        io_iok         AS "netOutputBandwidth"
+    (cpu_per)::numeric        AS "cpuUsage",
+    (mem_server_per)::numeric AS "serverMemUsage",
+    (mem_us)::numeric         AS "redisMemUsed",
+    (ops)::numeric            AS "qps",
+    (latency)::numeric        AS "avgLatency",
+    (io_iik)::numeric         AS "netInputBandwidth",
+    (io_iok)::numeric         AS "netOutputBandwidth"
     </sql>
 
     <!-- 时间分桶表达式：按指定分钟数取整到小时内边界（5分钟/15分钟） -->
     <sql id="bucketExpr">
-        date_trunc('hour', tm) + MAKE_INTERVAL(mins => FLOOR(EXTRACT(MINUTE FROM tm) / #{bucketMinutes})::int * #{bucketMinutes})
+        tm - (extract(epoch from tm)::bigint % (#{bucketMinutes}::bigint * 60)) * interval '1 second'
     </sql>
 
-    <select id="selectLatestMetric" resultType="java.util.Map">
-        SELECT <include refid="metricColumns"/>,
-                tm   AS "collectTime"
-        FROM rms_metric_log
-        WHERE instance_id = #{instanceId}
-        ORDER BY tm DESC
-        LIMIT 1
-    </select>
-
-    <select id="selectPrevMetric" resultType="java.util.Map">
-        SELECT <include refid="metricColumns"/>,
-                tm AS "collectTime"
-        FROM rms_metric_log
-        WHERE instance_id = #{instanceId}
-        ORDER BY tm DESC
-        LIMIT 1 OFFSET 1
-    </select>
-
-    <!-- 趋势查询：聚合粒度由原来的 date_trunc(minute/hour) 改为按 bucketMinutes
-         （近1h=5min、近6h=15min）分桶，dualBandwidth 模式：网络入/出带宽同时返回两条子序列（inValue/outValue） -->
+    <!-- 趋势查询 -->
     <select id="selectTrendData" resultType="java.util.Map">
-        SELECT instance_id                          AS "instanceId",
-        <include refid="bucketExpr"/>         AS "bucket",
-        <choose>
-            <when test="dualBandwidth">
-                AVG(io_iik)                              AS "inValue",
-                AVG(io_iok)                              AS "outValue"
-            </when>
-            <otherwise>
-                AVG(CASE
-                WHEN #{metricKey} = 'cpuUsage'          THEN cpu_per
-                WHEN #{metricKey} = 'serverMemUsage'    THEN mem_server_per
-                WHEN #{metricKey} = 'redisMemUsed'      THEN mem_us
-                WHEN #{metricKey} = 'qps'               THEN ops
-                WHEN #{metricKey} = 'avgLatency'        THEN latency
-                WHEN #{metricKey} = 'netInputBandwidth' THEN io_iik
-                WHEN #{metricKey} = 'netOutputBandwidth' THEN io_iok
-                END)                              AS "value"
-            </otherwise>
-        </choose>
+        SELECT instance_id AS "instanceId",
+        <include refid="bucketExpr"/> AS "bucket",
+        AVG((cpu_per)::numeric)        AS "cpuUsage",
+        AVG((mem_server_per)::numeric) AS "serverMemUsage",
+        AVG((mem_us)::numeric)         AS "redisMemUsed",
+        AVG((ops)::numeric)            AS "qps",
+        AVG((latency)::numeric)        AS "avgLatency",
+        AVG((io_iik)::numeric)         AS "netInputBandwidth",
+        AVG((io_iok)::numeric)         AS "netOutputBandwidth"
         FROM rms_metric_log
         WHERE instance_id IN
-        <foreach collection="instanceIds" item="id" open="(" separator="," close=")">
-            #{id}
-        </foreach>
-        AND tm BETWEEN #{startTime} AND #{endTime}
+        <foreach collection="instanceIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+        AND tm &gt;= #{startTime}::timestamp
+        AND tm &lt;  #{endTime}::timestamp
         GROUP BY 1, 2
-        ORDER BY bucket
+        ORDER BY 2
     </select>
 
+
+
     <!-- 日周报概览统计：4项指标的均值/峰值/峰值时间 + 采集点数（用于可用率计算） -->
-    <select id="selectReportOverviewStats" resultType="java.util.Map">
-        SELECT AVG(cpu_per)     AS "cpuAvg",
-               MAX(cpu_per)     AS "cpuMax",
-               (SELECT tm
-                FROM rms_metric_log
-                WHERE instance_id = #{instanceId}
-                  AND tm BETWEEN #{startTime} AND #{endTime}
-                ORDER BY cpu_per DESC
-                LIMIT 1)        AS "cpuMaxTim",
-               AVG(mem_us)/1024.0/1024/1024 AS "redisMemAvg",
-               MAX(mem_us)/1024.0/1024/1024 AS "redisMemMax",
-               (SELECT tm
-                FROM rms_metric_log
-                WHERE instance_id = #{instanceId}
-                  AND tm BETWEEN #{startTime} AND #{endTime}
-                ORDER BY mem_us DESC
-                LIMIT 1)        AS "redisMemMaxTim",
-               AVG(ops)         AS "qpsAvg",
-               MAX(ops)         AS "qpsMax",
-               (SELECT tm
-                FROM rms_metric_log
-                WHERE instance_id = #{instanceId}
-                  AND tm BETWEEN #{startTime} AND #{endTime}
-                ORDER BY ops DESC
-                LIMIT 1)        AS "qpsMaxTim",
-               AVG(latency) AS "latencyAvg",
-               MAX(latency) AS "latencyMax",
-               (SELECT tm
-                FROM rms_metric_log
-                WHERE instance_id = #{instanceId}
-                  AND tm BETWEEN #{startTime} AND #{endTime}
-                ORDER BY latency DESC
-                LIMIT 1)        AS "latencyMaxTim",
-               COUNT(*)         AS "collectCount"
+    <select id="selectReportOverviewStats" resultType="com.danuvius.platform.model.dto.alarm.record.ReportOverviewStatsDTO">
+        SELECT
+            AVG(cpu_per::numeric) AS "cpuAvg",
+            MAX(cpu_per::numeric) AS "cpuMax",
+            (array_agg(tm ORDER BY cpu_per::numeric DESC NULLS LAST)
+             FILTER (WHERE cpu_per IS NOT NULL))[1] AS "cpuMaxTim",
+
+            AVG(mem_us::numeric)  AS "redisMemAvg",
+            MAX(mem_us::numeric)  AS "redisMemMax",
+            (array_agg(tm ORDER BY mem_us::numeric DESC NULLS LAST)
+             FILTER (WHERE mem_us IS NOT NULL))[1] AS "redisMemMaxTim",
+
+            AVG(ops::numeric)     AS "qpsAvg",
+            MAX(ops::numeric)     AS "qpsMax",
+            (array_agg(tm ORDER BY ops::numeric DESC NULLS LAST)
+             FILTER (WHERE ops IS NOT NULL))[1] AS "qpsMaxTim",
+
+            AVG(latency::numeric) AS "latencyAvg",
+            MAX(latency::numeric) AS "latencyMax",
+            (array_agg(tm ORDER BY latency::numeric DESC NULLS LAST)
+             FILTER (WHERE latency IS NOT NULL))[1] AS "latencyMaxTim",
+
+            COUNT(*)              AS "collectCount",
+            COUNT(cpu_per)        AS "cpuCollectCount",
+            COUNT(mem_us)         AS "memCollectCount",
+            COUNT(ops)            AS "qpsCollectCount",
+            COUNT(latency)        AS "latencyCollectCount"
         FROM rms_metric_log
-        WHERE instance_id = #{instanceId}
-          AND tm BETWEEN #{startTime} AND #{endTime}
+        WHERE instance_id = #{instanceId} AND tm BETWEEN #{startTime} AND #{endTime}
     </select>
 
     <!-- 日周报4项指标趋势序列：当天按小时(bucketMinutes=60)聚合，近7天按天(truncateDay=true)聚合 -->
     <select id="selectReportTrend" resultType="java.util.Map">
         SELECT <choose>
-            <when test="truncateDay">date_trunc('day', tm)</when>
-            <otherwise><include refid="bucketExpr"/></otherwise>
-        </choose> AS "bucket",
-               AVG(cpu_per)                     AS "cpuUsage",
-               AVG(mem_us)/1024.0/1024/1024     AS "redisMemUsed",
-               AVG(ops)                         AS "qps",
-               AVG(latency)                     AS "avgLatency"
+        <when test="truncateDay">date_trunc('day', tm)</when>
+        <otherwise><include refid="bucketExpr"/></otherwise>
+    </choose> AS "bucket",
+        AVG((cpu_per)::numeric)                  AS "cpuUsage",
+        AVG((mem_us)::numeric)                   AS "redisMemUsed",
+        AVG((ops)::numeric)                      AS "qps",
+        AVG((latency)::numeric)                  AS "avgLatency"
         FROM rms_metric_log
         WHERE instance_id = #{instanceId}
-          AND tm BETWEEN #{startTime} AND #{endTime}
+        AND tm BETWEEN #{startTime} AND #{endTime}
         GROUP BY 1
         ORDER BY 1
     </select>
 
-    <!-- 按实例id批量查询 -->
-    <select id="selectInstancesByIds" resultType="com.danuvius.platform.model.entity.RedisInstance">
-        SELECT id, instance_id, instance_name, host_ip, redis_port, role, redis_version,
-               run_status, master_host_ip, master_redis_port, last_heartbeat_time,
-               management_status, created_time, updated_time
-        FROM redis_instance
-        WHERE instance_id IN
-        <foreach collection="instanceIds" item="id" open="(" separator="," close=")">
-            #{id}
-        </foreach>
-    </select>
 
-    <!-- 更新实例心跳时间与运行状态 -->
-    <update id="updateHeartbeatAndStatus">
-        UPDATE redis_instance
-        SET last_heartbeat_time = #{lastHeartbeatTime},
-            run_status = #{runStatus},
-            updated_time = #{lastHeartbeatTime}
-        WHERE instance_id = #{instanceId}
-    </update>
-
-    <select id="selectByInstanceId" resultType="com.danuvius.platform.model.entity.RedisInstance">
-        SELECT id, instance_id, instance_name, host_ip, redis_port, role, redis_version,
-               run_status, master_host_ip, master_redis_port, last_heartbeat_time,
-               management_status, created_time, updated_time
-        FROM redis_instance
-        WHERE instance_id = #{instanceId}
-        LIMIT 1
-    </select>
-
-    <select id="selectActiveInstances" resultType="com.danuvius.platform.model.entity.RedisInstance">
-        SELECT id, instance_id, instance_name, host_ip, redis_port, role, redis_version,
-               run_status, master_host_ip, master_redis_port, last_heartbeat_time,
-               management_status, created_time, updated_time
-        FROM redis_instance
-        WHERE management_status = #{managementStatus}
-    </select>
-
-    <select id="selectActiveInstancesOrderByName" resultType="com.danuvius.platform.model.entity.RedisInstance">
-        SELECT id, instance_id, instance_name, host_ip, redis_port, role, redis_version,
-               run_status, master_host_ip, master_redis_port, last_heartbeat_time,
-               management_status, created_time, updated_time
-        FROM redis_instance
-        WHERE management_status = #{managementStatus}
-        ORDER BY instance_name ASC
-    </select>
 
 
 

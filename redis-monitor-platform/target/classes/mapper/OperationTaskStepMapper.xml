@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.danuvius.platform.mapper.OperationTaskStepMapper">
+
+    <resultMap id="BaseResultMap"
+               type="com.danuvius.platform.model.entity.OperationTaskStep">
+        <id column="id" property="id"/>
+        <result column="task_no" property="taskNo"/>
+        <result column="step_no" property="stepNo"/>
+        <result column="executor_id" property="executorId"/>
+        <result column="operation_type" property="operationType"/>
+        <result column="step_status" property="stepStatus"/>
+        <result column="request_params" property="requestParams"/>
+        <result column="result_json" property="resultJson"/>
+        <result column="error_code" property="errorCode"/>
+        <result column="failure_reason" property="failureReason"/>
+        <result column="dispatch_time" property="dispatchTime"/>
+        <result column="start_time" property="startTime"/>
+        <result column="end_time" property="endTime"/>
+        <result column="created_time" property="createdTime"/>
+        <result column="updated_time" property="updatedTime"/>
+    </resultMap>
+
+    <insert id="insertBatch">
+        INSERT INTO operation_task_step (
+            task_no,
+            step_no,
+            executor_id,
+            operation_type,
+            step_status,
+            request_params,
+            result_json,
+            error_code,
+            failure_reason,
+            dispatch_time,
+            start_time,
+            end_time,
+            created_time,
+            updated_time
+        )
+        VALUES
+        <foreach collection="steps" item="step" separator=",">
+            (
+                #{step.taskNo},
+                #{step.stepNo},
+                #{step.executorId},
+                #{step.operationType},
+                #{step.stepStatus},
+                CAST(#{step.requestParams} AS JSONB),
+                CAST(#{step.resultJson} AS JSONB),
+                #{step.errorCode},
+                #{step.failureReason},
+                #{step.dispatchTime},
+                #{step.startTime},
+                #{step.endTime},
+                #{step.createdTime},
+                #{step.updatedTime}
+            )
+        </foreach>
+    </insert>
+
+    <select id="selectTaskStepForUpdate" resultMap="BaseResultMap">
+        SELECT
+        id, task_no, step_no, executor_id, operation_type, step_status,
+        request_params, result_json, error_code, failure_reason,
+        dispatch_time, start_time, end_time,
+        created_time, updated_time
+        FROM operation_task_step
+        WHERE task_no = #{taskNo}
+          AND step_no = #{stepNo}
+          AND executor_id = #{executorId}
+        FOR UPDATE
+    </select>
+
+    <update id="updateTaskStepResult">
+        UPDATE operation_task_step
+        SET step_status = #{step.stepStatus},
+            result_json = CAST(#{step.resultJson} AS JSONB),
+            error_code = #{step.errorCode},
+            failure_reason = #{step.failureReason},
+            start_time = #{step.startTime},
+            end_time = #{step.endTime},
+            updated_time = #{step.updatedTime}
+        WHERE id = #{step.id}
+    </update>
+
+    <update id="markStepDispatching">
+        UPDATE operation_task_step
+        SET step_status = #{targetStatus},
+            failure_reason = '',
+            dispatch_time = #{dispatchTime},
+            updated_time = #{dispatchTime}
+        WHERE task_no = #{taskNo}
+          AND step_no = #{stepNo}
+          AND executor_id = #{executorId}
+          AND step_status = #{currentStatus}
+    </update>
+
+    <update id="updateStepStatusIfCurrent">
+        UPDATE operation_task_step
+        SET step_status = #{targetStatus},
+            failure_reason = #{failureReason},
+            updated_time = #{updatedTime}
+        WHERE task_no = #{taskNo}
+          AND step_no = #{stepNo}
+          AND executor_id = #{executorId}
+          AND step_status = #{currentStatus}
+    </update>
+
+    <select id="selectTaskStageSteps" resultMap="BaseResultMap">
+        SELECT
+        id, task_no, step_no, executor_id, operation_type, step_status,
+        request_params, result_json, error_code, failure_reason,
+        dispatch_time, start_time, end_time,
+        created_time, updated_time
+        FROM operation_task_step
+        WHERE task_no = #{taskNo}
+          AND step_no = #{stepNo}
+        ORDER BY id ASC
+    </select>
+
+    <select id="selectNextStepNo" resultType="java.lang.Integer">
+        SELECT MIN(step_no)
+        FROM operation_task_step
+        WHERE task_no = #{taskNo}
+          AND step_no &gt; #{stepNo}
+    </select>
+
+    <select id="selectWaitingResultSteps" resultMap="BaseResultMap">
+        SELECT
+        step.id, step.task_no, step.step_no, step.executor_id,
+        step.operation_type, step.step_status, step.request_params,
+        step.result_json, step.error_code, step.failure_reason,
+        step.dispatch_time, step.start_time,
+        step.end_time, step.created_time, step.updated_time
+        FROM operation_task_step step
+        INNER JOIN operation_task task ON task.task_no = step.task_no
+        WHERE step.step_status = #{stepStatus}
+          AND task.task_status IN
+          <foreach collection="taskStatuses"
+                   item="taskStatus"
+                   open="(" separator="," close=")">
+              #{taskStatus}
+          </foreach>
+        ORDER BY step.updated_time ASC
+    </select>
+
+</mapper>

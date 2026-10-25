@@ -18,14 +18,6 @@
         created_time, updated_time
     </sql>
 
-    <select id="selectLatestSwitchEvent" resultType="com.danuvius.platform.model.entity.RedisSwitchEvent">
-        SELECT id, old_master_id, new_master_id, switch_time, switch_type,
-               switch_result, created_time, updated_time
-        FROM redis_switch_event
-        ORDER BY switch_time DESC
-        LIMIT 1
-    </select>
-
     <!-- 日周报主从切换明细：关联实例表补充切换双方节点 IP:Port 展示 -->
     <resultMap id="EventItemResultMap" type="java.util.Map"/>
 
@@ -48,12 +40,13 @@
     </select>
 
     <!-- 日周报主从切换统计：总次数与最近切换时间 -->
-    <select id="selectSwitchStats" resultType="java.util.Map">
-        SELECT COUNT(*)          AS "switchTotal",
-               MAX(switch_time)  AS "lastSwitchTime"
+    <select id="selectSwitchStats" resultType="com.danuvius.platform.model.dto.alarm.record.SwitchStatsDTO">
+        SELECT COUNT(*)         AS "switchTotal",
+               MAX(switch_time) AS "lastSwitchTime"
         FROM redis_switch_event
-        WHERE switch_time BETWEEN #{startTime} AND #{endTime}
-          AND switch_type != '0'
+        WHERE switch_time &gt;= #{startTime}
+          AND switch_time &lt;  #{endTime}
+          AND switch_type &lt;&gt; '0'
     </select>
 
 </mapper>

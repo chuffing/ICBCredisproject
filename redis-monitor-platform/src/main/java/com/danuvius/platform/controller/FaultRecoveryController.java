@@ -2,12 +2,11 @@ package com.danuvius.platform.controller;
 
 import cn.hutool.http.HttpStatus;
 import com.danuvius.platform.common.core.ResultBean;
-import com.danuvius.platform.common.constant.ValidationConstants;
-import com.danuvius.platform.common.exception.ParameterErrorCode;
-import com.danuvius.platform.common.exception.ParameterException;
 import com.danuvius.platform.model.dto.FaultRecoveryRequestDTO;
 import com.danuvius.platform.model.vo.FaultRecoveryResponseVO;
 import com.danuvius.platform.service.FaultRecoveryService;
+import com.danuvius.platform.util.validate.FaultRecoveryRequestValidator;
+import com.danuvius.platform.util.validate.OperationCommonValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -36,8 +35,8 @@ public class FaultRecoveryController {
     public ResultBean<FaultRecoveryResponseVO> faultRecovery(
             @RequestBody FaultRecoveryRequestDTO request) {
 
-        // 校验请求参数。
-        validateRequest(request);
+        // 校验并规范化请求参数。
+        FaultRecoveryRequestValidator.validate(request);
 
         FaultRecoveryResponseVO response = faultRecoveryService.faultRecovery(request);
 
@@ -59,7 +58,8 @@ public class FaultRecoveryController {
             @PathVariable String taskNo) {
 
         // 校验并规范化任务编号。
-        String normalizedTaskNo = validateTaskNo(taskNo);
+        String normalizedTaskNo =
+                OperationCommonValidator.validateTaskNo(taskNo);
 
         FaultRecoveryResponseVO response = faultRecoveryService
                 .getFaultRecoveryStatus(normalizedTaskNo);
@@ -67,71 +67,4 @@ public class FaultRecoveryController {
         return ResultBean.success(response);
     }
 
-    /**
-     * 校验故障恢复请求参数。
-     */
-    private void validateRequest(FaultRecoveryRequestDTO request) {
-
-        if (request == null
-                || request.getOperationReason() == null
-                || request.getOperationReason().trim().isEmpty()) {
-            throw new ParameterException(
-                    ParameterErrorCode.TASK_PARAM_INVALID,
-                    "操作原因不能为空"
-            );
-        }
-
-        if (request.getOperationReason().trim().length()
-                > ValidationConstants.MAX_OPERATION_REASON_LENGTH) {
-            throw new ParameterException(
-                    ParameterErrorCode.TASK_PARAM_INVALID,
-                    "操作原因不能超过"
-                            + ValidationConstants.MAX_OPERATION_REASON_LENGTH
-                            + "个字符"
-            );
-        }
-
-        if (request.getCreatedBy() == null
-                || request.getCreatedBy().trim().isEmpty()) {
-            throw new ParameterException(
-                    ParameterErrorCode.TASK_PARAM_INVALID,
-                    "操作人不能为空"
-            );
-        }
-
-        if (request.getCreatedBy().trim().length()
-                > ValidationConstants.MAX_CREATED_BY_LENGTH) {
-            throw new ParameterException(
-                    ParameterErrorCode.TASK_PARAM_INVALID,
-                    "操作人不能超过"
-                            + ValidationConstants.MAX_CREATED_BY_LENGTH
-                            + "个字符"
-            );
-        }
-
-        // 设置操作原因。（去首尾字符串）
-        request.setOperationReason(request.getOperationReason().trim());
-
-        // 设置操作人。（去首尾字符串）
-        request.setCreatedBy(request.getCreatedBy().trim());
-    }
-
-    /**
-     * 校验并规范化故障恢复任务编号。
-     *
-     * @param taskNo 故障恢复任务编号
-     * @return 去除首尾空格后的任务编号
-     */
-    private String validateTaskNo(String taskNo) {
-        String normalizedTaskNo = taskNo == null ? null : taskNo.trim();
-        if (normalizedTaskNo == null
-                || !ValidationConstants.TASK_NO_PATTERN
-                .matcher(normalizedTaskNo).matches()) {
-            throw new ParameterException(
-                    ParameterErrorCode.TASK_NO_INVALID,
-                    "任务编号格式不正确"
-            );
-        }
-        return normalizedTaskNo;
-    }
 }

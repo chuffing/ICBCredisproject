@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.danuvius.platform.mapper.OperationTaskMapper">
+
+    <resultMap id="BaseResultMap"
+               type="com.danuvius.platform.model.entity.OperationTask">
+        <id column="id" property="id"/>
+        <result column="task_no" property="taskNo"/>
+        <result column="task_type" property="taskType"/>
+        <result column="task_status" property="taskStatus"/>
+        <result column="operation_reason" property="operationReason"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="request_params" property="requestParams"/>
+        <result column="failure_reason" property="failureReason"/>
+        <result column="termination_reason" property="terminationReason"/>
+        <result column="terminated_by" property="terminatedBy"/>
+        <result column="terminated_time" property="terminatedTime"/>
+        <result column="start_time" property="startTime"/>
+        <result column="end_time" property="endTime"/>
+        <result column="created_time" property="createdTime"/>
+        <result column="updated_time" property="updatedTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, task_no, task_type, task_status, operation_reason, created_by,
+        request_params, failure_reason, termination_reason, terminated_by,
+        terminated_time, start_time, end_time,
+        created_time, updated_time
+    </sql>
+
+    <select id="selectActiveTask" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM operation_task
+        WHERE task_status IN ('CREATED', 'RUNNING', 'RESULT_UNKNOWN')
+        ORDER BY created_time ASC
+        LIMIT 1
+    </select>
+
+    <select id="selectTaskByTaskNo" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM operation_task
+        WHERE task_no = #{taskNo}
+    </select>
+
+    <insert id="insertOperationTask">
+        INSERT INTO operation_task (
+            task_no,
+            task_type,
+            task_status,
+            operation_reason,
+            created_by,
+            request_params,
+            failure_reason,
+            termination_reason,
+            terminated_by,
+            terminated_time,
+            start_time,
+            end_time,
+            created_time,
+            updated_time
+        )
+        VALUES (
+            #{task.taskNo},
+            #{task.taskType},
+            #{task.taskStatus},
+            #{task.operationReason},
+            #{task.createdBy},
+            CAST(#{task.requestParams} AS JSONB),
+            #{task.failureReason},
+            #{task.terminationReason},
+            #{task.terminatedBy},
+            #{task.terminatedTime},
+            #{task.startTime},
+            #{task.endTime},
+            #{task.createdTime},
+            #{task.updatedTime}
+        )
+    </insert>
+
+    <select id="selectTaskForUpdate" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM operation_task
+        WHERE task_no = #{taskNo}
+        FOR UPDATE
+    </select>
+
+    <update id="updateTaskResult">
+        UPDATE operation_task
+        SET task_status = #{task.taskStatus},
+            failure_reason = #{task.failureReason},
+            end_time = #{task.endTime},
+            updated_time = #{task.updatedTime}
+        WHERE id = #{task.id}
+    </update>
+
+    <update id="updateTaskExecutionState">
+        UPDATE operation_task
+        SET task_status = #{task.taskStatus},
+            failure_reason = #{task.failureReason},
+            start_time = #{task.startTime},
+            end_time = #{task.endTime},
+            updated_time = #{task.updatedTime}
+        WHERE id = #{task.id}
+    </update>
+
+    <update id="updateTaskManualTermination">
+        UPDATE operation_task
+        SET task_status = #{task.taskStatus},
+            termination_reason = #{task.terminationReason},
+            terminated_by = #{task.terminatedBy},
+            terminated_time = #{task.terminatedTime},
+            end_time = #{task.endTime},
+            updated_time = #{task.updatedTime}
+        WHERE id = #{task.id}
+    </update>
+
+</mapper>

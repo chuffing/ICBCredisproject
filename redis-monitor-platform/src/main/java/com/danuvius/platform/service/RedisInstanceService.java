@@ -84,7 +84,4 @@ public interface RedisInstanceService extends IService<RedisInstance> {
      * @return
      */
     Boolean updateHeartbeatAndStatus(String instanceId, LocalDateTime now, String runStatus);
-
-
-    RedisInstance getRedisInstance(String instanceId);
 }

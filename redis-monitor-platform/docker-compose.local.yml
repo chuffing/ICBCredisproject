@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: redis-monitor-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: redis_monitor_platform
+      POSTGRES_USER: redis_platform
+      POSTGRES_PASSWORD: redis_platform_local
+      TZ: Asia/Shanghai
+    ports:
+      - "5432:5432"
+    volumes:
+      - redis-monitor-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U redis_platform -d redis_monitor_platform"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  redis-monitor-postgres-data:

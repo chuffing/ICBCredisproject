@@ -47,8 +47,6 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
         implements RedisInstanceService {
     /** 复制延迟指标 key，与前端/规则保持一致 */
     private static final String REPL_DELAY_METRIC_KEY = "replDelay";
-    private final RedisInstanceService redisInstanceService;
-
     /* 实例离线判定阈值：超过该时长无心跳视为离线，平台端+执行器架构下按心跳时长判定，默认600s，可配置） */
     @Value("${platform.instance.offline-threshold-seconds:600}")
     private long offlineThresholdSeconds;
@@ -83,8 +81,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
                                     ReportExportTaskHolder taskHolder,
                                     ReportFileGenerator reportFileGenerator,
                                     AsyncTaskRunner asyncTaskRunner,
-                                    Cache<String, Object> caffeineCache,
-                                    RedisInstanceService redisInstanceService) {
+                                    Cache<String, Object> caffeineCache) {
         this.redisInstanceMapper = redisInstanceMapper;
         this.switchEventMapper = switchEventMapper;
         this.alarmRuleMapper = alarmRuleMapper;
@@ -97,7 +94,6 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
         this.reportFileGenerator = reportFileGenerator;
         this.asyncTaskRunner = asyncTaskRunner;
         this.caffeineCache = caffeineCache;
-        this.redisInstanceService = redisInstanceService;
     }
 
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -171,7 +167,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
      */
     @Override
     public MetricCurrentValueResponse getCurrentValues(String instanceId) {
-        RedisInstance inst = redisInstanceService.getRedisInstance(instanceId);
+        RedisInstance inst = getRedisInstance(instanceId);
 
         if (inst == null) {
             throw new BusinessException(BusinessCode.NOT_FOUND_ERROR.getCode(), "实例不存在");
@@ -1033,7 +1029,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
         }
     }
 
-    public RedisInstance getRedisInstance(String instanceId) {
+    private RedisInstance getRedisInstance(String instanceId) {
         RedisInstance instance = redisInstanceMapper.selectOne(Wrappers.<RedisInstance>lambdaQuery()
                 .eq(RedisInstance::getInstanceId,instanceId));
         return instance;

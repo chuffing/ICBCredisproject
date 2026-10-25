@@ -15,18 +15,5 @@
     </resultMap>
 
 
-    <!--查Sentinel节点列表，managementStatus为空查全部 -->
-    <select id="selectSentinelList" resultMap="BaseResultMap">
-        SELECT
-        id, node_name, node_ip, node_port, sentinel_status,
-        management_status, last_heartbeat_time, created_time, updated_time
-        FROM sentinel_node_info
-        <where>
-            <if test="managementStatus != null and managementStatus != ''">
-                AND management_status = #{managementStatus}
-            </if>
-        </where>
-        ORDER BY node_name ASC
-    </select>
 
 </mapper>

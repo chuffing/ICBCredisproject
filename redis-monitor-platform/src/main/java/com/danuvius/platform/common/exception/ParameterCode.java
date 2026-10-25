@@ -66,7 +66,19 @@ public enum ParameterCode {
     PARAM_DUPLICATE(40019, "参数重复"),
 
     /** 参数非法 */
-    PARAM_INVALID(40020, "参数非法");
+    PARAM_INVALID(40020, "参数非法"),
+
+    /** Redis安装包不合法 */
+    PACKAGE_FILE_INVALID(40021, "安装包不合法"),
+
+    /** Redis安装包摘要不一致 */
+    PACKAGE_CHECKSUM_MISMATCH(40022, "安装包摘要不一致"),
+
+    /** Redis配置文件不合法 */
+    CONFIG_FILE_INVALID(40023, "配置文件不合法"),
+
+    /** Redis配置文件摘要不一致 */
+    CONFIG_CHECKSUM_MISMATCH(40024, "配置文件摘要不一致");
 
     private Integer code;
     private String msg;

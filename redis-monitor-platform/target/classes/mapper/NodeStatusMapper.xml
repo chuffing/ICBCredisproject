@@ -22,8 +22,5 @@
         role, ping_latency, created_time, updated_time
     </sql>
 
-    <delete id="deleteExpiredBefore">
-        DELETE FROM rms_node_status_log WHERE tm &lt; #{threshold}
-    </delete>
 
 </mapper>

@@ -136,7 +136,8 @@ public class MetricLogServiceImpl extends ServiceImpl<MetricLogMapper, MetricLog
     private void detectMasterSwitch(MetricReportItemDTO metric, LocalDateTime now) {
         String instanceId = metric.getInstanceId();
         String role = metric.getRole();
-        RedisInstance inst = redisInstanceService.getRedisInstance(instanceId);
+        RedisInstance inst = redisInstanceMapper.selectOne(Wrappers.<RedisInstance>lambdaQuery()
+                .eq(RedisInstance::getInstanceId,instanceId));
         if (inst == null) {
             return;
         }

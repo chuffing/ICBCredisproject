@@ -1,13 +1,10 @@
 package com.danuvius.platform.controller;
 
-import com.danuvius.platform.common.constant.ValidationConstants;
 import com.danuvius.platform.common.core.ResultBean;
-import com.danuvius.platform.common.exception.ParameterErrorCode;
-import com.danuvius.platform.common.exception.ParameterException;
 import com.danuvius.platform.model.vo.VersionPackageItemVO;
 import com.danuvius.platform.model.vo.VersionPackageUploadVO;
 import com.danuvius.platform.service.VersionPackageService;
-import com.danuvius.platform.util.StringUtils;
+import com.danuvius.platform.util.validate.VersionPackageRequestValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -41,22 +38,10 @@ public class VersionPackageController {
             @RequestParam("file") MultipartFile file) {
 
         // 1. 校验并整理上传操作人。
-        String normalizedUploadedBy = StringUtils.trimToNull(uploadedBy);
-        if (normalizedUploadedBy == null) {
-            throw new ParameterException(
-                    ParameterErrorCode.TASK_PARAM_INVALID,
-                    "上传操作人不能为空"
-            );
-        }
-        if (normalizedUploadedBy.length()
-                > ValidationConstants.MAX_CREATED_BY_LENGTH) {
-            throw new ParameterException(
-                    ParameterErrorCode.TASK_PARAM_INVALID,
-                    "上传操作人不能超过"
-                            + ValidationConstants.MAX_CREATED_BY_LENGTH
-                            + "个字符"
-            );
-        }
+        String normalizedUploadedBy =
+                VersionPackageRequestValidator.validateUploadedBy(
+                        uploadedBy
+                );
 
         // 2. 交给业务层校验并保存安装包。
         VersionPackageUploadVO result = versionPackageService.upload(

@@ -4,7 +4,6 @@
 
     <resultMap id="BaseResultMap" type="com.danuvius.platform.model.entity.ExecutorInfo">
         <id     column="id"                  property="id"/>
-        <result column="executor_id"         property="executorId"/>
         <result column="instance_id"         property="instanceId"/>
         <result column="host_ip"             property="hostIp"/>
         <result column="executor_port"       property="executorPort"/>
@@ -18,36 +17,10 @@
     </resultMap>
 
     <sql id="Base_Column_List">
-        id, executor_id,instance_id, host_ip, executor_port, executor_token,
+        id,instance_id, host_ip, executor_port, executor_token,
         executor_status, management_status, last_heartbeat_time, last_report_time,
         created_time, updated_time
     </sql>
 
-    <select id="selectByHostIpAndPort" resultMap="BaseResultMap">
-        SELECT <include refid="Base_Column_List"/>
-        FROM executor_info
-        WHERE host_ip = #{hostIp} AND executor_port = #{executorPort}
-        LIMIT 1
-    </select>
-
-    <select id="selectByToken" resultMap="BaseResultMap">
-        SELECT <include refid="Base_Column_List"/>
-        FROM executor_info
-        WHERE executor_token = #{executorToken}
-        LIMIT 1
-    </select>
-    <select id="selectByInstanceId" resultMap="BaseResultMap">
-        SELECT <include refid="Base_Column_List"/>
-        FROM executor_info
-        WHERE instance_id = #{instanceId}
-        LIMIT 1
-    </select>
-
-    <select id="selectActiveOnlineExecutors" resultMap="BaseResultMap">
-        SELECT <include refid="Base_Column_List"/>
-        FROM executor_info
-        WHERE management_status = #{managementStatus}
-        AND executor_status = #{executorStatus}
-    </select>
 
 </mapper>

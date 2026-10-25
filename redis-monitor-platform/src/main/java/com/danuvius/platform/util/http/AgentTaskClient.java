@@ -71,7 +71,6 @@ public class AgentTaskClient {
 
             throw e;
 
-
         } catch (Exception e) {
             // HTTP请求超时、连接失败或其他未预期异常。
             log.error(

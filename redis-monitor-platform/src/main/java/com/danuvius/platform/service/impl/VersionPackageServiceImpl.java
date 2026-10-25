@@ -5,7 +5,7 @@ import com.danuvius.platform.common.constant.ValidationConstants;
 import com.danuvius.platform.common.constant.VersionPackageConstants;
 import com.danuvius.platform.common.exception.BusinessCode;
 import com.danuvius.platform.common.exception.BusinessException;
-import com.danuvius.platform.common.exception.ParameterErrorCode;
+import com.danuvius.platform.common.exception.ParameterCode;
 import com.danuvius.platform.common.exception.ParameterException;
 import com.danuvius.platform.mapper.RedisVersionPackageMapper;
 import com.danuvius.platform.model.entity.RedisVersionPackage;
@@ -106,7 +106,7 @@ public class VersionPackageServiceImpl implements VersionPackageService {
             String internalVersion = inspectArchive(temporaryFile);
             if (!fileNameVersion.equals(internalVersion)) {
                 throw new ParameterException(
-                        ParameterErrorCode.PACKAGE_FILE_INVALID,
+                        ParameterCode.PACKAGE_FILE_INVALID,
                         "文件名版本" + fileNameVersion
                                 + "与src/version.h中的版本"
                                 + internalVersion + "不一致"
@@ -240,7 +240,7 @@ public class VersionPackageServiceImpl implements VersionPackageService {
     private String validatePackageFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new ParameterException(
-                    ParameterErrorCode.PACKAGE_FILE_INVALID,
+                    ParameterCode.PACKAGE_FILE_INVALID,
                     "安装包文件不能为空"
             );
         }
@@ -248,34 +248,34 @@ public class VersionPackageServiceImpl implements VersionPackageService {
         String packageName = file.getOriginalFilename();
         if (packageName == null || !packageName.equals(packageName.trim())) {
             throw new ParameterException(
-                    ParameterErrorCode.PACKAGE_FILE_INVALID,
+                    ParameterCode.PACKAGE_FILE_INVALID,
                     "安装包文件名不能为空且不能包含首尾空格"
             );
         }
         if (packageName.length()
                 > ValidationConstants.MAX_PACKAGE_FILE_NAME_LENGTH) {
             throw new ParameterException(
-                    ParameterErrorCode.PACKAGE_FILE_INVALID,
+                    ParameterCode.PACKAGE_FILE_INVALID,
                     "安装包文件名过长"
             );
         }
         if (packageName.contains("/") || packageName.contains("\\")
                 || packageName.contains("..")) {
             throw new ParameterException(
-                    ParameterErrorCode.PACKAGE_FILE_INVALID,
+                    ParameterCode.PACKAGE_FILE_INVALID,
                     "安装包文件名包含非法路径字符"
             );
         }
         if (!ValidationConstants.REDIS_PACKAGE_FILE_NAME_PATTERN
                 .matcher(packageName).matches()) {
             throw new ParameterException(
-                    ParameterErrorCode.PACKAGE_FILE_INVALID,
+                    ParameterCode.PACKAGE_FILE_INVALID,
                     "安装包文件名必须符合redis-{version}.tar.gz"
             );
         }
         if (file.getSize() <= 0 || file.getSize() > maxBytes) {
             throw new ParameterException(
-                    ParameterErrorCode.PACKAGE_FILE_INVALID,
+                    ParameterCode.PACKAGE_FILE_INVALID,
                     "安装包大小必须大于0且不能超过"
                             + maxBytes + "字节"
             );
@@ -291,7 +291,7 @@ public class VersionPackageServiceImpl implements VersionPackageService {
                 .matcher(packageName);
         if (!matcher.matches()) {
             throw new ParameterException(
-                    ParameterErrorCode.PACKAGE_FILE_INVALID,
+                    ParameterCode.PACKAGE_FILE_INVALID,
                     "无法从安装包文件名提取Redis版本"
             );
         }
@@ -349,7 +349,7 @@ public class VersionPackageServiceImpl implements VersionPackageService {
                 actualFileSize += readBytes;
                 if (actualFileSize > maxBytes) {
                     throw new ParameterException(
-                            ParameterErrorCode.PACKAGE_FILE_INVALID,
+                            ParameterCode.PACKAGE_FILE_INVALID,
                             "安装包实际大小超过限制"
                     );
                 }
@@ -358,7 +358,7 @@ public class VersionPackageServiceImpl implements VersionPackageService {
 
             if (actualFileSize <= 0) {
                 throw new ParameterException(
-                        ParameterErrorCode.PACKAGE_FILE_INVALID,
+                        ParameterCode.PACKAGE_FILE_INVALID,
                         "安装包内容不能为空"
                 );
             }
@@ -402,7 +402,7 @@ public class VersionPackageServiceImpl implements VersionPackageService {
                 if (entryCount
                         > VersionPackageConstants.MAX_ARCHIVE_ENTRY_COUNT) {
                     throw new ParameterException(
-                            ParameterErrorCode.PACKAGE_FILE_INVALID,
+                            ParameterCode.PACKAGE_FILE_INVALID,
                             "安装包内文件数量超过限制"
                     );
                 }
@@ -413,7 +413,7 @@ public class VersionPackageServiceImpl implements VersionPackageService {
                 );
                 if (!archiveEntries.add(entryName)) {
                     throw new ParameterException(
-                            ParameterErrorCode.PACKAGE_FILE_INVALID,
+                            ParameterCode.PACKAGE_FILE_INVALID,
                             "安装包包含重复路径：" + entryName
                     );
                 }
@@ -426,7 +426,7 @@ public class VersionPackageServiceImpl implements VersionPackageService {
                 }
                 if (!entryRoot.startsWith("redis-")) {
                     throw new ParameterException(
-                            ParameterErrorCode.PACKAGE_FILE_INVALID,
+                            ParameterCode.PACKAGE_FILE_INVALID,
                             "Redis源码根目录必须以redis-开头"
                     );
                 }
@@ -434,7 +434,7 @@ public class VersionPackageServiceImpl implements VersionPackageService {
                     rootDirectory = entryRoot;
                 } else if (!rootDirectory.equals(entryRoot)) {
                     throw new ParameterException(
-                            ParameterErrorCode.PACKAGE_FILE_INVALID,
+                            ParameterCode.PACKAGE_FILE_INVALID,
                             "安装包必须只有一个Redis源码根目录"
                     );
                 }
@@ -446,7 +446,7 @@ public class VersionPackageServiceImpl implements VersionPackageService {
                         || archiveEntry.isBlockDevice()
                         || archiveEntry.isFIFO()) {
                     throw new ParameterException(
-                            ParameterErrorCode.PACKAGE_FILE_INVALID,
+                            ParameterCode.PACKAGE_FILE_INVALID,
                             "安装包包含不允许的特殊文件"
                     );
                 }
@@ -455,7 +455,7 @@ public class VersionPackageServiceImpl implements VersionPackageService {
                 if (!archiveEntry.isDirectory()) {
                     if (archiveEntry.getSize() < 0) {
                         throw new ParameterException(
-                                ParameterErrorCode.PACKAGE_FILE_INVALID,
+                                ParameterCode.PACKAGE_FILE_INVALID,
                                 "安装包文件大小不合法"
                         );
                     }
@@ -463,7 +463,7 @@ public class VersionPackageServiceImpl implements VersionPackageService {
                     if (uncompressedSize
                             > VersionPackageConstants.MAX_UNCOMPRESSED_BYTES) {
                         throw new ParameterException(
-                                ParameterErrorCode.PACKAGE_FILE_INVALID,
+                                ParameterCode.PACKAGE_FILE_INVALID,
                                 "安装包解压后大小超过限制"
                         );
                     }
@@ -490,7 +490,7 @@ public class VersionPackageServiceImpl implements VersionPackageService {
             throw exception;
         } catch (IOException exception) {
             throw new ParameterException(
-                    ParameterErrorCode.PACKAGE_FILE_INVALID,
+                    ParameterCode.PACKAGE_FILE_INVALID,
                     "安装包不是有效的tar.gz文件"
             );
         }
@@ -498,13 +498,13 @@ public class VersionPackageServiceImpl implements VersionPackageService {
         // 7. 检查Redis编译所需的主要源码文件。
         if (!makefileFound || !serverSourceFound || !redisCliSourceFound) {
             throw new ParameterException(
-                    ParameterErrorCode.PACKAGE_FILE_INVALID,
+                    ParameterCode.PACKAGE_FILE_INVALID,
                     "安装包缺少Makefile、src/server.c或src/redis-cli.c"
             );
         }
         if (internalVersion == null) {
             throw new ParameterException(
-                    ParameterErrorCode.PACKAGE_FILE_INVALID,
+                    ParameterCode.PACKAGE_FILE_INVALID,
                     "无法从src/version.h识别Redis版本"
             );
         }
@@ -513,7 +513,7 @@ public class VersionPackageServiceImpl implements VersionPackageService {
         String expectedRootDirectory = "redis-" + internalVersion;
         if (!expectedRootDirectory.equals(rootDirectory)) {
             throw new ParameterException(
-                    ParameterErrorCode.PACKAGE_FILE_INVALID,
+                    ParameterCode.PACKAGE_FILE_INVALID,
                     "源码根目录版本与src/version.h中的版本不一致"
             );
         }
@@ -526,7 +526,7 @@ public class VersionPackageServiceImpl implements VersionPackageService {
     private String normalizeArchiveEntryName(String rawEntryName) {
         if (rawEntryName == null || rawEntryName.trim().isEmpty()) {
             throw new ParameterException(
-                    ParameterErrorCode.PACKAGE_FILE_INVALID,
+                    ParameterCode.PACKAGE_FILE_INVALID,
                     "安装包包含空路径"
             );
         }
@@ -539,7 +539,7 @@ public class VersionPackageServiceImpl implements VersionPackageService {
                 || entryName.startsWith("/")
                 || entryName.contains(":")) {
             throw new ParameterException(
-                    ParameterErrorCode.PACKAGE_FILE_INVALID,
+                    ParameterCode.PACKAGE_FILE_INVALID,
                     "安装包包含绝对路径"
             );
         }
@@ -551,7 +551,7 @@ public class VersionPackageServiceImpl implements VersionPackageService {
                 || normalizedEntryName.startsWith("../")
                 || !normalizedEntryName.equals(entryName)) {
             throw new ParameterException(
-                    ParameterErrorCode.PACKAGE_FILE_INVALID,
+                    ParameterCode.PACKAGE_FILE_INVALID,
                     "安装包包含不安全路径：" + rawEntryName
             );
         }
@@ -570,7 +570,7 @@ public class VersionPackageServiceImpl implements VersionPackageService {
                 || versionFileSize
                 > VersionPackageConstants.MAX_VERSION_FILE_BYTES) {
             throw new ParameterException(
-                    ParameterErrorCode.PACKAGE_FILE_INVALID,
+                    ParameterCode.PACKAGE_FILE_INVALID,
                     "src/version.h文件大小不合法"
             );
         }
@@ -586,7 +586,7 @@ public class VersionPackageServiceImpl implements VersionPackageService {
             );
             if (readBytes == -1) {
                 throw new ParameterException(
-                        ParameterErrorCode.PACKAGE_FILE_INVALID,
+                        ParameterCode.PACKAGE_FILE_INVALID,
                         "src/version.h内容不完整"
                 );
             }
@@ -603,7 +603,7 @@ public class VersionPackageServiceImpl implements VersionPackageService {
         );
         if (!versionMatcher.find()) {
             throw new ParameterException(
-                    ParameterErrorCode.PACKAGE_FILE_INVALID,
+                    ParameterCode.PACKAGE_FILE_INVALID,
                     "src/version.h缺少REDIS_VERSION定义"
             );
         }
@@ -611,7 +611,7 @@ public class VersionPackageServiceImpl implements VersionPackageService {
         String internalVersion = versionMatcher.group(1).trim();
         if (versionMatcher.find()) {
             throw new ParameterException(
-                    ParameterErrorCode.PACKAGE_FILE_INVALID,
+                    ParameterCode.PACKAGE_FILE_INVALID,
                     "src/version.h包含多个REDIS_VERSION定义"
             );
         }

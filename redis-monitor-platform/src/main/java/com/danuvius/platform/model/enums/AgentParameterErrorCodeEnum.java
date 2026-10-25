@@ -3,8 +3,8 @@ package com.danuvius.platform.model.enums;
 /**
  * 执行器参数校验错误码。
  *
- * <p>该枚举属于平台与执行器之间的通信协议，修改时需要同步修改执行器中的
- * {@code ParameterErrorCode}。</p>
+ * <p>该枚举属于平台与执行器之间的通信协议，修改时需要同步修改执行器端的
+ * 参数错误码定义。</p>
  */
 public enum AgentParameterErrorCodeEnum {
 

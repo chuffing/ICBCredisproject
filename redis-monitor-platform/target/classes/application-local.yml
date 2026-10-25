@@ -1,0 +1,14 @@
+spring:
+  datasource:
+    url: ${LOCAL_POSTGRES_URL:jdbc:postgresql://127.0.0.1:5433/redis_monitor_platform}
+    username: ${LOCAL_POSTGRES_USERNAME:redis_platform}
+    password: ${LOCAL_POSTGRES_PASSWORD:redis_platform_local}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+    initialization-mode: always
+    schema: classpath:db/postgresql/local_schema.sql
+    continue-on-error: false
+
