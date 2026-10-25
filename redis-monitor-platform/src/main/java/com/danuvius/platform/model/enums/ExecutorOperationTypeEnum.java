@@ -1,0 +1,40 @@
+package com.danuvius.platform.model.enums;
+
+/**
+ * 执行器支持的运维操作类型。
+ */
+public enum ExecutorOperationTypeEnum {
+
+    /** 检查新机部署所需的基础环境。 */
+    PRECHECK_HOST,
+
+    /** 启动Redis。 */
+    START_REDIS,
+
+    /** 停止Redis。 */
+    STOP_REDIS,
+
+    /** 启动Sentinel。 */
+    START_SENTINEL,
+
+    /** 停止Sentinel。 */
+    STOP_SENTINEL,
+
+    /** 恢复配置文件。 */
+    RESTORE_CONFIG,
+
+    /** 验证运维操作完成后的Redis和Sentinel拓扑。 */
+    VERIFY_TOPOLOGY,
+
+    /** 部署配置文件。 */
+    DEPLOY_CONFIG,
+
+    /** 部署版本。 */
+    DEPLOY_VERSION,
+
+    /** 切换版本。 */
+    SWITCH_VERSION,
+
+    /** 回滚版本。 */
+    ROLLBACK_VERSION
+}

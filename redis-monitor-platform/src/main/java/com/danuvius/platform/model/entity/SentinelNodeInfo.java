@@ -21,6 +21,16 @@ public class SentinelNodeInfo {
     private String nodePort;
     /*哨兵状态：0=离线/1=在线*/
     private String sentinelStatus;
+
+    /** Sentinel当前监控的Redis主节点IP。 */
+    private String masterHostIp;
+
+    /** Sentinel当前监控的Redis主节点端口。 */
+    private String masterRedisPort;
+
+    /** Sentinel故障恢复备份配置文件的SHA256摘要。 */
+    private String configSha256;
+
     /*最后心跳时间*/
     private LocalDateTime lastHeartbeatTime;
 

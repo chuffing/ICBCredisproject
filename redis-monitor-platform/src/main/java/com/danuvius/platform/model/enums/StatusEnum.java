@@ -10,13 +10,38 @@ import lombok.Getter;
 public enum StatusEnum {
 
     /**
+     * executor_info表 / sentinel_node_info表 / rms_node_status_log表
+     */
+    /*executorStatus / sentinelStatus / collectStatus*/
+    OFFLINE("0","离线"),
+    ONLINE("1","在线"),
+
+    /*managementStatus*/
+    INACTIVE("0","未纳管"),
+    ACTIVE("1","已纳管"),
+
+    /**
+     * redis_instance表
+     */
+    /*runStatus*/
+    RUN_OFFLINE("0", "离线"),
+    RUN_NORMAL("1", "正常"),
+    RUN_WARNING("2", "警告"),
+    RUN_CRITICAL("3", "严重"),
+
+    /**
      * redis_version_package
      */
     /*packageStatus*/
     INVALID("0","失效"),
     VALID("1","有效"),
 
-
+    /**
+     * alarm_rule表
+     */
+    /*enableStatus*/
+    DISABLE("0","禁用"),
+    ENABLE("1","启用"),
 
     /**
      * alarm_record表

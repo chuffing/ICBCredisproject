@@ -4,6 +4,27 @@ server:
 platform:
   instance:
     offline-threshold-seconds: 70      # 实例/哨兵离线判定阈值（秒）
+  operation-task:
+    # 执行结果超时扫描间隔，毫秒。
+    timeout-scan-interval-millis: 5000
+    # 没有为操作类型单独配置时使用的默认等待时间，秒。
+    default-result-timeout-seconds: 180
+    # 不同操作的实际耗时不同，因此分别设置执行结果等待时间。
+    result-timeout-seconds:
+      STOP_REDIS: 150
+      STOP_SENTINEL: 150
+      RESTORE_CONFIG: 150
+      DEPLOY_VERSION: 1860
+      SWITCH_VERSION: 90
+      START_REDIS: 180
+      START_SENTINEL: 180
+      VERIFY_TOPOLOGY: 90
+  version-package:
+    storage-dir: ${PLATFORM_VERSION_PACKAGE_DIR:./data/versionPackages}
+    max-bytes: ${PLATFORM_VERSION_PACKAGE_MAX_BYTES:52428800}
+  node-config:
+    # 当前正式配置放在current/{IP}/下；服务器切换配置人工放入staging/{IP}/下。
+    config-dir: ${PLATFORM_NODE_CONFIG_DIR:./data/nodeConfigs}
   alarm:
     notice:
       enabled: false                    # 告警邮件通知开关
@@ -19,15 +40,15 @@ platform:
     download-prefix: /report/download
 
 
-spring: #临时
+spring:
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 52MB
   mail:                                 # 启用邮件通知时配置
     host: smtp.example.com
     username: notice@example.com
     password: xxxx
-
-
-
-
   application:
     name: redis-monitor-platform
   datasource:
