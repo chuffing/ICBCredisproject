@@ -19,7 +19,7 @@ public class RuleListRequest implements Serializable {
     /*启用状态筛选：0 禁用 / 1 启用*/
     private String enableStatus;
     /*页码，默认 1*/
-    private Integer pageNum;
+    private Integer pageNum = 1;
     /*每页条数，默认 12*/
-    private Integer pageSize;
+    private Integer pageSize = 12;
 }

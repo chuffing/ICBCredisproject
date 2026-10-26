@@ -6,6 +6,7 @@ import com.danuvius.platform.model.dto.alarm.record.AlarmStatsDTO;
 import com.danuvius.platform.model.dto.alarm.record.RecordItemResponse;
 import com.danuvius.platform.model.dto.alarm.record.RecordOverviewResponse;
 import com.danuvius.platform.model.entity.AlarmRecord;
+import org.apache.commons.net.ntp.TimeStamp;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -20,8 +21,8 @@ public interface AlarmRecordMapper extends BaseMapper<AlarmRecord> {
     /*最近记录*/
     List<RecordItemResponse> selectRecent(@Param("limit") int limit);
     /*记录概览数据*/
-    RecordOverviewResponse selectRecordOverview(@Param("startTime") String startTime,
-    /*记录分页*/                                            @Param("endTime") String endTime);
+    RecordOverviewResponse selectRecordOverview(@Param("startTime") LocalDateTime startTime,
+    /*记录分页*/                                            @Param("endTime") LocalDateTime endTime);
     IPage<RecordItemResponse> selectRecordPage(IPage<RecordItemResponse> page,
                                                @Param("instanceId") String instanceId,
                                                @Param("alarmLevel") String alarmLevel,

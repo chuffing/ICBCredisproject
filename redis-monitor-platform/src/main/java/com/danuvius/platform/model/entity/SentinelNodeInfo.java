@@ -13,6 +13,8 @@ public class SentinelNodeInfo {
     /*主键id*/
     @TableId(type = IdType.ASSIGN_ID)
     private String id;
+    /*监控实例id*/
+    private String instanceId;
     /*哨兵节点名*/
     private String nodeName;
     /*哨兵节点IP*/

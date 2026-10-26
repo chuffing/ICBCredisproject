@@ -22,7 +22,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -75,10 +78,11 @@ public class AlarmRecordServiceImpl extends ServiceImpl<AlarmRecordMapper, Alarm
     @Override
     public RecordOverviewResponse getRecordOverview() {
         LocalDateTime end = LocalDateTime.now();
-        LocalDateTime start = end.minusDays(3);
-        String startTime = start.toLocalDate().atStartOfDay().format(FORMATTER);
-        String endTime = end.format(FORMATTER);
-        return alarmRecordMapper.selectRecordOverview(startTime, endTime);
+        LocalDateTime start = end.toLocalDate().minusDays(3).atStartOfDay();
+
+//        String startTime = start.toLocalDate().atStartOfDay().format(FORMATTER);
+//        String endTime = end.format(FORMATTER);
+        return alarmRecordMapper.selectRecordOverview(start, end);
     }
 
     /**

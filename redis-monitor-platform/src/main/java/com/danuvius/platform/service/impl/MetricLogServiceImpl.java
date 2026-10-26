@@ -15,6 +15,7 @@ import com.danuvius.platform.model.enums.rule.AlarmLevelEnum;
 import com.danuvius.platform.service.MetricLogService;
 import com.danuvius.platform.service.RedisInstanceService;
 import com.danuvius.platform.service.RedisSwitchEventService;
+import com.danuvius.platform.service.SentinelNodeInfoService;
 import com.danuvius.platform.util.CacheKeyUtil;
 import com.github.benmanes.caffeine.cache.Cache;
 import lombok.extern.slf4j.Slf4j;
@@ -41,6 +42,7 @@ public class MetricLogServiceImpl extends ServiceImpl<MetricLogMapper, MetricLog
     private final AlarmRecordMapper alarmRecordMapper;
     private final RedisInstanceService redisInstanceService;
     private final RedisSwitchEventService redisSwitchEventService;
+    private final SentinelNodeInfoService sentinelNodeInfoService;
     private final Cache<String, Object> caffeineCache;
 
     public MetricLogServiceImpl(MetricLogMapper metricLogMapper,
@@ -51,6 +53,7 @@ public class MetricLogServiceImpl extends ServiceImpl<MetricLogMapper, MetricLog
                                 AlarmRecordMapper alarmRecordMapper,
                                 RedisInstanceService redisInstanceService,
                                 RedisSwitchEventService redisSwitchEventService,
+                                SentinelNodeInfoService sentinelNodeInfoService,
                                 Cache<String, Object> caffeineCache) {
         this.metricLogMapper = metricLogMapper;
         this.nodeStatusMapper = nodeStatusMapper;
@@ -60,6 +63,7 @@ public class MetricLogServiceImpl extends ServiceImpl<MetricLogMapper, MetricLog
         this.alarmRecordMapper = alarmRecordMapper;
         this.redisInstanceService = redisInstanceService;
         this.redisSwitchEventService = redisSwitchEventService;
+        this.sentinelNodeInfoService = sentinelNodeInfoService;
         this.caffeineCache = caffeineCache;
     }
 
@@ -109,6 +113,21 @@ public class MetricLogServiceImpl extends ServiceImpl<MetricLogMapper, MetricLog
         // 采集上报成功时同步更新redis_instance 最后心跳时间与运行状态
         redisInstanceService.updateHeartbeatAndStatus(metric.getInstanceId(), now, CommonConstant.RUN_NORMAL);
 
+        // 记录执行器最近一次状态上报时间
+        executorInfoMapper.update(null, new LambdaUpdateWrapper<ExecutorInfo>()
+                .set(ExecutorInfo::getLastReportTime, now)
+                .set(ExecutorInfo::getUpdatedTime, now)
+                .eq(ExecutorInfo::getId, executor.getId()));
+
+        // 新采集数据到达，实时指标缓存失效，避免页面展示上一周期数据
+        caffeineCache.invalidate(CacheKeyUtil.realtimeCurrent(metric.getInstanceId()));
+        // 节点状态表/拓扑中的复制延迟、ping 延迟随最新采集变化，相关缓存一并失效
+        caffeineCache.invalidate(CacheKeyUtil.NODES);
+        caffeineCache.invalidate(CacheKeyUtil.TOPOLOGY);
+        caffeineCache.invalidate(CacheKeyUtil.instanceList(CommonConstant.MANAGE_ACTIVE));
+        caffeineCache.invalidate(CacheKeyUtil.instanceList(CommonConstant.MANAGE_INACTIVE));
+
+
 
         // 写节点状态日志
         NodeStatus ns = new NodeStatus();
@@ -124,6 +143,15 @@ public class MetricLogServiceImpl extends ServiceImpl<MetricLogMapper, MetricLog
         ns.setCreatedTime(now);
         ns.setUpdatedTime(now);
         nodeStatusMapper.insert(ns);
+
+        // 同一次上报携带的 Sentinel 节点：与指标一起处理，失败不影响指标入库
+        if (metric.getSentinels() != null && !metric.getSentinels().isEmpty()) {
+            try {
+                sentinelNodeInfoService.reportNodes(executor, metric.getSentinels());
+            } catch (Exception e) {
+                log.error("[Sentinel上报] 处理失败, instanceId={}", metric.getInstanceId(), e);
+            }
+        }
 
         // 主从切换检测
         try {
@@ -149,7 +177,9 @@ public class MetricLogServiceImpl extends ServiceImpl<MetricLogMapper, MetricLog
         String masterHost="";
         String masterPort="";
         if (ROLE_MASTER.equalsIgnoreCase(role)) {
-            if (inst.getMasterHostIp() != "" || inst.getMasterRedisPort() != "") {
+            // 主节点不应有 master 信息（注意不要用 != 比较字符串）
+            if ((inst.getMasterHostIp() != null && !inst.getMasterHostIp().trim().isEmpty())
+                    || (inst.getMasterRedisPort() != null && !inst.getMasterRedisPort().trim().isEmpty())) {
                 changed = true;
             }
         } else {
@@ -269,8 +299,7 @@ public class MetricLogServiceImpl extends ServiceImpl<MetricLogMapper, MetricLog
      */
     @Override
     public MetricLog getLatestByInstanceId(String instanceId) {
-        MetricLog metricLog = metricLogMapper.selectOne(Wrappers.<MetricLog>lambdaQuery().eq(MetricLog::getInstanceId, instanceId));
-        return metricLog;
+        return metricLogMapper.selectLatestByInstanceId(instanceId);
     }
 
     @Override

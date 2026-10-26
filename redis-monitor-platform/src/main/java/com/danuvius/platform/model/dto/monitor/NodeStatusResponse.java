@@ -22,6 +22,8 @@ public class NodeStatusResponse implements Serializable {
     private String copyDelay;
     /** 复制状态：正常 / 延迟 */
     private String copyStatus;
+    /** 执行器 ping 平台的 HTTP 往返延迟（毫秒），无采集数据时为 null */
+    private String pingLatency;
     /** 运行状态：正常 / 警告 / 严重 / 离线 */
     private String runStatus;
 }

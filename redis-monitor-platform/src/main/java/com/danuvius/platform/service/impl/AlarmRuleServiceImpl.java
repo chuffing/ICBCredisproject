@@ -205,6 +205,7 @@ public class AlarmRuleServiceImpl extends ServiceImpl<AlarmRuleMapper, AlarmRule
 
         rule.setCreatedBy(req.getCreatedBy());
         rule.setCreatedTime(LocalDateTime.now());
+        rule.setUpdatedTime(LocalDateTime.now());
         alarmRuleMapper.insert(rule);
         /* 将操作人、规则id、规则名、操作类型、操作时间记入操作审计日志 */
         auditLogService.record(CommonConstant.MODULE_ALARM_RULE, CommonConstant.OPERATION_TYPE_ADD, rule.getRuleId(),

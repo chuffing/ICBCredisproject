@@ -134,7 +134,9 @@ public class CommonConstant {
 
 
     public static final String MANAGE_INACTIVE = "0";
+    public static final String MANAGE_INACTIVE_DESC = "未纳管";
     public static final String MANAGE_ACTIVE = "1";
+    public static final String MANAGE_ACTIVE_DESC = "已纳管";
 
 
     public static final String AUTO = "0";

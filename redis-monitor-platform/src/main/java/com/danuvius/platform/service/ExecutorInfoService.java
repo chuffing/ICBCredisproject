@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.danuvius.platform.model.dto.agent.AgentRegisterResultDTO;
 import com.danuvius.platform.model.entity.ExecutorInfo;
 
+import java.util.List;
 import java.util.Map;
 
 public interface ExecutorInfoService extends IService<ExecutorInfo> {
@@ -36,5 +37,13 @@ public interface ExecutorInfoService extends IService<ExecutorInfo> {
     Boolean heartbeat(String executorToken, String hostIp, String executorPort);
 
 
-
+    /**
+     * 批量变更执行器纳管状态，并同步其绑定 Redis 实例的纳管状态。
+     * 只有纳管状态为 1 的执行器/实例才会出现在前端默认实例列表、拓扑和报告中。
+     *
+     * @param executorIds      执行器表主键 id 列表（executor_info.id，雪花 id）
+     * @param managementStatus 纳管状态：0=未纳管 / 1=已纳管
+     * @return 实际更新的执行器行数
+     */
+    int updateManagementStatus(List<String> executorIds, String managementStatus);
 }

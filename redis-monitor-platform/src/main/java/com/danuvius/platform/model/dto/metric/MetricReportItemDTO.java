@@ -1,9 +1,11 @@
 package com.danuvius.platform.model.dto.metric;
 
+import com.danuvius.platform.model.dto.agent.SentinelNodeReportDTO;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.util.List;
 
 /** Agent 上报的指标项 */
 @Data
@@ -46,6 +48,10 @@ public class MetricReportItemDTO implements Serializable {
 
     /** 连通性延迟，执行器端采集时上报 */
     private String pingLatency;
+
+    /** 随本次指标一起上报的 Sentinel 节点列表 */
+    private List<SentinelNodeReportDTO> sentinels;
+
     /** 采集失败原因 */
     private String errorMsg;
 }

@@ -13,15 +13,21 @@ import com.danuvius.platform.model.dto.agent.AgentRegisterResultDTO;
 import com.danuvius.platform.model.entity.ExecutorInfo;
 import com.danuvius.platform.model.entity.RedisInstance;
 import com.danuvius.platform.model.enums.instance.RunStatusEnum;
+import com.danuvius.platform.service.AuditLogService;
 import com.danuvius.platform.service.ExecutorInfoService;
 import com.danuvius.platform.service.RedisInstanceService;
+import com.danuvius.platform.util.CacheKeyUtil;
+import com.github.benmanes.caffeine.cache.Cache;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -31,15 +37,21 @@ public class ExecutorInfoServiceImpl extends ServiceImpl<ExecutorInfoMapper, Exe
     private final ExecutorInfoMapper executorInfoMapper;
     private final RedisInstanceMapper redisInstanceMapper;
     private final RedisInstanceService redisInstanceService;
+    private final AuditLogService auditLogService;
+    private final Cache<String, Object> caffeineCache;
 
     @Value("${platform.register-code}")
     private List<String> validRegisterCodes;
 
     public ExecutorInfoServiceImpl(ExecutorInfoMapper executorInfoMapper, RedisInstanceMapper redisInstanceMapper,
-                                   RedisInstanceService redisInstanceService) {
+                                   RedisInstanceService redisInstanceService,
+                                   AuditLogService auditLogService,
+                                   Cache<String, Object> caffeineCache) {
         this.executorInfoMapper = executorInfoMapper;
         this.redisInstanceMapper = redisInstanceMapper;
         this.redisInstanceService = redisInstanceService;
+        this.auditLogService = auditLogService;
+        this.caffeineCache = caffeineCache;
     }
 
 
@@ -113,6 +125,9 @@ public class ExecutorInfoServiceImpl extends ServiceImpl<ExecutorInfoMapper, Exe
         /* 执行器30s心跳时同步更新其绑定实例的最后心跳时间与运行状态 */
         if(rows>0) {
             log.info("执行器心跳更新:{}",CommonConstant.SUCCESS);
+            // 心跳会刷新实例在线状态，失效实例列表缓存，避免离线实例长时间显示在线
+            caffeineCache.invalidate(CacheKeyUtil.instanceList(CommonConstant.MANAGE_ACTIVE));
+            caffeineCache.invalidate(CacheKeyUtil.instanceList(CommonConstant.MANAGE_INACTIVE));
             // 已绑定时同步刷新实例心跳与运行状态；未绑定（S1 阶段）跳过
             if (isBound(agent)) {
                 redisInstanceService.updateHeartbeatAndStatus(agent.getInstanceId(), now,
@@ -125,6 +140,71 @@ public class ExecutorInfoServiceImpl extends ServiceImpl<ExecutorInfoMapper, Exe
             return false;
 
         }
+    }
+
+    /**
+     * 批量变更执行器纳管状态，并同步其绑定 Redis 实例的纳管状态。
+     *
+     * 前端默认实例列表/拓扑/报告只查询 management_status=1；执行器注册时默认为 0
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public int updateManagementStatus(List<String> executorIds, String managementStatus) {
+        List<ExecutorInfo> executors = listByIds(executorIds);
+        if (executors == null || executors.isEmpty()) {
+            throw new BusinessException(BusinessCode.NOT_FOUND_ERROR.getCode(), "执行器不存在");
+        }
+
+        Set<String> foundIds = new LinkedHashSet<>();
+        Set<String> instanceIds = new LinkedHashSet<>();
+        for (ExecutorInfo executor : executors) {
+            if (executor.getId() != null && !executor.getId().trim().isEmpty()) {
+                foundIds.add(executor.getId());
+            }
+            if (isBound(executor)) {
+                instanceIds.add(executor.getInstanceId().trim());
+            }
+        }
+        if (foundIds.isEmpty()) {
+            throw new BusinessException(BusinessCode.NOT_FOUND_ERROR.getCode(), "执行器不存在");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        int executorRows = executorInfoMapper.update(null, new LambdaUpdateWrapper<ExecutorInfo>()
+                .set(ExecutorInfo::getManagementStatus, managementStatus)
+                .set(ExecutorInfo::getUpdatedTime, now)
+                .in(ExecutorInfo::getId, foundIds)
+        );
+
+        int instanceRows = 0;
+        if (!instanceIds.isEmpty()) {
+            instanceRows = redisInstanceMapper.update(null, new LambdaUpdateWrapper<RedisInstance>()
+                    .set(RedisInstance::getManagementStatus, managementStatus)
+                    .set(RedisInstance::getUpdatedTime, now)
+                    .in(RedisInstance::getInstanceId, instanceIds)
+            );
+        }
+
+        // 纳管状态变化会影响实例列表、拓扑与节点状态表格
+        caffeineCache.invalidate(CacheKeyUtil.instanceList(CommonConstant.MANAGE_ACTIVE));
+        caffeineCache.invalidate(CacheKeyUtil.instanceList(CommonConstant.MANAGE_INACTIVE));
+        caffeineCache.invalidate(CacheKeyUtil.TOPOLOGY);
+        caffeineCache.invalidate(CacheKeyUtil.NODES);
+        caffeineCache.invalidate(CacheKeyUtil.sentinelList(CommonConstant.MANAGE_ACTIVE));
+        caffeineCache.invalidate(CacheKeyUtil.sentinelList(CommonConstant.MANAGE_INACTIVE));
+
+        String statusDesc = CommonConstant.MANAGE_ACTIVE.equals(managementStatus)
+                ? CommonConstant.MANAGE_ACTIVE_DESC : CommonConstant.MANAGE_INACTIVE_DESC;
+        String targetId = foundIds.size() == 1
+                ? foundIds.iterator().next()
+                : foundIds.iterator().next() + "等" + foundIds.size() + "个";
+        auditLogService.record(CommonConstant.MODULE_OPERATIONS, CommonConstant.OPERATION_TYPE_UPDATE,
+                targetId, "变更执行器纳管状态为" + statusDesc
+                        + "，执行器 " + executorRows + " 个，实例 " + instanceRows + " 个");
+
+        log.info("执行器纳管状态变更: status={}, executors={}, instances={}",
+                managementStatus, executorRows, instanceRows);
+        return executorRows;
     }
 
 
@@ -147,7 +227,7 @@ public class ExecutorInfoServiceImpl extends ServiceImpl<ExecutorInfoMapper, Exe
         agent.setExecutorPort(executorPort);
         agent.setExecutorToken(IdUtil.simpleUUID());
         agent.setExecutorStatus(CommonConstant.ONLINE);
-        // 平台手动纳管
+        // 新注册执行器默认未纳管，平台变更纳管状态手动纳管
         agent.setManagementStatus(CommonConstant.MANAGE_INACTIVE);
         LocalDateTime now = LocalDateTime.now();
         agent.setLastHeartbeatTime(now);
@@ -162,19 +242,40 @@ public class ExecutorInfoServiceImpl extends ServiceImpl<ExecutorInfoMapper, Exe
      */
     private void bindInstance(ExecutorInfo agent, Map<String, String> redisInfo) {
         String instanceId = IdUtil.getSnowflakeNextIdStr();
-        RedisInstance instance = buildInstance(instanceId, agent.getHostIp(), redisInfo);
-        redisInstanceMapper.insert(instance);
+        RedisInstance instance = buildInstance(instanceId, agent.getHostIp(), redisInfo,
+                agent.getManagementStatus());
+
+        // 同名实例已存在（例如平台数据被手工清理后执行器再次注册）：复用已有实例，避免唯一键冲突
+        RedisInstance sameName = redisInstanceMapper.selectOne(Wrappers.<RedisInstance>lambdaQuery()
+                .eq(RedisInstance::getInstanceName, instance.getInstanceName())
+                .last("LIMIT 1"));
+        if (sameName != null) {
+            instanceId = sameName.getInstanceId();
+            instance = sameName;
+            // 复用已存在实例时，若执行器已纳管，同步把实例置为已纳管
+            if (CommonConstant.MANAGE_ACTIVE.equals(agent.getManagementStatus())) {
+                redisInstanceMapper.update(null, new LambdaUpdateWrapper<RedisInstance>()
+                        .set(RedisInstance::getManagementStatus, CommonConstant.MANAGE_ACTIVE)
+                        .set(RedisInstance::getUpdatedTime, LocalDateTime.now())
+                        .eq(RedisInstance::getInstanceId, instanceId));
+            }
+        } else {
+            redisInstanceMapper.insert(instance);
+        }
 
         int rows = executorInfoMapper.update(null, Wrappers.<ExecutorInfo>lambdaUpdate()
                 .set(ExecutorInfo::getInstanceId, instanceId)
                 .set(ExecutorInfo::getUpdatedTime, LocalDateTime.now())
                 .eq(ExecutorInfo::getId, agent.getId())
-                .eq(ExecutorInfo::getInstanceId, "")
+                // 兼容旧库：未绑定语义可能是 NULL 或空串
+                .and(w -> w.eq(ExecutorInfo::getInstanceId, "").or().isNull(ExecutorInfo::getInstanceId))
         );
 
         if (rows == 0) {
             // 已被其他请求绑定：回滚新建实例，重新读取最新绑定
-            redisInstanceMapper.deleteById(instance.getId());
+            if (sameName == null) {
+                redisInstanceMapper.deleteById(instance.getId());
+            }
             ExecutorInfo latest = executorInfoMapper.selectById(agent.getId());
             if (latest != null) {
                 agent.setInstanceId(latest.getInstanceId());
@@ -183,12 +284,18 @@ public class ExecutorInfoServiceImpl extends ServiceImpl<ExecutorInfoMapper, Exe
             return;
         }
         agent.setInstanceId(instanceId);
+
+        // 新实例纳入监控后，实例列表/拓扑/节点状态缓存立即失效，前端无需等待缓存过期
+        caffeineCache.invalidate(CacheKeyUtil.instanceList(CommonConstant.MANAGE_ACTIVE));
+        caffeineCache.invalidate(CacheKeyUtil.instanceList(CommonConstant.MANAGE_INACTIVE));
+        caffeineCache.invalidate(CacheKeyUtil.TOPOLOGY);
+        caffeineCache.invalidate(CacheKeyUtil.NODES);
         log.info("执行器 {} 绑定实例成功: {}", agent.getId(), instanceId);
     }
 
     /*建redis实体*/
     private RedisInstance buildInstance(String instanceId, String fallbackHostIp,
-                                        Map<String, String> redisInfo) {
+                                        Map<String, String> redisInfo, String managementStatus) {
         RedisInstance instance = new RedisInstance();
         instance.setInstanceId(instanceId);
 

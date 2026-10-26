@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 查询操作审计列表接口 /api/audit/logs。
  */
 @RestController
-@RequestMapping("/api/audit")
+@RequestMapping("/audit")
 
 public class AuditController {
 

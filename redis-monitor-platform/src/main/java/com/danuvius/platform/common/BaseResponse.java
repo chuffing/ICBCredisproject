@@ -1,9 +1,11 @@
 package com.danuvius.platform.common;
 
 import com.danuvius.platform.common.exception.BusinessCode;
+import lombok.Getter;
 
 import java.io.Serializable;
 
+@Getter
 public class BaseResponse<T> implements Serializable {
     private int code;
     private T data;

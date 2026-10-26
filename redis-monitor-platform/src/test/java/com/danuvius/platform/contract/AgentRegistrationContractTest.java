@@ -11,8 +11,9 @@ import com.danuvius.platform.util.validate.AgentHeartbeatRequestValidator;
 import com.danuvius.platform.util.validate.AgentRegisterRequestValidator;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** 以执行器当前实际JSON字段验证注册和心跳接口兼容性。 */
 class AgentRegistrationContractTest {
@@ -54,12 +55,15 @@ class AgentRegistrationContractTest {
     }
 
     @Test
-    void currentPlatformRegistrationResponseDoesNotContainAgentExpectedKeys() {
+    void platformRegistrationResponseContainsAgentExpectedKeys() {
         String responseJson = JSON.toJSONString(ResultUtils.success(
                 new AgentRegisterResultDTO("test-token", "instance-1")));
         JSONObject response = JSON.parseObject(responseJson);
 
-        // BaseResponse当前没有getter，序列化后连data字段都不存在。
-        assertFalse(response.containsKey("data"));
+        assertTrue(response.containsKey("data"));
+        JSONObject data = response.getJSONObject("data");
+        assertEquals("test-token", data.getString("executorToken"));
+        assertEquals("instance-1", data.getString("instanceId"));
+        assertTrue(data.getBooleanValue("bound"));
     }
 }

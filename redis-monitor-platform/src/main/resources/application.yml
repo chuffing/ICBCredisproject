@@ -1,9 +1,12 @@
 server:
-  port: 8100
+  port: ${SERVER_PORT:8100}
 
 platform:
   instance:
-    offline-threshold-seconds: 70      # 实例/哨兵离线判定阈值（秒）
+    offline-threshold-seconds: ${OFFLINE_THRESHOLD_SECONDS:70}      # 实例离线判定阈值（秒）
+  sentinel:
+    # 哨兵随指标每 5 分钟上报一次，阈值需大于采集周期（默认 330s = 5.5min）
+    offline-threshold-seconds: ${SENTINEL_OFFLINE_THRESHOLD_SECONDS:330}
   operation-task:
     # 执行结果超时扫描间隔，毫秒。
     timeout-scan-interval-millis: 5000
@@ -33,10 +36,10 @@ platform:
     auto-recover:
       periods: 2                        #连续回落周期数，达到后自动恢复；<=0 关闭自动恢复
 
-  register-code: Danuvius
-  retain-days: 7
+  register-code: ${REGISTER_CODE:Danuvius}
+  retain-days: ${RETAIN_DAYS:7}
   report:
-    export-dir: ./exports
+    export-dir: ${REPORT_EXPORT_DIR:./exports}
     download-prefix: /report/download
 
 
@@ -52,9 +55,9 @@ spring:
   application:
     name: redis-monitor-platform
   datasource:
-    url: jdbc:postgresql://aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres
-    username: postgres.dbtakxbjecdydxfeytov
-    password: Danuvius5732
+    url: ${DB_URL:jdbc:postgresql://aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres}
+    username: ${DB_USERNAME:postgres.dbtakxbjecdydxfeytov}
+    password: ${DB_PASSWORD:Danuvius5732}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 20
@@ -69,10 +72,6 @@ mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
-
-
-
-
 
 
 

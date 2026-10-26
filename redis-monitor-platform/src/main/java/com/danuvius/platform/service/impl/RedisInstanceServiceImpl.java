@@ -14,10 +14,7 @@ import com.danuvius.platform.model.dto.alarm.record.ReportOverviewStatsDTO;
 import com.danuvius.platform.model.dto.alarm.record.SwitchStatsDTO;
 import com.danuvius.platform.model.dto.metric.MetricCurrentValueDTO;
 import com.danuvius.platform.model.dto.monitor.*;
-import com.danuvius.platform.model.entity.AlarmRule;
-import com.danuvius.platform.model.entity.MetricLog;
-import com.danuvius.platform.model.entity.RedisInstance;
-import com.danuvius.platform.model.entity.RedisSwitchEvent;
+import com.danuvius.platform.model.entity.*;
 import com.danuvius.platform.model.enums.rule.AlarmLevelEnum;
 import com.danuvius.platform.model.enums.metric.MetricTypeEnum;
 import com.danuvius.platform.model.enums.StatusEnum;
@@ -56,6 +53,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
     private final AlarmRuleMapper alarmRuleMapper;
     private final AlarmRecordMapper alarmRecordMapper;
     private final MetricLogMapper metricLogMapper;
+    private final NodeStatusMapper nodeStatusMapper;
     private final RuleMatchHelper  ruleMatchHelper;
     /* 报告导出记操作审计日志 */
     private final AuditLogService auditLogService;
@@ -75,6 +73,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
                                     AlarmRuleMapper alarmRuleMapper,
                                     AlarmRecordMapper alarmRecordMapper,
                                     MetricLogMapper metricLogMapper,
+                                    NodeStatusMapper  nodeStatusMapper,
                                     RuleMatchHelper ruleMatchHelper,
                                     AuditLogService auditLogService,
                                     RedisSwitchEventService redisSwitchEventService,
@@ -87,6 +86,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
         this.alarmRuleMapper = alarmRuleMapper;
         this.alarmRecordMapper = alarmRecordMapper;
         this.metricLogMapper = metricLogMapper;
+        this.nodeStatusMapper = nodeStatusMapper;
         this.ruleMatchHelper = ruleMatchHelper;
         this.auditLogService = auditLogService;
         this.redisSwitchEventService = redisSwitchEventService;
@@ -578,9 +578,19 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
 
             //复制延迟从 rms_metric_log 最新记录获取
             String replDelay = getLatestReplDelay(i.getInstanceId());
-            m.setCopyDelay(!replDelay.equals("") ? replDelay : "0");
+            String safeReplDelay = replDelay == null ? "" : replDelay.trim();
+            m.setCopyDelay(!safeReplDelay.isEmpty() ? safeReplDelay : "0");
             //复制状态由告警规则判断
             m.setCopyStatus(judgeReplDelayStatus(i.getInstanceId(), replDelay, allRules));
+
+            // 最近一次节点状态中的“执行器 ping 平台”延迟
+            NodeStatus latestNodeStatus = nodeStatusMapper.selectOne(Wrappers.<NodeStatus>lambdaQuery()
+                    .eq(NodeStatus::getInstanceId, i.getInstanceId())
+                    .orderByDesc(NodeStatus::getTm)
+                    .last("LIMIT 1"));
+            m.setPingLatency(latestNodeStatus == null ? "0" : latestNodeStatus.getPingLatency());
+
+
             m.setRunStatus(RunStatusEnum.descOf(i.getRunStatus()));
             if (CommonConstant.DEFAULT_ROLE_MASTER.equalsIgnoreCase(i.getRole())) {
                 masterRows.add(m);
@@ -639,18 +649,23 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
         ReportOverviewStatsDTO stats = redisInstanceMapper.selectReportOverviewStats(
                 instanceId, startText, endText);
 
+        if (stats == null) {
+            stats = new ReportOverviewStatsDTO();
+        }
+
+
         ReportOverviewDTO ov = new ReportOverviewDTO();
-        ov.setCpuAvg(stats.getCpuAvg().toString());
-        ov.setCpuMax(stats.getCpuMax().toString());
+        ov.setCpuAvg(toText(stats.getCpuAvg()));
+        ov.setCpuMax(toText(stats.getCpuMax()));
         ov.setCpuMaxTim(stats.getCpuMaxTim());
-        ov.setRedisMemAvg(stats.getRedisMemAvg().toString());
-        ov.setRedisMemMax(stats.getRedisMemMax().toString());
+        ov.setRedisMemAvg(toText(stats.getRedisMemAvg()));
+        ov.setRedisMemMax(toText(stats.getRedisMemMax()));
         ov.setRedisMemMaxTim(stats.getRedisMemMaxTim());
-        ov.setQpsAvg(stats.getQpsAvg().toString());
-        ov.setQpsMax(stats.getQpsMax().toString());
+        ov.setQpsAvg(toText(stats.getQpsAvg()));
+        ov.setQpsMax(toText(stats.getQpsMax()));
         ov.setQpsMaxTim(stats.getQpsMaxTim());
-        ov.setLatencyAvg(stats.getLatencyAvg().toString());
-        ov.setLatencyMax(stats.getLatencyMax().toString());
+        ov.setLatencyAvg(toText(stats.getLatencyAvg()));
+        ov.setLatencyMax(toText(stats.getLatencyMax()));
         ov.setLatencyMaxTim(stats.getLatencyMaxTim());
 
         // 告警统计（按时间范围，可按实例过滤）
@@ -829,6 +844,12 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
             return null;
         }
     }
+
+    /** BigDecimal 转字符串，保留数据库原始精度；无数据返回 null，前端展示 "--" */
+    private String toText(BigDecimal value) {
+        return value == null ? null : value.stripTrailingZeros().toPlainString();
+    }
+
 
     private String str(Object value) {
         return value == null ? null : value.toString();
