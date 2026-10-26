@@ -30,8 +30,6 @@ CREATE TABLE IF NOT EXISTS sentinel_node_info (
     node_ip VARCHAR(64) NOT NULL,
     node_port VARCHAR(16) NOT NULL,
     sentinel_status VARCHAR(16) NOT NULL,
-    master_host_ip VARCHAR(64),
-    master_redis_port VARCHAR(16),
     config_sha256 VARCHAR(64),
     last_heartbeat_time TIMESTAMP WITHOUT TIME ZONE,
     management_status VARCHAR(16) NOT NULL DEFAULT '0',

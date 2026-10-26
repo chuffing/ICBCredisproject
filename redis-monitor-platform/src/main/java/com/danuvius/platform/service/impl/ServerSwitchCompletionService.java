@@ -375,8 +375,6 @@ public class ServerSwitchCompletionService {
             sentinelNode.setNodeIp(hostIp);
             sentinelNode.setNodePort(SENTINEL_PORT);
             sentinelNode.setSentinelStatus(StatusEnum.ONLINE.getCode());
-            sentinelNode.setMasterHostIp(masterHostIp);
-            sentinelNode.setMasterRedisPort(REDIS_PORT);
             sentinelNode.setConfigSha256(sentinelConfigSha256);
             sentinelNode.setManagementStatus(StatusEnum.ACTIVE.getCode());
             sentinelNode.setLastHeartbeatTime(now);

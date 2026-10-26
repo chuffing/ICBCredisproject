@@ -86,8 +86,6 @@
 | node_ip | VARCHAR(64) | 否 | 无 |  | Sentinel所在服务器IP |
 | node_port | VARCHAR(16) | 否 | 无 |  | Sentinel服务端口 |
 | sentinel_status | VARCHAR(16) | 否 | 无 |  | Sentinel运行状态 |
-| master_host_ip | VARCHAR(64) | 是 | NULL |  | Sentinel当前监控的Redis主节点IP |
-| master_redis_port | VARCHAR(16) | 是 | NULL |  | Sentinel当前监控的Redis主节点端口 |
 | config_sha256 | VARCHAR(64) | 是 | NULL | 64位十六进制字符串 | 未纳管时可为空，正式纳管前保存Sentinel配置文件摘要 |
 | last_heartbeat_time | TIMESTAMP | 是 | NULL |  | 最近一次心跳时间 |
 | management_status | VARCHAR(16) | 否 | 1 |  | 纳管状态：0表示未纳管，1表示已纳管 |
@@ -106,6 +104,7 @@
 | 2026-10-20 | redis_instance、sentinel_node_info | 新增config_sha256字段 | 故障恢复下发时向执行器提供两份备份配置文件的SHA256摘要 |
 | 2026-10-22 | sentinel_node_info | 新增master_host_ip、master_redis_port字段 | 保存注册时采集的Sentinel监控主节点，用于首次纳管校验 |
 | 2026-10-22 | redis_instance、sentinel_node_info | config_sha256改为可空 | 允许注册阶段先创建未纳管记录，正式纳管前再保存配置摘要 |
+| 2026-10-26 | sentinel_node_info | 删除master_host_ip、master_redis_port字段 | 当前拓扑通过Redis实例关系和实时状态确定，不再重复保存Sentinel监控目标 |
 
 ## 待完善事项
 
