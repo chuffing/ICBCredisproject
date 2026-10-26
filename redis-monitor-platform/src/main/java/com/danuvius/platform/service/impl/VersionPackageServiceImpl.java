@@ -1,6 +1,7 @@
 package com.danuvius.platform.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.danuvius.platform.common.constant.ValidationConstants;
 import com.danuvius.platform.common.constant.VersionPackageConstants;
 import com.danuvius.platform.common.exception.BusinessCode;
@@ -10,6 +11,7 @@ import com.danuvius.platform.common.exception.ParameterException;
 import com.danuvius.platform.mapper.RedisVersionPackageMapper;
 import com.danuvius.platform.model.entity.RedisVersionPackage;
 import com.danuvius.platform.model.vo.VersionPackageItemVO;
+import com.danuvius.platform.model.vo.VersionPackagePageVO;
 import com.danuvius.platform.model.vo.VersionPackageUploadVO;
 import com.danuvius.platform.service.VersionPackageService;
 import com.danuvius.platform.util.Sha256Util;
@@ -19,6 +21,7 @@ import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayOutputStream;
@@ -197,41 +200,128 @@ public class VersionPackageServiceImpl implements VersionPackageService {
     }
 
     /**
-     * 查询全部Redis版本安装包。
+     * 分页查询Redis版本安装包。
      *
-     * @return 安装包列表
+     * @param pageNum 页码
+     * @param pageSize 每页数量
+     * @return 安装包分页结果
      */
     @Override
-    public List<VersionPackageItemVO> listPackages() {
+    public VersionPackagePageVO listPackages(
+            Integer pageNum,
+            Integer pageSize) {
 
-        // 1. 按上传时间倒序查询全部安装包记录。
-        List<RedisVersionPackage> versionPackages =
-                versionPackageMapper.selectList(
+        // 1. 按上传时间倒序分页查询安装包记录。
+        Page<RedisVersionPackage> packagePage =
+                versionPackageMapper.selectPage(
+                        new Page<>(pageNum, pageSize),
                         new LambdaQueryWrapper<RedisVersionPackage>()
                                 .orderByDesc(
                                         RedisVersionPackage::getCreatedTime
                                 )
+                                .orderByDesc(RedisVersionPackage::getId)
                 );
 
-        // 2. 将数据库实体转换为页面需要的列表项。
-        List<VersionPackageItemVO> results = new ArrayList<>();
-        if (versionPackages != null) {
-            for (RedisVersionPackage versionPackage : versionPackages) {
-                VersionPackageItemVO item = new VersionPackageItemVO();
-                item.setPackageId(versionPackage.getId());
-                item.setPackageName(versionPackage.getPackageName());
-                item.setRedisVersion(versionPackage.getRedisVersion());
-                item.setSha256(versionPackage.getSha256());
-                item.setPackageSize(versionPackage.getPackageSize());
-                item.setPackageStatus(versionPackage.getPackageStatus());
-                item.setUploadedBy(versionPackage.getUploadedBy());
-                item.setCreatedTime(versionPackage.getCreatedTime());
-                results.add(item);
-            }
+        // 2. 将当前页数据库实体转换为页面需要的列表项。
+        List<VersionPackageItemVO> records =
+                buildPackageItems(packagePage.getRecords());
+
+        // 3. 返回当前页数据和分页信息。
+        VersionPackagePageVO result = new VersionPackagePageVO();
+        result.setRecords(records);
+        result.setTotal(packagePage.getTotal());
+        result.setCurrent(packagePage.getCurrent());
+        result.setSize(packagePage.getSize());
+        result.setPages(packagePage.getPages());
+        return result;
+    }
+
+    /**
+     * 查询全部可用的Redis版本安装包。
+     *
+     * @return 可用安装包列表
+     */
+    @Override
+    public List<VersionPackageItemVO> listEnabledPackages() {
+
+        // 1. 查询目标版本下拉框需要的全部可用安装包。
+        List<RedisVersionPackage> versionPackages =
+                versionPackageMapper.selectList(
+                        new LambdaQueryWrapper<RedisVersionPackage>()
+                                .eq(
+                                        RedisVersionPackage::getPackageStatus,
+                                        VersionPackageConstants
+                                                .DEFAULT_PACKAGE_STATUS
+                                )
+                                .orderByDesc(
+                                        RedisVersionPackage::getCreatedTime
+                                )
+                                .orderByDesc(RedisVersionPackage::getId)
+                );
+
+        // 2. 返回目标版本下拉框需要的安装包信息。
+        return buildPackageItems(versionPackages);
+    }
+
+    /**
+     * 启用Redis版本安装包。
+     */
+    @Override
+    @Transactional
+    public VersionPackageItemVO enablePackage(Long packageId) {
+        return updatePackageStatus(
+                packageId,
+                VersionPackageConstants.DEFAULT_PACKAGE_STATUS
+        );
+    }
+
+    /**
+     * 禁用Redis版本安装包。
+     */
+    @Override
+    @Transactional
+    public VersionPackageItemVO disablePackage(Long packageId) {
+        return updatePackageStatus(
+                packageId,
+                VersionPackageConstants.DISABLED_PACKAGE_STATUS
+        );
+    }
+
+    /**
+     * 将安装包更新到指定启用状态。
+     */
+    private VersionPackageItemVO updatePackageStatus(
+            Long packageId,
+            String targetStatus) {
+
+        // 1. 查询需要修改状态的安装包。
+        RedisVersionPackage versionPackage =
+                versionPackageMapper.selectById(packageId);
+        if (versionPackage == null) {
+            throw new BusinessException(
+                    BusinessCode.NOT_FOUND_ERROR.getCode(),
+                    "未找到指定的Redis版本安装包"
+            );
         }
 
-        // 3. 返回安装包列表。
-        return results;
+        // 2. 已经是目标状态时直接返回，保证重复操作可以成功。
+        if (targetStatus.equals(versionPackage.getPackageStatus())) {
+            return buildPackageItem(versionPackage);
+        }
+
+        // 3. 更新安装包状态。
+        versionPackage.setPackageStatus(targetStatus);
+        versionPackage.setUpdatedTime(LocalDateTime.now(PLATFORM_ZONE_ID));
+        int updatedRows = versionPackageMapper.updateById(versionPackage);
+        if (updatedRows != 1) {
+            throw new BusinessException(
+                    BusinessCode.OPERATION_ERROR.getCode(),
+                    "更新Redis版本安装包状态失败"
+            );
+        }
+
+        // 4. 返回更新后的安装包信息。
+        return buildPackageItem(versionPackage);
     }
 
     /**
@@ -639,6 +729,41 @@ public class VersionPackageServiceImpl implements VersionPackageService {
         } catch (AtomicMoveNotSupportedException exception) {
             Files.move(temporaryFile, storedFile);
         }
+    }
+
+    /**
+     * 将安装包实体列表转换为页面列表项。
+     */
+    private List<VersionPackageItemVO> buildPackageItems(
+            List<RedisVersionPackage> versionPackages) {
+
+        List<VersionPackageItemVO> results = new ArrayList<>();
+        if (versionPackages == null) {
+            return results;
+        }
+
+        for (RedisVersionPackage versionPackage : versionPackages) {
+            results.add(buildPackageItem(versionPackage));
+        }
+        return results;
+    }
+
+    /**
+     * 将安装包实体转换为页面列表项。
+     */
+    private VersionPackageItemVO buildPackageItem(
+            RedisVersionPackage versionPackage) {
+
+        VersionPackageItemVO item = new VersionPackageItemVO();
+        item.setPackageId(versionPackage.getId());
+        item.setPackageName(versionPackage.getPackageName());
+        item.setRedisVersion(versionPackage.getRedisVersion());
+        item.setSha256(versionPackage.getSha256());
+        item.setPackageSize(versionPackage.getPackageSize());
+        item.setPackageStatus(versionPackage.getPackageStatus());
+        item.setUploadedBy(versionPackage.getUploadedBy());
+        item.setCreatedTime(versionPackage.getCreatedTime());
+        return item;
     }
 
     /**

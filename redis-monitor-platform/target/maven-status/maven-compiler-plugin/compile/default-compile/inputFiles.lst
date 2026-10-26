@@ -132,6 +132,7 @@ D:\redis-monitor-platform\redis-monitor-platform\src\main\java\com\danuvius\plat
 D:\redis-monitor-platform\redis-monitor-platform\src\main\java\com\danuvius\platform\service\impl\TaskNoServiceImpl.java
 D:\redis-monitor-platform\redis-monitor-platform\src\main\java\com\danuvius\platform\model\dto\monitor\ReportQueryResponse.java
 D:\redis-monitor-platform\redis-monitor-platform\src\main\java\com\danuvius\platform\common\constant\ServerSwitchConstants.java
+D:\redis-monitor-platform\redis-monitor-platform\src\main\java\com\danuvius\platform\model\vo\VersionPackagePageVO.java
 D:\redis-monitor-platform\redis-monitor-platform\src\main\java\com\danuvius\platform\model\dto\alarm\rule\RulePageResponse.java
 D:\redis-monitor-platform\redis-monitor-platform\src\main\java\com\danuvius\platform\model\dto\OperationResultDTO.java
 D:\redis-monitor-platform\redis-monitor-platform\src\main\java\com\danuvius\platform\model\dto\alarm\record\RecordPageRequest.java

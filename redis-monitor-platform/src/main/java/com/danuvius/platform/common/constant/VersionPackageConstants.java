@@ -12,6 +12,9 @@ public final class VersionPackageConstants {
     /** 上传后默认保存为可用状态。 */
     public static final String DEFAULT_PACKAGE_STATUS = "ENABLED";
 
+    /** 安装包禁用状态。 */
+    public static final String DISABLED_PACKAGE_STATUS = "DISABLED";
+
     /** 安装包内允许的最大文件数量。 */
     public static final int MAX_ARCHIVE_ENTRY_COUNT = 50000;
 

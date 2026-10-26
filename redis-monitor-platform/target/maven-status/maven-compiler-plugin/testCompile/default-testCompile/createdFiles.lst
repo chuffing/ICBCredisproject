@@ -1,0 +1,6 @@
+com\danuvius\platform\contract\AgentRegistrationContractTest.class
+com\danuvius\platform\service\impl\VersionPackageServiceImplTest.class
+com\danuvius\platform\util\http\AgentTaskClientHttpContractTest.class
+com\danuvius\platform\service\impl\OperationTaskServiceImplTest.class
+com\danuvius\platform\service\impl\OperationTaskDispatchServiceImplTest.class
+com\danuvius\platform\service\impl\OperationTaskResultServiceImplTest.class

@@ -371,7 +371,7 @@ public class ServerSwitchCompletionService {
                 sentinelNode.setCreatedTime(now);
             }
 
-            sentinelNode.setNodeName("sentinel-" + hostIp);
+            sentinelNode.setNodeName(hostIp + ":" + SENTINEL_PORT);
             sentinelNode.setNodeIp(hostIp);
             sentinelNode.setNodePort(SENTINEL_PORT);
             sentinelNode.setSentinelStatus(StatusEnum.ONLINE.getCode());
