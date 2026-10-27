@@ -9,6 +9,9 @@ import lombok.Data;
 import java.time.LocalDateTime;
 import java.util.Date;
 
+/**
+ * 告警规则实体。
+ */
 @Data
 @TableName("alarm_rule")
 public class AlarmRule {

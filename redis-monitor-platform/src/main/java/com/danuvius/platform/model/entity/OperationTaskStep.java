@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 public class OperationTaskStep {
 
     /** 内部主键。 */
-    @TableId(type = IdType.AUTO)
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     /** 所属运维任务编号。 */

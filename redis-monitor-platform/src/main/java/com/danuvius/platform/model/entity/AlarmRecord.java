@@ -8,6 +8,9 @@ import lombok.Data;
 import java.time.LocalDateTime;
 import java.util.Date;
 
+/**
+ * 告警记录实体。
+ */
 @Data
 @TableName("alarm_record")
 public class AlarmRecord {

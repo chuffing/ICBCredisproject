@@ -26,6 +26,7 @@ CREATE INDEX IF NOT EXISTS idx_redis_instance_management_status
 
 CREATE TABLE IF NOT EXISTS sentinel_node_info (
     id VARCHAR(64) PRIMARY KEY,
+    instance_id VARCHAR(64),
     node_name VARCHAR(128) NOT NULL,
     node_ip VARCHAR(64) NOT NULL,
     node_port VARCHAR(16) NOT NULL,

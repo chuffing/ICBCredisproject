@@ -126,19 +126,6 @@ public class NodeConfigFileService {
         }
     }
 
-    /**
-     * 校验current目录中三台服务器的配置是否符合指定主从关系。
-     */
-    public void validateConfigContent(
-            String masterHostIp,
-            List<String> replicaHostIps) {
-
-        validateConfigContent(
-                currentDirectory,
-                masterHostIp,
-                replicaHostIps
-        );
-    }
 
     /**
      * 校验staging目录中三台目标服务器的六份配置文件。
@@ -147,11 +134,58 @@ public class NodeConfigFileService {
             String masterHostIp,
             List<String> replicaHostIps) {
 
-        validateConfigContent(
-                stagingDirectory,
+        // 1. 主节点的Redis配置不能包含生效的主从复制指令。
+        validateMasterRedisConfig(
                 masterHostIp,
-                replicaHostIps
+                getConfigFile(
+                        stagingDirectory,
+                        masterHostIp,
+                        ServerSwitchConstants.REDIS_CONFIG_FILE_NAME,
+                        "Redis"
+                )
         );
+
+        // 2. 两个从节点的Redis配置必须指向本次选择的主节点。
+        for (String replicaHostIp : replicaHostIps) {
+            validateReplicaRedisConfig(
+                    replicaHostIp,
+                    masterHostIp,
+                    getConfigFile(
+                            stagingDirectory,
+                            replicaHostIp,
+                            ServerSwitchConstants.REDIS_CONFIG_FILE_NAME,
+                            "Redis"
+                    )
+            );
+        }
+
+        // 3. 三份Sentinel配置必须使用相同名称监控本次主节点。
+        List<String> hostIps = new ArrayList<>();
+        hostIps.add(masterHostIp);
+        hostIps.addAll(replicaHostIps);
+
+        String sentinelMasterName = null;
+        for (String hostIp : hostIps) {
+            String currentMasterName = readSentinelMasterName(
+                    hostIp,
+                    masterHostIp,
+                    getConfigFile(
+                            stagingDirectory,
+                            hostIp,
+                            ServerSwitchConstants.SENTINEL_CONFIG_FILE_NAME,
+                            "Sentinel"
+                    )
+            );
+
+            if (sentinelMasterName == null) {
+                sentinelMasterName = currentMasterName;
+            } else if (!sentinelMasterName.equals(currentMasterName)) {
+                throw new BusinessException(
+                        BusinessCode.OPERATION_ERROR.getCode(),
+                        "三份Sentinel配置监控的主节点名称不一致"
+                );
+            }
+        }
     }
 
     /**
@@ -169,8 +203,7 @@ public class NodeConfigFileService {
             for (String hostIp : hostIps) {
                 // 先确认staging中的两份源文件存在并且可读。
                 File redisConfigFile = getStagingRedisConfigFile(hostIp);
-                File sentinelConfigFile =
-                        getStagingSentinelConfigFile(hostIp);
+                File sentinelConfigFile = getStagingSentinelConfigFile(hostIp);
 
                 Path targetHostDirectory = currentDirectory
                         .resolve(hostIp)
@@ -209,67 +242,6 @@ public class NodeConfigFileService {
         }
     }
 
-    /**
-     * 校验指定目录中的三份Redis配置和三份Sentinel配置。
-     */
-    private void validateConfigContent(
-            Path sourceDirectory,
-            String masterHostIp,
-            List<String> replicaHostIps) {
-
-        // 1. 主节点的Redis配置不能包含生效的主从复制指令。
-        validateMasterRedisConfig(
-                masterHostIp,
-                getConfigFile(
-                        sourceDirectory,
-                        masterHostIp,
-                        ServerSwitchConstants.REDIS_CONFIG_FILE_NAME,
-                        "Redis"
-                )
-        );
-
-        // 2. 两个从节点的Redis配置必须指向本次选择的主节点。
-        for (String replicaHostIp : replicaHostIps) {
-            validateReplicaRedisConfig(
-                    replicaHostIp,
-                    masterHostIp,
-                    getConfigFile(
-                            sourceDirectory,
-                            replicaHostIp,
-                            ServerSwitchConstants.REDIS_CONFIG_FILE_NAME,
-                            "Redis"
-                    )
-            );
-        }
-
-        // 3. 三份Sentinel配置必须使用相同名称监控本次主节点。
-        List<String> hostIps = new ArrayList<>();
-        hostIps.add(masterHostIp);
-        hostIps.addAll(replicaHostIps);
-
-        String sentinelMasterName = null;
-        for (String hostIp : hostIps) {
-            String currentMasterName = readSentinelMasterName(
-                    hostIp,
-                    masterHostIp,
-                    getConfigFile(
-                            sourceDirectory,
-                            hostIp,
-                            ServerSwitchConstants.SENTINEL_CONFIG_FILE_NAME,
-                            "Sentinel"
-                    )
-            );
-
-            if (sentinelMasterName == null) {
-                sentinelMasterName = currentMasterName;
-            } else if (!sentinelMasterName.equals(currentMasterName)) {
-                throw new BusinessException(
-                        BusinessCode.OPERATION_ERROR.getCode(),
-                        "三份Sentinel配置监控的主节点名称不一致"
-                );
-            }
-        }
-    }
 
     /**
      * 校验目标主节点的Redis配置。

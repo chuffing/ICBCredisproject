@@ -18,6 +18,9 @@ public class VersionUpgradeResponseVO {
     /** 版本升级任务状态。 */
     private String taskStatus;
 
+    /** 当前执行阶段编号。 */
+    private Integer currentStepNo;
+
     /** 本次升级的目标Redis版本。 */
     private String targetVersion;
 
@@ -35,4 +38,5 @@ public class VersionUpgradeResponseVO {
 
     /** 人工结束时间。 */
     private LocalDateTime terminatedTime;
+
 }

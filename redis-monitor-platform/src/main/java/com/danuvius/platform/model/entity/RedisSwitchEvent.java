@@ -7,6 +7,9 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/**
+ * Redis主从切换事件实体。
+ */
 @Data
 @TableName("redis_switch_event")
 public class RedisSwitchEvent {

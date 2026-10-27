@@ -84,11 +84,20 @@ public class VersionPackageServiceImpl implements VersionPackageService {
             String uploadedBy,
             MultipartFile file) {
 
-        // 1. 校验文件名和页面上报的文件大小，并从文件名中提取Redis版本。
+        // 1. 校验上传文件，并从文件名中提取Redis版本。
         String packageName = validatePackageFile(file);
-        String fileNameVersion = extractVersion(packageName);
+        Matcher fileNameMatcher =
+                ValidationConstants.REDIS_PACKAGE_FILE_NAME_PATTERN
+                        .matcher(packageName);
+        if (!fileNameMatcher.matches()) {
+            throw new ParameterException(
+                    ParameterCode.PACKAGE_FILE_INVALID,
+                    "安装包文件名必须符合redis-{version}.tar.gz"
+            );
+        }
+        String fileNameVersion = fileNameMatcher.group(1);
 
-        // 2. 准备安装包存储目录，并在目录中创建临时文件。
+        // 2. 准备安装包存储目录，并在该目录中创建临时文件。
         Path storageDirectory = prepareStorageDirectory();
         Path temporaryFile = null;
         Path storedFile = null;
@@ -116,19 +125,12 @@ public class VersionPackageServiceImpl implements VersionPackageService {
                 );
             }
 
-            // 5. 相同文件已经上传时，直接返回原记录，不重复保存文件和数据库记录。
+            // 5. 如果相同安装包已经存在在数据库，直接返回原记录，不重复保存文件和数据库记录。
             RedisVersionPackage sameFile = versionPackageMapper.selectOne(
                     new LambdaQueryWrapper<RedisVersionPackage>()
                             .eq(RedisVersionPackage::getSha256, sha256)
-                            .last("LIMIT 1")
             );
             if (sameFile != null) {
-                if (!fileNameVersion.equals(sameFile.getRedisVersion())) {
-                    throw new BusinessException(
-                            BusinessCode.OPERATION_ERROR.getCode(),
-                            "相同文件摘要已登记为其他Redis版本"
-                    );
-                }
                 return buildUploadResult(sameFile, true);
             }
 
@@ -139,7 +141,6 @@ public class VersionPackageServiceImpl implements VersionPackageService {
                                     RedisVersionPackage::getRedisVersion,
                                     fileNameVersion
                             )
-                            .last("LIMIT 1")
             );
             if (sameVersion != null) {
                 throw new BusinessException(
@@ -150,7 +151,7 @@ public class VersionPackageServiceImpl implements VersionPackageService {
             }
 
             // 7. 使用校验通过的原始文件名，将临时文件移动到正式存储位置。
-            storedFile = storageDirectory.resolve(packageName).normalize();
+            storedFile = storageDirectory.resolve(packageName);
             moveToStorage(temporaryFile, storedFile);
             temporaryFile = null;
             storedFileCreated = true;
@@ -180,10 +181,8 @@ public class VersionPackageServiceImpl implements VersionPackageService {
 
             // 9. 返回上传成功后的安装包信息。
             return buildUploadResult(versionPackage, false);
+
         } catch (IOException exception) {
-            if (storedFileCreated) {
-                deleteFileQuietly(storedFile);
-            }
             throw new BusinessException(
                     BusinessCode.OPERATION_ERROR.getCode(),
                     "处理Redis安装包失败：" + exception.getMessage()
@@ -349,43 +348,13 @@ public class VersionPackageServiceImpl implements VersionPackageService {
                     "安装包文件名过长"
             );
         }
-        if (packageName.contains("/") || packageName.contains("\\")
-                || packageName.contains("..")) {
+        if (file.getSize() > maxBytes) {
             throw new ParameterException(
                     ParameterCode.PACKAGE_FILE_INVALID,
-                    "安装包文件名包含非法路径字符"
-            );
-        }
-        if (!ValidationConstants.REDIS_PACKAGE_FILE_NAME_PATTERN
-                .matcher(packageName).matches()) {
-            throw new ParameterException(
-                    ParameterCode.PACKAGE_FILE_INVALID,
-                    "安装包文件名必须符合redis-{version}.tar.gz"
-            );
-        }
-        if (file.getSize() <= 0 || file.getSize() > maxBytes) {
-            throw new ParameterException(
-                    ParameterCode.PACKAGE_FILE_INVALID,
-                    "安装包大小必须大于0且不能超过"
-                            + maxBytes + "字节"
+                    "安装包大小不能超过" + maxBytes + "字节"
             );
         }
         return packageName;
-    }
-
-    /**
-     * 从安装包文件名中提取Redis版本。
-     */
-    private String extractVersion(String packageName) {
-        Matcher matcher = ValidationConstants.REDIS_PACKAGE_FILE_NAME_PATTERN
-                .matcher(packageName);
-        if (!matcher.matches()) {
-            throw new ParameterException(
-                    ParameterCode.PACKAGE_FILE_INVALID,
-                    "无法从安装包文件名提取Redis版本"
-            );
-        }
-        return matcher.group(1);
     }
 
     /**
@@ -405,12 +374,6 @@ public class VersionPackageServiceImpl implements VersionPackageService {
             Path storageDirectory = Paths.get(configuredPath.trim())
                     .toAbsolutePath().normalize();
             Files.createDirectories(storageDirectory);
-            if (!Files.isDirectory(storageDirectory)) {
-                throw new BusinessException(
-                        BusinessCode.OPERATION_ERROR.getCode(),
-                        "Redis安装包存储路径不是目录"
-                );
-            }
             return storageDirectory.toRealPath();
         } catch (IOException exception) {
             throw new BusinessException(
@@ -486,7 +449,7 @@ public class VersionPackageServiceImpl implements VersionPackageService {
                      new TarArchiveInputStream(gzipInputStream)) {
 
             TarArchiveEntry archiveEntry;
-            while ((archiveEntry = tarInputStream.getNextTarEntry()) != null) {
+            while ((archiveEntry = tarInputStream.getNextEntry()) != null) {
                 // 1. 限制压缩包中的文件数量。
                 entryCount++;
                 if (entryCount
@@ -738,10 +701,6 @@ public class VersionPackageServiceImpl implements VersionPackageService {
             List<RedisVersionPackage> versionPackages) {
 
         List<VersionPackageItemVO> results = new ArrayList<>();
-        if (versionPackages == null) {
-            return results;
-        }
-
         for (RedisVersionPackage versionPackage : versionPackages) {
             results.add(buildPackageItem(versionPackage));
         }

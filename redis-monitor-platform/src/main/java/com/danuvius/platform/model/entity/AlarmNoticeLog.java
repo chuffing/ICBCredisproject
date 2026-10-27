@@ -38,5 +38,6 @@ public class AlarmNoticeLog {
     /** 失败原因，成功为 null */
     private String failReason;
 
+    /** 创建时间。 */
     private LocalDateTime createdTime;
 }

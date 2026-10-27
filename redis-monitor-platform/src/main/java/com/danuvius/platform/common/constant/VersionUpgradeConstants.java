@@ -20,8 +20,6 @@ public final class VersionUpgradeConstants {
     public static final String PACKAGE_ID_PARAM = "packageId";
     public static final String TARGET_VERSION_PARAM = "targetVersion";
     public static final String PACKAGE_SHA256_PARAM = "packageSha256";
-    public static final String NODES_PARAM = "nodes";
-    public static final String REDIS_INSTANCE_ID_PARAM = "redisInstanceId";
 
     public static final String TASK_CREATED_MESSAGE = "版本升级任务已创建";
     public static final String TASK_RUNNING_MESSAGE = "版本升级正在执行";

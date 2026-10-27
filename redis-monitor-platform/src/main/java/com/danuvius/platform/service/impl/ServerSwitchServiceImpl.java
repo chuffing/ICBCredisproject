@@ -2,7 +2,7 @@ package com.danuvius.platform.service.impl;
 
 import com.alibaba.fastjson.JSON;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.danuvius.platform.common.constant.FaultRecoveryConstants;
+import com.danuvius.platform.common.constant.OperationTaskConstants;
 import com.danuvius.platform.common.constant.ServerSwitchConstants;
 import com.danuvius.platform.common.constant.VersionPackageConstants;
 import com.danuvius.platform.common.exception.BusinessCode;
@@ -14,7 +14,6 @@ import com.danuvius.platform.model.entity.OperationTask;
 import com.danuvius.platform.model.entity.OperationTaskStep;
 import com.danuvius.platform.model.entity.RedisInstance;
 import com.danuvius.platform.model.entity.RedisVersionPackage;
-import com.danuvius.platform.model.entity.SentinelNodeInfo;
 import com.danuvius.platform.model.enums.ExecutorOperationTypeEnum;
 import com.danuvius.platform.model.enums.OperationTaskStatusEnum;
 import com.danuvius.platform.model.enums.OperationTaskStepStatusEnum;
@@ -25,7 +24,6 @@ import com.danuvius.platform.service.ExecutorInfoService;
 import com.danuvius.platform.service.OperationTaskDispatchExecutor;
 import com.danuvius.platform.service.OperationTaskService;
 import com.danuvius.platform.service.RedisInstanceService;
-import com.danuvius.platform.service.SentinelNodeInfoService;
 import com.danuvius.platform.service.NodeConfigFileService;
 import com.danuvius.platform.service.ServerSwitchService;
 import com.danuvius.platform.util.Sha256Util;
@@ -46,7 +44,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -61,8 +58,6 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
     private final RedisVersionPackageMapper versionPackageMapper;
 
     private final RedisInstanceService redisInstanceService;
-
-    private final SentinelNodeInfoService sentinelNodeInfoService;
 
     private final ExecutorInfoService executorInfoService;
 
@@ -80,16 +75,16 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
     public ServerSwitchResponseVO switchServer(
             ServerSwitchRequestDTO request) {
 
-        // ======== 1. 校验目标版本安装包 ========
+        // ======== 1. 获取并校验目标版本安装包 ========
         RedisVersionPackage versionPackage = loadVersionPackage(
                 request.getPackageId()
         );
         validateStoredPackage(versionPackage);
 
-        // ======== 2. 查询并校验当前拓扑是否正常 ========
+        // ======== 2. 查询本次切换需要停止的旧服务器和执行器 ========
         List<SourceNode> sourceNodes = loadSourceNodes();
 
-        // ======== 3. 查询目标执行器并校验staging中的人工配置 ========
+        // ======== 3. 查询目标执行器并校验staging目录下的人工配置 ========
         List<TargetNode> targetNodes = loadTargetNodes(
                 request,
                 sourceNodes
@@ -101,19 +96,12 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
                 request.getReplicaHostIps()
         );
 
-        // ======== 4. 创建总任务并保存本次切换快照 ========
-        String requestSnapshot = buildRequestSnapshot(
-                request,
-                versionPackage,
-                sourceNodes,
-                targetNodes
-        );
-
+        // ======== 4. 创建总任务并保存前端请求参数 ========
         OperationTask task = operationTaskService.createTask(
                 OperationTaskTypeEnum.SERVER_SWITCH,
                 request.getOperationReason(),
                 request.getCreatedBy(),
-                requestSnapshot
+                JSON.toJSONString(request)
         );
 
         // ======== 5. 一次性生成并保存完整切换步骤 ========
@@ -135,6 +123,7 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
         return new ServerSwitchResponseVO(
                 task.getTaskNo(),
                 task.getTaskStatus(),
+                operationTaskService.getCurrentStepNo(task.getTaskNo()),
                 versionPackage.getRedisVersion(),
                 request.getMasterHostIp(),
                 ServerSwitchConstants.TASK_CREATED_MESSAGE,
@@ -144,6 +133,7 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
                 null
         );
     }
+
 
     @Override
     public ServerSwitchResponseVO getSwitchStatus(String taskNo) {
@@ -159,25 +149,27 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
         String targetVersion = null;
         String masterHostIp = null;
         try {
-            Map<String, Object> snapshot = JSON.parseObject(
+            ServerSwitchRequestDTO request = JSON.parseObject(
                     task.getRequestParams(),
-                    Map.class
+                    ServerSwitchRequestDTO.class
             );
-            Object version = snapshot.get(
-                    ServerSwitchConstants.TARGET_VERSION_PARAM
-            );
-            Object master = snapshot.get(
-                    ServerSwitchConstants.MASTER_HOST_IP_PARAM
-            );
-            targetVersion = version == null ? null : version.toString();
-            masterHostIp = master == null ? null : master.toString();
+            RedisVersionPackage versionPackage = request == null
+                    ? null
+                    : versionPackageMapper.selectById(request.getPackageId());
+            targetVersion = versionPackage == null
+                    ? null
+                    : versionPackage.getRedisVersion();
+            masterHostIp = request == null
+                    ? null
+                    : request.getMasterHostIp();
         } catch (Exception ignored) {
-            // 历史任务快照无法解析时仍返回任务状态。
+            // 历史任务参数无法解析时仍返回任务状态。
         }
 
         return new ServerSwitchResponseVO(
                 task.getTaskNo(),
                 task.getTaskStatus(),
+                operationTaskService.getCurrentStepNo(task.getTaskNo()),
                 targetVersion,
                 masterHostIp,
                 buildTaskStatusMessage(task.getTaskStatus()),
@@ -217,6 +209,7 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
                     "Redis安装包记录不完整"
             );
         }
+
         return versionPackage;
     }
 
@@ -235,6 +228,8 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
                         "Redis安装包文件不存在"
                 );
             }
+
+            // 重新计算大小。
             if (versionPackage.getPackageSize() == null
                     || Files.size(packageFile)
                     != versionPackage.getPackageSize()) {
@@ -243,6 +238,8 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
                         "Redis安装包文件大小与记录不一致"
                 );
             }
+
+            // 重新计算SHA256值。
             String actualSha256 = Sha256Util.calculate(packageFile);
             if (!versionPackage.getSha256().equalsIgnoreCase(actualSha256)) {
                 throw new BusinessException(
@@ -250,8 +247,10 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
                         "Redis安装包文件SHA-256与记录不一致"
                 );
             }
+
         } catch (BusinessException exception) {
             throw exception;
+
         } catch (IOException | RuntimeException exception) {
             throw new BusinessException(
                     BusinessCode.OPERATION_ERROR.getCode(),
@@ -261,11 +260,11 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
     }
 
     /**
-     * 查询当前三台正式Redis服务器及同机Sentinel、执行器。
+     * 查询当前三台正式Redis服务器及对应执行器。
      */
     private List<SourceNode> loadSourceNodes() {
 
-        // 检查当前环境是否正好存在3台已纳管Redis实例。
+        // 1. 查询当前三台正式Redis，确定服务器切换后需要停止的旧服务器。
         List<RedisInstance> redisInstances = redisInstanceService.list(
                 new LambdaQueryWrapper<RedisInstance>().eq(
                         RedisInstance::getManagementStatus,
@@ -273,87 +272,62 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
                 )
         );
         if (redisInstances.size()
-                != FaultRecoveryConstants.REQUIRED_REDIS_INSTANCE_COUNT) {
+                != OperationTaskConstants.CURRENT_TOPOLOGY_NODE_COUNT) {
             throw new BusinessException(
                     BusinessCode.OPERATION_ERROR.getCode(),
                     "服务器切换要求当前环境中正好存在3台已纳管Redis实例"
             );
         }
 
-        // 校验当前环境是否正好存在3台已纳管Sentinel节点。
-        List<SentinelNodeInfo> sentinelNodes = sentinelNodeInfoService.list(
-                new LambdaQueryWrapper<SentinelNodeInfo>().eq(
-                        SentinelNodeInfo::getManagementStatus,
-                        StatusEnum.ACTIVE.getCode()
-                )
-        );
-        if (sentinelNodes.size()
-                != FaultRecoveryConstants.REQUIRED_SENTINEL_NODE_COUNT) {
-            throw new BusinessException(
-                    BusinessCode.OPERATION_ERROR.getCode(),
-                    "服务器切换要求当前环境中正好存在3台已纳管Sentinel节点"
-            );
-        }
-
-        List<ExecutorInfo> executors = executorInfoService.list(
-                new LambdaQueryWrapper<ExecutorInfo>().eq(
-                        ExecutorInfo::getManagementStatus,
-                        StatusEnum.ACTIVE.getCode()
-                )
-        );
-
-        Map<String, SentinelNodeInfo> sentinelByHost = new HashMap<>();
-        for (SentinelNodeInfo sentinelNode : sentinelNodes) {
-            String hostIp = StringUtils.trimToNull(sentinelNode.getNodeIp());
-            if (hostIp == null
-                    || sentinelByHost.put(hostIp, sentinelNode) != null) {
-                throw new BusinessException(
-                        BusinessCode.OPERATION_ERROR.getCode(),
-                        "已纳管Sentinel节点的服务器IP为空或重复"
-                );
-            }
-        }
-
-        Map<String, ExecutorInfo> executorByHost = new HashMap<>();
-        for (ExecutorInfo executor : executors) {
-            String hostIp = StringUtils.trimToNull(executor.getHostIp());
-            if (hostIp != null && executorByHost.put(hostIp, executor) != null) {
-                throw new BusinessException(
-                        BusinessCode.OPERATION_ERROR.getCode(),
-                        "同一服务器IP存在多个已纳管执行器：" + hostIp
-                );
-            }
-        }
-
-        List<SourceNode> sourceNodes = new ArrayList<>();
-        Set<String> redisHosts = new HashSet<>();
+        List<String> sourceInstanceIds = new ArrayList<>();
         for (RedisInstance redisInstance : redisInstances) {
-            String hostIp = StringUtils.trimToNull(redisInstance.getHostIp());
-            if (hostIp == null || !redisHosts.add(hostIp)) {
-                throw new BusinessException(
-                        BusinessCode.OPERATION_ERROR.getCode(),
-                        "已纳管Redis实例的服务器IP为空或重复"
-                );
-            }
-            SentinelNodeInfo sentinelNode = sentinelByHost.remove(hostIp);
-            ExecutorInfo executor = executorByHost.get(hostIp);
-            if (sentinelNode == null || executor == null) {
-                throw new BusinessException(
-                        BusinessCode.OPERATION_ERROR.getCode(),
-                        "当前Redis服务器缺少同机的Sentinel或执行器："
-                                + hostIp
-                );
-            }
-            validateExecutor(executor, hostIp);
-            sourceNodes.add(new SourceNode(hostIp, executor));
+            sourceInstanceIds.add(redisInstance.getInstanceId());
         }
 
-        if (!sentinelByHost.isEmpty()) {
+        // 2. 根据Redis实例编号查询绑定的执行器。
+        List<ExecutorInfo> executors = executorInfoService.list(
+                new LambdaQueryWrapper<ExecutorInfo>()
+                        .eq(ExecutorInfo::getManagementStatus,
+                                StatusEnum.ACTIVE.getCode())
+                        .in(ExecutorInfo::getInstanceId,
+                                sourceInstanceIds)
+        );
+        if (executors.size() != redisInstances.size()) {
             throw new BusinessException(
                     BusinessCode.OPERATION_ERROR.getCode(),
-                    "存在未匹配Redis实例的已纳管Sentinel节点"
+                    "当前Redis实例绑定的执行器记录不完整"
             );
         }
+
+        Map<String, ExecutorInfo> executorByInstanceId = new HashMap<>();
+        for (ExecutorInfo executor : executors) {
+            executorByInstanceId.put(executor.getInstanceId(), executor);
+        }
+
+        // 3. 通过实例编号组合旧Redis和执行器。
+        List<SourceNode> sourceNodes = new ArrayList<>();
+        for (RedisInstance redisInstance : redisInstances) {
+            String hostIp = redisInstance.getHostIp();
+            ExecutorInfo executor = executorByInstanceId.get(
+                    redisInstance.getInstanceId()
+            );
+
+            if (executor == null) {
+                throw new BusinessException(
+                        BusinessCode.OPERATION_ERROR.getCode(),
+                        "当前Redis实例缺少已绑定执行器："
+                                + redisInstance.getInstanceId()
+                );
+            }
+
+            validateExecutor(executor, hostIp);
+
+            sourceNodes.add(new SourceNode(
+                    hostIp,
+                    executor
+            ));
+        }
+
         return sourceNodes;
     }
 
@@ -369,7 +343,7 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
             sourceHostIps.add(sourceNode.hostIp);
         }
 
-        // 校验目标服务器是否与当前正式服务器重复。
+        // 校验用户输入的目标服务器ip是否与当前正式服务器ip重复。
         List<String> targetHostIps = new ArrayList<>();
         targetHostIps.add(request.getMasterHostIp());
         targetHostIps.addAll(request.getReplicaHostIps());
@@ -384,6 +358,7 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
             }
         }
 
+        // 根据目标服务器IP查出数据库中对应的执行器。
         List<ExecutorInfo> targetExecutors = executorInfoService.list(
                 new LambdaQueryWrapper<ExecutorInfo>()
                         .eq(ExecutorInfo::getManagementStatus,
@@ -392,12 +367,11 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
         );
         Map<String, ExecutorInfo> executorByHost = new HashMap<>();
         for (ExecutorInfo executor : targetExecutors) {
-            String hostIp = StringUtils.trimToNull(executor.getHostIp());
-            if (hostIp == null
-                    || executorByHost.put(hostIp, executor) != null) {
+            String hostIp = executor.getHostIp();
+            if (executorByHost.put(hostIp, executor) != null) {
                 throw new BusinessException(
                         BusinessCode.OPERATION_ERROR.getCode(),
-                        "目标服务器IP为空或存在多个已纳管执行器"
+                        "同一目标服务器存在多个未纳管执行器：" + hostIp
                 );
             }
         }
@@ -431,13 +405,13 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
             );
 
             targetNodes.add(new TargetNode(
-                    hostIp,
                     executor,
-                    index == 0,
+                    index == 0, // 如果索引为0说明是主节点，置1
                     redisConfigSha256,
                     sentinelConfigSha256
             ));
         }
+
         return targetNodes;
     }
 
@@ -617,64 +591,6 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
         return step;
     }
 
-    /**
-     * 保存目标版本、源节点、目标节点角色及配置摘要。
-     */
-    private String buildRequestSnapshot(
-            ServerSwitchRequestDTO request,
-            RedisVersionPackage versionPackage,
-            List<SourceNode> sourceNodes,
-            List<TargetNode> targetNodes) {
-        Map<String, Object> snapshot = new LinkedHashMap<>();
-        snapshot.put(ServerSwitchConstants.PACKAGE_ID_PARAM,
-                versionPackage.getId());
-        snapshot.put(ServerSwitchConstants.TARGET_VERSION_PARAM,
-                versionPackage.getRedisVersion());
-        snapshot.put(ServerSwitchConstants.PACKAGE_SHA256_PARAM,
-                versionPackage.getSha256());
-        snapshot.put("packageName", versionPackage.getPackageName());
-        snapshot.put(ServerSwitchConstants.MASTER_HOST_IP_PARAM,
-                request.getMasterHostIp());
-        snapshot.put("replicaHostIps", request.getReplicaHostIps());
-        snapshot.put("operationReason", request.getOperationReason());
-        snapshot.put("createdBy", request.getCreatedBy());
-
-        List<Map<String, String>> sourceNodeSnapshots = new ArrayList<>();
-        for (SourceNode sourceNode : sourceNodes) {
-            Map<String, String> nodeSnapshot = new LinkedHashMap<>();
-            nodeSnapshot.put(ServerSwitchConstants.HOST_IP_PARAM,
-                    sourceNode.hostIp);
-            nodeSnapshot.put(ServerSwitchConstants.EXECUTOR_ID_PARAM,
-                    sourceNode.executorInfo.getId());
-            sourceNodeSnapshots.add(nodeSnapshot);
-        }
-        snapshot.put(ServerSwitchConstants.SOURCE_NODES_PARAM,
-                sourceNodeSnapshots);
-
-        List<Map<String, String>> targetNodeSnapshots = new ArrayList<>();
-        for (TargetNode targetNode : targetNodes) {
-            Map<String, String> nodeSnapshot = new LinkedHashMap<>();
-            nodeSnapshot.put(ServerSwitchConstants.HOST_IP_PARAM,
-                    targetNode.hostIp);
-            nodeSnapshot.put(ServerSwitchConstants.ROLE_PARAM,
-                    targetNode.master ? "MASTER" : "REPLICA");
-            nodeSnapshot.put(ServerSwitchConstants.EXECUTOR_ID_PARAM,
-                    targetNode.executorInfo.getId());
-            nodeSnapshot.put(
-                    ServerSwitchConstants.REDIS_CONFIG_SHA256_PARAM,
-                    targetNode.redisConfigSha256
-            );
-            nodeSnapshot.put(
-                    ServerSwitchConstants.SENTINEL_CONFIG_SHA256_PARAM,
-                    targetNode.sentinelConfigSha256
-            );
-            targetNodeSnapshots.add(nodeSnapshot);
-        }
-        snapshot.put(ServerSwitchConstants.TARGET_NODES_PARAM,
-                targetNodeSnapshots);
-        return JSON.toJSONString(snapshot);
-    }
-
     private void validateExecutor(ExecutorInfo executor, String hostIp) {
         if (StringUtils.trimToNull(executor.getId()) == null
                 || StringUtils.trimToNull(executor.getExecutorPort()) == null
@@ -746,7 +662,6 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
 
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     private static class TargetNode {
-        private final String hostIp;
         private final ExecutorInfo executorInfo;
         private final boolean master;
         private final String redisConfigSha256;

@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 public class OperationTask {
 
     /** 内部主键。 */
-    @TableId(type = IdType.AUTO)
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     /** 运维任务编号。 */
@@ -33,7 +33,7 @@ public class OperationTask {
     /** 操作人。 */
     private String createdBy;
 
-    /** 创建任务时保存的环境和业务参数快照。 */
+    /** 创建任务时保存的前端请求参数JSON。 */
     private String requestParams;
 
     /** 任务失败原因。 */

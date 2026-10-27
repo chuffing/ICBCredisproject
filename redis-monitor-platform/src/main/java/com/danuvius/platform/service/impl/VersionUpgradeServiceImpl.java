@@ -1,36 +1,28 @@
 package com.danuvius.platform.service.impl;
 
 import com.alibaba.fastjson.JSON;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.danuvius.platform.common.constant.FaultRecoveryConstants;
-import com.danuvius.platform.common.constant.ValidationConstants;
 import com.danuvius.platform.common.constant.VersionPackageConstants;
 import com.danuvius.platform.common.constant.VersionUpgradeConstants;
 import com.danuvius.platform.common.exception.BusinessCode;
 import com.danuvius.platform.common.exception.BusinessException;
 import com.danuvius.platform.mapper.RedisVersionPackageMapper;
+import com.danuvius.platform.model.dto.CurrentTopologyNode;
 import com.danuvius.platform.model.dto.VersionUpgradeRequestDTO;
-import com.danuvius.platform.model.entity.ExecutorInfo;
 import com.danuvius.platform.model.entity.OperationTask;
 import com.danuvius.platform.model.entity.OperationTaskStep;
-import com.danuvius.platform.model.entity.RedisInstance;
 import com.danuvius.platform.model.entity.RedisVersionPackage;
-import com.danuvius.platform.model.entity.SentinelNodeInfo;
 import com.danuvius.platform.model.enums.ExecutorOperationTypeEnum;
 import com.danuvius.platform.model.enums.OperationTaskStatusEnum;
 import com.danuvius.platform.model.enums.OperationTaskStepStatusEnum;
 import com.danuvius.platform.model.enums.OperationTaskTypeEnum;
-import com.danuvius.platform.model.enums.StatusEnum;
 import com.danuvius.platform.model.vo.VersionUpgradeResponseVO;
-import com.danuvius.platform.service.ExecutorInfoService;
+import com.danuvius.platform.service.CurrentTopologyService;
 import com.danuvius.platform.service.OperationTaskDispatchExecutor;
 import com.danuvius.platform.service.OperationTaskService;
-import com.danuvius.platform.service.RedisInstanceService;
-import com.danuvius.platform.service.SentinelNodeInfoService;
 import com.danuvius.platform.service.VersionUpgradeService;
 import com.danuvius.platform.util.Sha256Util;
 import com.danuvius.platform.util.StringUtils;
-import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,11 +36,8 @@ import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Redis版本升级服务实现。
@@ -59,11 +48,7 @@ public class VersionUpgradeServiceImpl implements VersionUpgradeService {
 
     private final RedisVersionPackageMapper versionPackageMapper;
 
-    private final RedisInstanceService redisInstanceService;
-
-    private final SentinelNodeInfoService sentinelNodeInfoService;
-
-    private final ExecutorInfoService executorInfoService;
+    private final CurrentTopologyService currentTopologyService;
 
     private final OperationTaskService operationTaskService;
 
@@ -85,26 +70,22 @@ public class VersionUpgradeServiceImpl implements VersionUpgradeService {
         validateStoredPackage(versionPackage);
 
         // 3. 查询并校验本次升级涉及的三台Redis、Sentinel和执行器。
-        UpgradeContext context = loadUpgradeContext();
+        List<CurrentTopologyNode> nodes =
+                currentTopologyService.loadCurrentNodes();
 
-        // 4. 创建版本升级总任务，并保存安装包及环境快照。
-        String requestSnapshot = buildRequestSnapshot(
-                request,
-                versionPackage,
-                context
-        );
+        // 4. 创建版本升级总任务，并保存前端请求参数。
         OperationTask task = operationTaskService.createTask(
                 OperationTaskTypeEnum.VERSION_UPGRADE,
                 request.getOperationReason(),
                 request.getCreatedBy(),
-                requestSnapshot
+                JSON.toJSONString(request)
         );
 
         // 5. 一次性生成并保存八个阶段、三台服务器的全部执行步骤。
         List<OperationTaskStep> steps = buildUpgradeSteps(
                 task.getTaskNo(),
                 versionPackage,
-                context
+                nodes
         );
         operationTaskService.saveSteps(steps);
 
@@ -118,6 +99,7 @@ public class VersionUpgradeServiceImpl implements VersionUpgradeService {
         return new VersionUpgradeResponseVO(
                 task.getTaskNo(),
                 task.getTaskStatus(),
+                operationTaskService.getCurrentStepNo(task.getTaskNo()),
                 versionPackage.getRedisVersion(),
                 VersionUpgradeConstants.TASK_CREATED_MESSAGE,
                 null,
@@ -141,22 +123,25 @@ public class VersionUpgradeServiceImpl implements VersionUpgradeService {
 
         String targetVersion = null;
         try {
-            Map<String, Object> snapshot = JSON.parseObject(
+            VersionUpgradeRequestDTO request = JSON.parseObject(
                     task.getRequestParams(),
-                    Map.class
+                    VersionUpgradeRequestDTO.class
             );
-            Object version = snapshot.get(
-                    VersionUpgradeConstants.TARGET_VERSION_PARAM
-            );
-            targetVersion = version == null ? null : version.toString();
+            RedisVersionPackage versionPackage = request == null
+                    ? null
+                    : versionPackageMapper.selectById(request.getPackageId());
+            targetVersion = versionPackage == null
+                    ? null
+                    : versionPackage.getRedisVersion();
 
         } catch (Exception ignored) {
-            // 历史任务快照无法解析时仍返回任务状态。
+            // 历史任务参数无法解析时仍返回任务状态。
         }
 
         return new VersionUpgradeResponseVO(
                 task.getTaskNo(),
                 task.getTaskStatus(),
+                operationTaskService.getCurrentStepNo(task.getTaskNo()),
                 targetVersion,
                 buildTaskStatusMessage(task.getTaskStatus()),
                 task.getFailureReason(),
@@ -240,121 +225,12 @@ public class VersionUpgradeServiceImpl implements VersionUpgradeService {
     }
 
     /**
-     * 查询并组合三台服务器上的Redis、Sentinel和执行器。
-     */
-    private UpgradeContext loadUpgradeContext() {
-        List<RedisInstance> redisInstances = redisInstanceService.list(
-                new LambdaQueryWrapper<RedisInstance>().eq(
-                        RedisInstance::getManagementStatus,
-                        StatusEnum.ACTIVE.getCode()
-                )
-        );
-        if (redisInstances.size()
-                != FaultRecoveryConstants.REQUIRED_REDIS_INSTANCE_COUNT) {
-            throw new BusinessException(
-                    BusinessCode.OPERATION_ERROR.getCode(),
-                    "版本升级要求当前环境中正好存在3台已纳管Redis实例"
-            );
-        }
-
-        List<SentinelNodeInfo> sentinelNodes = sentinelNodeInfoService.list(
-                new LambdaQueryWrapper<SentinelNodeInfo>().eq(
-                        SentinelNodeInfo::getManagementStatus,
-                        StatusEnum.ACTIVE.getCode()
-                )
-        );
-        if (sentinelNodes.size()
-                != FaultRecoveryConstants.REQUIRED_SENTINEL_NODE_COUNT) {
-            throw new BusinessException(
-                    BusinessCode.OPERATION_ERROR.getCode(),
-                    "版本升级要求当前环境中正好存在3台已纳管Sentinel节点"
-            );
-        }
-
-        List<ExecutorInfo> executors = executorInfoService.list(
-                new LambdaQueryWrapper<ExecutorInfo>().eq(
-                        ExecutorInfo::getManagementStatus,
-                        StatusEnum.ACTIVE.getCode()
-                )
-        );
-
-        Map<String, SentinelNodeInfo> sentinelByHost = new HashMap<>();
-        for (SentinelNodeInfo sentinelNode : sentinelNodes) {
-            String hostIp = StringUtils.trimToNull(sentinelNode.getNodeIp());
-            if (hostIp == null
-                    || sentinelByHost.put(hostIp, sentinelNode) != null) {
-                throw new BusinessException(
-                        BusinessCode.OPERATION_ERROR.getCode(),
-                        "已纳管Sentinel节点的服务器IP为空或重复"
-                );
-            }
-        }
-
-        Map<String, ExecutorInfo> executorByHost = new HashMap<>();
-        for (ExecutorInfo executor : executors) {
-            String hostIp = StringUtils.trimToNull(executor.getHostIp());
-            if (hostIp == null
-                    || executorByHost.put(hostIp, executor) != null) {
-                throw new BusinessException(
-                        BusinessCode.OPERATION_ERROR.getCode(),
-                        "已纳管执行器的服务器IP为空或重复"
-                );
-            }
-        }
-
-        List<UpgradeNode> upgradeNodes = new ArrayList<>();
-        Set<String> redisHosts = new HashSet<>();
-        for (RedisInstance redisInstance : redisInstances) {
-            String hostIp = StringUtils.trimToNull(redisInstance.getHostIp());
-            if (hostIp == null || !redisHosts.add(hostIp)) {
-                throw new BusinessException(
-                        BusinessCode.OPERATION_ERROR.getCode(),
-                        "已纳管Redis实例的服务器IP为空或重复"
-                );
-            }
-
-            SentinelNodeInfo sentinelNode = sentinelByHost.remove(hostIp);
-            ExecutorInfo executor = executorByHost.get(hostIp);
-            if (sentinelNode == null || executor == null) {
-                throw new BusinessException(
-                        BusinessCode.OPERATION_ERROR.getCode(),
-                        "Redis服务器缺少同机的Sentinel或执行器：" + hostIp
-                );
-            }
-            validateExecutor(executor, hostIp);
-            validateConfigSha256(
-                    redisInstance.getConfigSha256(),
-                    "Redis",
-                    hostIp
-            );
-            validateConfigSha256(
-                    sentinelNode.getConfigSha256(),
-                    "Sentinel",
-                    hostIp
-            );
-            upgradeNodes.add(new UpgradeNode(
-                    redisInstance,
-                    sentinelNode,
-                    executor
-            ));
-        }
-
-        if (!sentinelByHost.isEmpty()) {
-            throw new BusinessException(
-                    BusinessCode.OPERATION_ERROR.getCode(),
-                    "存在未匹配Redis实例的已纳管Sentinel节点"
-            );
-        }
-        return new UpgradeContext(upgradeNodes);
-    }
-
-    /**
      * 生成本次版本升级的全部24条执行步骤。
      */
     private List<OperationTaskStep> buildUpgradeSteps(
             String taskNo,
             RedisVersionPackage versionPackage,
-            UpgradeContext context) {
+            List<CurrentTopologyNode> nodes) {
 
         List<OperationTaskStep> steps = new ArrayList<>();
 
@@ -377,7 +253,7 @@ public class VersionUpgradeServiceImpl implements VersionUpgradeService {
                 steps,
                 taskNo,
                 VersionUpgradeConstants.DEPLOY_VERSION_STEP_NO,
-                context,
+                nodes,
                 ExecutorOperationTypeEnum.DEPLOY_VERSION,
                 JSON.toJSONString(deployParams)
         );
@@ -385,23 +261,23 @@ public class VersionUpgradeServiceImpl implements VersionUpgradeService {
         // 2. 停止三台Sentinel。
         addStageSteps(steps, taskNo,
                 VersionUpgradeConstants.STOP_SENTINEL_STEP_NO,
-                context, ExecutorOperationTypeEnum.STOP_SENTINEL, null);
+                nodes, ExecutorOperationTypeEnum.STOP_SENTINEL, null);
 
         // 3. 停止三台Redis。
         addStageSteps(steps, taskNo,
                 VersionUpgradeConstants.STOP_REDIS_STEP_NO,
-                context, ExecutorOperationTypeEnum.STOP_REDIS, null);
+                nodes, ExecutorOperationTypeEnum.STOP_REDIS, null);
 
         // 4. 按服务器恢复Redis和Sentinel配置文件。
-        for (UpgradeNode node : context.upgradeNodes) {
+        for (CurrentTopologyNode node : nodes) {
             Map<String, String> restoreParams = new HashMap<>();
             restoreParams.put(
                     FaultRecoveryConstants.REDIS_CONFIG_SHA256_PARAM,
-                    node.redisInstance.getConfigSha256()
+                    node.getRedisInstance().getConfigSha256()
             );
             restoreParams.put(
                     FaultRecoveryConstants.SENTINEL_CONFIG_SHA256_PARAM,
-                    node.sentinelNode.getConfigSha256()
+                    node.getSentinelNode().getConfigSha256()
             );
             steps.add(createUpgradeStep(
                     taskNo,
@@ -422,7 +298,7 @@ public class VersionUpgradeServiceImpl implements VersionUpgradeService {
                 steps,
                 taskNo,
                 VersionUpgradeConstants.SWITCH_VERSION_STEP_NO,
-                context,
+                nodes,
                 ExecutorOperationTypeEnum.SWITCH_VERSION,
                 JSON.toJSONString(switchParams)
         );
@@ -430,17 +306,17 @@ public class VersionUpgradeServiceImpl implements VersionUpgradeService {
         // 6. 启动三台Redis。
         addStageSteps(steps, taskNo,
                 VersionUpgradeConstants.START_REDIS_STEP_NO,
-                context, ExecutorOperationTypeEnum.START_REDIS, null);
+                nodes, ExecutorOperationTypeEnum.START_REDIS, null);
 
         // 7. 启动三台Sentinel。
         addStageSteps(steps, taskNo,
                 VersionUpgradeConstants.START_SENTINEL_STEP_NO,
-                context, ExecutorOperationTypeEnum.START_SENTINEL, null);
+                nodes, ExecutorOperationTypeEnum.START_SENTINEL, null);
 
         // 8. 验证最终Redis和Sentinel拓扑。
         addStageSteps(steps, taskNo,
                 VersionUpgradeConstants.VERIFY_TOPOLOGY_STEP_NO,
-                context,
+                nodes,
                 ExecutorOperationTypeEnum.VERIFY_TOPOLOGY,
                 null);
 
@@ -451,10 +327,10 @@ public class VersionUpgradeServiceImpl implements VersionUpgradeService {
             List<OperationTaskStep> steps,
             String taskNo,
             Integer stepNo,
-            UpgradeContext context,
+            List<CurrentTopologyNode> nodes,
             ExecutorOperationTypeEnum operationType,
             String requestParams) {
-        for (UpgradeNode node : context.upgradeNodes) {
+        for (CurrentTopologyNode node : nodes) {
             steps.add(createUpgradeStep(
                     taskNo,
                     stepNo,
@@ -468,14 +344,14 @@ public class VersionUpgradeServiceImpl implements VersionUpgradeService {
     private OperationTaskStep createUpgradeStep(
             String taskNo,
             Integer stepNo,
-            UpgradeNode node,
+            CurrentTopologyNode node,
             ExecutorOperationTypeEnum operationType,
             String requestParams) {
         LocalDateTime now = LocalDateTime.now();
         OperationTaskStep step = new OperationTaskStep();
         step.setTaskNo(taskNo);
         step.setStepNo(stepNo);
-        step.setExecutorId(node.executorInfo.getId());
+        step.setExecutorId(node.getExecutorInfo().getId());
         step.setOperationType(operationType.name());
         step.setStepStatus(OperationTaskStepStatusEnum.CREATED.name());
         // 没有请求参数时保存空JSON对象，避免JSON字段写入null。
@@ -486,64 +362,6 @@ public class VersionUpgradeServiceImpl implements VersionUpgradeService {
         step.setCreatedTime(now);
         step.setUpdatedTime(now);
         return step;
-    }
-
-    /**
-     * 保存安装包和参与升级的节点信息，不在任务快照中暴露平台文件路径。
-     */
-    private String buildRequestSnapshot(
-            VersionUpgradeRequestDTO request,
-            RedisVersionPackage versionPackage,
-            UpgradeContext context) {
-        Map<String, Object> snapshot = new LinkedHashMap<>();
-        snapshot.put(VersionUpgradeConstants.PACKAGE_ID_PARAM,
-                versionPackage.getId());
-        snapshot.put(VersionUpgradeConstants.TARGET_VERSION_PARAM,
-                versionPackage.getRedisVersion());
-        snapshot.put(VersionUpgradeConstants.PACKAGE_SHA256_PARAM,
-                versionPackage.getSha256());
-        snapshot.put("packageName", versionPackage.getPackageName());
-        snapshot.put("operationReason", request.getOperationReason());
-        snapshot.put("createdBy", request.getCreatedBy());
-
-        List<Map<String, String>> nodes = new ArrayList<>();
-        for (UpgradeNode node : context.upgradeNodes) {
-            Map<String, String> nodeSnapshot = new LinkedHashMap<>();
-            nodeSnapshot.put("hostIp", node.redisInstance.getHostIp());
-            nodeSnapshot.put(VersionUpgradeConstants.REDIS_INSTANCE_ID_PARAM,
-                    node.redisInstance.getInstanceId());
-            nodeSnapshot.put("sentinelNodeId", node.sentinelNode.getId());
-            nodeSnapshot.put("executorId", node.executorInfo.getId());
-            nodes.add(nodeSnapshot);
-        }
-        snapshot.put(VersionUpgradeConstants.NODES_PARAM, nodes);
-        return JSON.toJSONString(snapshot);
-    }
-
-    private void validateExecutor(ExecutorInfo executor, String hostIp) {
-        if (StringUtils.trimToNull(executor.getId()) == null
-                || !StatusEnum.ONLINE.getCode()
-                .equals(executor.getExecutorStatus())) {
-            throw new BusinessException(
-                    BusinessCode.OPERATION_ERROR.getCode(),
-                    "服务器上的执行器编号为空或当前不在线：" + hostIp
-            );
-        }
-    }
-
-    private void validateConfigSha256(
-            String sha256,
-            String configType,
-            String hostIp) {
-        String value = StringUtils.trimToNull(sha256);
-        if (value == null || !ValidationConstants.SHA256_PATTERN
-                .matcher(value).matches()) {
-            throw new BusinessException(
-                    BusinessCode.OPERATION_ERROR.getCode(),
-                    hostIp + "服务器的" + configType
-                            + "备份配置SHA256不正确"
-            );
-        }
     }
 
     private void registerStageDispatchAfterCommit(
@@ -595,16 +413,5 @@ public class VersionUpgradeServiceImpl implements VersionUpgradeService {
         }
     }
 
-    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-    private static class UpgradeContext {
-        private final List<UpgradeNode> upgradeNodes;
-    }
-
-    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-    private static class UpgradeNode {
-        private final RedisInstance redisInstance;
-        private final SentinelNodeInfo sentinelNode;
-        private final ExecutorInfo executorInfo;
-    }
 }
 

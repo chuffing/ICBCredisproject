@@ -11,15 +11,6 @@ public final class FaultRecoveryConstants {
     private FaultRecoveryConstants() {
     }
 
-    /** 故障恢复要求的Redis实例数量。 */
-    public static final int REQUIRED_REDIS_INSTANCE_COUNT = 3;
-
-    /** 故障恢复要求的Sentinel节点数量。 */
-    public static final int REQUIRED_SENTINEL_NODE_COUNT = 3;
-
-    /** 故障恢复要求的执行器数量。 */
-    public static final int REQUIRED_EXECUTOR_COUNT = 3;
-
     /** 停止Sentinel阶段编号。 */
     public static final int STOP_SENTINEL_STEP_NO = 1;
 

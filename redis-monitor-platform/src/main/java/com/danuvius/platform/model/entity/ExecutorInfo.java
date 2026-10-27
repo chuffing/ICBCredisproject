@@ -8,6 +8,9 @@ import lombok.Data;
 import java.time.LocalDateTime;
 import java.util.Date;
 
+/**
+ * 执行器注册及运行状态实体。
+ */
 @Data
 @TableName("executor_info")
 public class ExecutorInfo {

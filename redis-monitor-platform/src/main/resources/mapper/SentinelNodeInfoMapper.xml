@@ -4,6 +4,7 @@
 
     <resultMap id="BaseResultMap" type="com.danuvius.platform.model.entity.SentinelNodeInfo">
         <id     column="id"                  property="id"/>
+        <result column="instance_id"         property="instanceId"/>
         <result column="node_name"           property="nodeName"/>
         <result column="node_ip"             property="nodeIp"/>
         <result column="node_port"           property="nodePort"/>

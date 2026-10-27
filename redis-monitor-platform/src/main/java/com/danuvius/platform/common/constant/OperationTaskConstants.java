@@ -15,4 +15,7 @@ public final class OperationTaskConstants {
     /** 每天允许生成的最大任务流水号。 */
     public static final int MAX_DAILY_TASK_SEQUENCE = 9999;
 
+    /** 当前生产拓扑要求的节点数量。 */
+    public static final int CURRENT_TOPOLOGY_NODE_COUNT = 3;
+
 }

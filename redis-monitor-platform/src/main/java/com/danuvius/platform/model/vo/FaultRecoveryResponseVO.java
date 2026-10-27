@@ -23,6 +23,11 @@ public class FaultRecoveryResponseVO {
     private String taskStatus;
 
     /**
+     * 当前执行阶段编号。
+     */
+    private Integer currentStepNo;
+
+    /**
      * 故障恢复任务当前状态说明。
      */
     private String message;
@@ -40,4 +45,5 @@ public class FaultRecoveryResponseVO {
 
     /** 人工结束时间。 */
     private LocalDateTime terminatedTime;
+
 }

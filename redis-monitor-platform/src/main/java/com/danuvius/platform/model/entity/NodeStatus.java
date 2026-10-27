@@ -8,6 +8,9 @@ import lombok.Data;
 import java.time.LocalDateTime;
 import java.util.Date;
 
+/**
+ * Redis节点状态采集记录实体。
+ */
 @Data
 @TableName("rms_node_status_log")
 public class NodeStatus {

@@ -32,16 +32,13 @@ public final class ServerSwitchConstants {
     public static final String PACKAGE_ID_PARAM = "packageId";
     public static final String TARGET_VERSION_PARAM = "targetVersion";
     public static final String PACKAGE_SHA256_PARAM = "packageSha256";
-    public static final String MASTER_HOST_IP_PARAM = "masterHostIp";
-    public static final String SOURCE_NODES_PARAM = "sourceNodes";
-    public static final String TARGET_NODES_PARAM = "targetNodes";
-    public static final String HOST_IP_PARAM = "hostIp";
-    public static final String ROLE_PARAM = "role";
-    public static final String EXECUTOR_ID_PARAM = "executorId";
     public static final String REDIS_CONFIG_SHA256_PARAM =
             "redisConfigSha256";
     public static final String SENTINEL_CONFIG_SHA256_PARAM =
             "sentinelConfigSha256";
+
+    public static final String MASTER_ROLE = "MASTER";
+    public static final String REPLICA_ROLE = "REPLICA";
 
     public static final String TASK_CREATED_MESSAGE = "服务器切换任务已创建";
     public static final String TASK_RUNNING_MESSAGE = "服务器切换正在执行";

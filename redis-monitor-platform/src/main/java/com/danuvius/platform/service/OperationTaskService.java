@@ -52,6 +52,14 @@ public interface OperationTaskService extends IService<OperationTask> {
     void saveSteps(List<OperationTaskStep> steps);
 
     /**
+     * 根据任务步骤状态计算当前执行阶段。
+     *
+     * @param taskNo 运维任务编号
+     * @return 当前阶段编号；任务没有步骤时返回null
+     */
+    Integer getCurrentStepNo(String taskNo);
+
+    /**
      * 查询当前任务阶段的步骤。
      */
     List<OperationTaskStep> getStageSteps(

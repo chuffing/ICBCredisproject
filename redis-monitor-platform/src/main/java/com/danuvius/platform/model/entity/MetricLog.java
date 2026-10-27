@@ -8,6 +8,9 @@ import lombok.Data;
 import java.time.LocalDateTime;
 import java.util.Date;
 
+/**
+ * Redis运行指标采集记录实体。
+ */
 @Data
 @TableName("rms_metric_log")
 public class MetricLog {

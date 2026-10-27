@@ -18,6 +18,9 @@ public class ServerSwitchResponseVO {
     /** 服务器切换任务状态。 */
     private String taskStatus;
 
+    /** 当前执行阶段编号。 */
+    private Integer currentStepNo;
+
     /** 本次切换使用的目标Redis版本。 */
     private String targetVersion;
 
@@ -38,4 +41,5 @@ public class ServerSwitchResponseVO {
 
     /** 人工结束时间。 */
     private LocalDateTime terminatedTime;
+
 }

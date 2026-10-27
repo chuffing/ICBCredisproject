@@ -1,21 +1,22 @@
 package com.danuvius.platform.service.impl;
 
 import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONArray;
-import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.danuvius.platform.common.constant.CommonConstant;
-import com.danuvius.platform.common.constant.VersionUpgradeConstants;
+import com.danuvius.platform.common.constant.OperationTaskConstants;
 import com.danuvius.platform.common.exception.BusinessCode;
 import com.danuvius.platform.common.exception.BusinessException;
 import com.danuvius.platform.mapper.OperationTaskMapper;
 import com.danuvius.platform.mapper.OperationTaskStepMapper;
+import com.danuvius.platform.mapper.RedisVersionPackageMapper;
 import com.danuvius.platform.model.dto.OperationResultDTO;
 import com.danuvius.platform.model.dto.TaskResultReportDTO;
+import com.danuvius.platform.model.dto.VersionUpgradeRequestDTO;
 import com.danuvius.platform.model.entity.OperationTask;
 import com.danuvius.platform.model.entity.OperationTaskStep;
 import com.danuvius.platform.model.entity.RedisInstance;
+import com.danuvius.platform.model.entity.RedisVersionPackage;
 import com.danuvius.platform.model.enums.OperationTaskStatusEnum;
 import com.danuvius.platform.model.enums.OperationTaskStepStatusEnum;
 import com.danuvius.platform.model.enums.OperationTaskTypeEnum;
@@ -25,7 +26,6 @@ import com.danuvius.platform.service.OperationTaskService;
 import com.danuvius.platform.service.RedisInstanceService;
 import com.danuvius.platform.service.TaskNoService;
 import com.danuvius.platform.util.CacheKeyUtil;
-import com.danuvius.platform.util.StringUtils;
 import com.github.benmanes.caffeine.cache.Cache;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -36,8 +36,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
-import java.util.HashSet;
-import java.util.Set;
 
 /**
  * 运维任务服务实现。
@@ -66,6 +64,8 @@ public class OperationTaskServiceImpl
             serverSwitchCompletionService;
 
     private final RedisInstanceService redisInstanceService;
+
+    private final RedisVersionPackageMapper versionPackageMapper;
 
     private final Cache<String, Object> caffeineCache;
 
@@ -142,6 +142,47 @@ public class OperationTaskServiceImpl
                     "运维任务步骤创建失败"
             );
         }
+    }
+
+    /**
+     * 根据数据库中实际保存的步骤状态计算当前执行阶段。
+     */
+    @Override
+    public Integer getCurrentStepNo(String taskNo) {
+
+        // 1. 按照阶段编号查询本次任务的全部步骤。
+        List<OperationTaskStep> taskSteps = operationTaskStepMapper.selectList(
+                new LambdaQueryWrapper<OperationTaskStep>()
+                        .eq(OperationTaskStep::getTaskNo, taskNo)
+                        .orderByAsc(OperationTaskStep::getStepNo)
+                        .orderByAsc(OperationTaskStep::getId)
+        );
+        if (taskSteps.isEmpty()) {
+            return null;
+        }
+
+        // 2. 第一个没有全部成功的阶段，就是当前执行阶段。
+        Integer currentStepNo = taskSteps.get(0).getStepNo();
+        boolean currentStageSuccess = true;
+
+        for (OperationTaskStep step : taskSteps) {
+            if (!currentStepNo.equals(step.getStepNo())) {
+                if (!currentStageSuccess) {
+                    return currentStepNo;
+                }
+
+                currentStepNo = step.getStepNo();
+                currentStageSuccess = true;
+            }
+
+            if (!OperationTaskStepStatusEnum.SUCCESS.name()
+                    .equals(step.getStepStatus())) {
+                currentStageSuccess = false;
+            }
+        }
+
+        // 3. 全部阶段成功时返回最后一个阶段编号。
+        return currentStepNo;
     }
 
     /**
@@ -667,57 +708,46 @@ public class OperationTaskServiceImpl
             return;
         }
 
-        JSONObject snapshot;
+        VersionUpgradeRequestDTO request;
         try {
-            // 获取版本升级任务快照。
-            snapshot = JSON.parseObject(task.getRequestParams());
+            // 获取创建版本升级任务时保存的前端请求参数。
+            request = JSON.parseObject(
+                    task.getRequestParams(),
+                    VersionUpgradeRequestDTO.class
+            );
+            if (request == null || request.getPackageId() == null) {
+                throw new IllegalArgumentException();
+            }
         } catch (Exception exception) {
             throw new BusinessException(
                     BusinessCode.OPERATION_ERROR.getCode(),
-                    "版本升级任务快照无法解析"
+                    "版本升级任务参数无法解析"
             );
         }
 
-        String targetVersion = StringUtils.trimToNull(snapshot.getString(
-                VersionUpgradeConstants.TARGET_VERSION_PARAM
-        ));
-        JSONArray nodes = snapshot.getJSONArray(
-                VersionUpgradeConstants.NODES_PARAM
+        // 根据安装包记录取得本次升级的目标版本。
+        RedisVersionPackage versionPackage = versionPackageMapper.selectById(
+                request.getPackageId()
         );
-        if (targetVersion == null || nodes == null || nodes.size() != 3) {
+        if (versionPackage == null) {
             throw new BusinessException(
                     BusinessCode.OPERATION_ERROR.getCode(),
-                    "版本升级任务快照不完整"
+                    "版本升级任务使用的安装包记录不存在"
             );
         }
+        String targetVersion = versionPackage.getRedisVersion();
 
-        // 从任务快照中取得本次参与升级的三条Redis实例编号。
-        Set<String> instanceIds = new HashSet<>();
-        for (int index = 0; index < nodes.size(); index++) {
-            JSONObject node = nodes.getJSONObject(index);
-            String instanceId = node == null ? null
-                    : StringUtils.trimToNull(node.getString(
-                    VersionUpgradeConstants.REDIS_INSTANCE_ID_PARAM
-            ));
-            if (instanceId == null || !instanceIds.add(instanceId)) {
-                throw new BusinessException(
-                        BusinessCode.OPERATION_ERROR.getCode(),
-                        "版本升级任务中的Redis实例编号为空或重复"
-                );
-            }
-        }
-
-        // 只允许更新当前仍处于正式纳管状态的三台Redis实例。
+        // 查询当前正式纳管的三台Redis实例。
         List<RedisInstance> redisInstances = redisInstanceService.list(
                 new LambdaQueryWrapper<RedisInstance>()
                         .eq(RedisInstance::getManagementStatus,
                                 StatusEnum.ACTIVE.getCode())
-                        .in(RedisInstance::getInstanceId, instanceIds)
         );
-        if (redisInstances.size() != instanceIds.size()) {
+        if (redisInstances.size()
+                != OperationTaskConstants.CURRENT_TOPOLOGY_NODE_COUNT) {
             throw new BusinessException(
                     BusinessCode.OPERATION_ERROR.getCode(),
-                    "版本升级任务中的Redis实例记录不完整"
+                    "当前已纳管Redis记录不是3条"
             );
         }
 

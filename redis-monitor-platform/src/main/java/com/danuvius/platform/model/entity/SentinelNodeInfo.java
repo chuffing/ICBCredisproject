@@ -7,6 +7,9 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/**
+ * Sentinel节点信息实体。
+ */
 @Data
 @TableName("sentinel_node_info")
 public class SentinelNodeInfo {

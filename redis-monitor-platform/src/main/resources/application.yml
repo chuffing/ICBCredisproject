@@ -1,12 +1,12 @@
 server:
-  port: ${SERVER_PORT:8100}
+  port: 8100
 
 platform:
   instance:
-    offline-threshold-seconds: ${OFFLINE_THRESHOLD_SECONDS:70}      # 实例离线判定阈值（秒）
+    offline-threshold-seconds: 70      # 实例离线判定阈值（秒）
   sentinel:
     # 哨兵随指标每 5 分钟上报一次，阈值需大于采集周期（默认 330s = 5.5min）
-    offline-threshold-seconds: ${SENTINEL_OFFLINE_THRESHOLD_SECONDS:330}
+    offline-threshold-seconds: 330
   operation-task:
     # 执行结果超时扫描间隔，毫秒。
     timeout-scan-interval-millis: 5000
@@ -55,10 +55,10 @@ spring:
   application:
     name: redis-monitor-platform
   datasource:
-    url: ${DB_URL:jdbc:postgresql://aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres}
-    username: ${DB_USERNAME:postgres.dbtakxbjecdydxfeytov}
-    password: ${DB_PASSWORD:Danuvius5732}
     driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://db.izikxhetvxbnlukyytae.supabase.co:5432/postgres?sslmode=require
+    username: postgres
+    password: ZJYrrZJY7518
     hikari:
       maximum-pool-size: 20
       minimum-idle: 5
