@@ -5,6 +5,7 @@ import com.danuvius.platform.common.core.ResultBean;
 import com.danuvius.platform.common.constant.AgentTaskConstants;
 import com.danuvius.platform.common.exception.BusinessCode;
 import com.danuvius.platform.common.exception.BusinessException;
+import com.danuvius.platform.common.exception.ErrorCodeInfo;
 import com.danuvius.platform.model.dto.ManualTerminateTaskRequestDTO;
 import com.danuvius.platform.model.dto.TaskResultReportDTO;
 import com.danuvius.platform.model.entity.ExecutorInfo;
@@ -61,7 +62,7 @@ public class OperationTaskController {
         // 3. 交给业务层处理任务执行结果。
         operationTaskResultService.reportTaskResult(request);
 
-        return ResultBean.success(null);
+        return ResultBean.restResult(null, ErrorCodeInfo.OK);
     }
 
     /**
@@ -87,7 +88,7 @@ public class OperationTaskController {
                 request.getTerminatedBy()
         );
 
-        return ResultBean.success(null);
+        return ResultBean.restResult(null, ErrorCodeInfo.OK);
     }
 
     /**

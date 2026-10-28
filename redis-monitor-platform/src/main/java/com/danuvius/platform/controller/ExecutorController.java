@@ -1,7 +1,8 @@
 package com.danuvius.platform.controller;
 
 import com.danuvius.platform.common.core.ResultBean;
-import com.danuvius.platform.common.exception.ErrorCode;
+import com.danuvius.platform.common.exception.BusinessCode;
+import com.danuvius.platform.common.exception.ErrorCodeInfo;
 import com.danuvius.platform.model.dto.agent.AgentHeartbeatRequest;
 import com.danuvius.platform.model.dto.agent.AgentRegisterRequest;
 import com.danuvius.platform.model.dto.agent.AgentRegisterResultDTO;
@@ -32,9 +33,13 @@ public class ExecutorController {
             AgentRegisterResultDTO result = executorInfoService.register(
                     req.getRegisterCode(),
                     req.getHostIp(), req.getExecutorPort(), req.getRedisInfo(),req.getRedisReady());
-            return ResultBean.restResult(result, ErrorCode.OK);
+            return ResultBean.restResult(result, ErrorCodeInfo.OK);
         } catch (Exception e) {
-            return ResultBean.restResult(null, ErrorCode.OPERATION_ERROR);
+            return ResultBean.resultBean(
+                    null,
+                    BusinessCode.OPERATION_ERROR.getCode(),
+                    BusinessCode.OPERATION_ERROR.getMsg()
+            );
         }
     }
 
@@ -47,9 +52,13 @@ public class ExecutorController {
         try {
             Boolean flag = executorInfoService.heartbeat(
                     token, req.getHostIp(), req.getExecutorPort());
-            return ResultBean.restResult(flag, ErrorCode.OK);
+            return ResultBean.restResult(flag, ErrorCodeInfo.OK);
         } catch (Exception e) {
-            return ResultBean.restResult(null, ErrorCode.OPERATION_ERROR);
+            return ResultBean.resultBean(
+                    null,
+                    BusinessCode.OPERATION_ERROR.getCode(),
+                    BusinessCode.OPERATION_ERROR.getMsg()
+            );
         }
     }
 
@@ -63,7 +72,7 @@ public class ExecutorController {
     public ResultBean<Integer> updateManagementStatus(@RequestBody ExecutorManagementRequest req) {
         ExecutorManagementRequestValidator.validate(req);
         return ResultBean.restResult(
-                executorInfoService.updateManagementStatus(req.getExecutorIds(), req.getManagementStatus()), ErrorCode.OK);
+                executorInfoService.updateManagementStatus(req.getExecutorIds(), req.getManagementStatus()), ErrorCodeInfo.OK);
     }
 
     /**
@@ -73,6 +82,6 @@ public class ExecutorController {
     @GetMapping("/ping")
     public ResultBean<Long> ping() {
 
-        return ResultBean.restResult(System.currentTimeMillis(), ErrorCode.OK);
+        return ResultBean.restResult(System.currentTimeMillis(), ErrorCodeInfo.OK);
     }
 }

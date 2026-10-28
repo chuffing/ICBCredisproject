@@ -1,6 +1,7 @@
 package com.danuvius.platform.controller;
 
 import com.danuvius.platform.common.core.ResultBean;
+import com.danuvius.platform.common.exception.ErrorCodeInfo;
 import com.danuvius.platform.model.dto.TopologyInitializationRequestDTO;
 import com.danuvius.platform.model.vo.TopologyInitializationCandidateVO;
 import com.danuvius.platform.model.vo.TopologyInitializationResponseVO;
@@ -30,7 +31,10 @@ public class TopologyInitializationController {
      */
     @GetMapping("/candidates")
     public ResultBean<List<TopologyInitializationCandidateVO>> candidates() {
-        return ResultBean.success(initializationService.listCandidates());
+        return ResultBean.restResult(
+                initializationService.listCandidates(),
+                ErrorCodeInfo.OK
+        );
     }
 
     /**
@@ -41,6 +45,9 @@ public class TopologyInitializationController {
             @RequestBody TopologyInitializationRequestDTO request) {
 
         TopologyInitializationRequestValidator.validate(request);
-        return ResultBean.success(initializationService.initialize(request));
+        return ResultBean.restResult(
+                initializationService.initialize(request),
+                ErrorCodeInfo.OK
+        );
     }
 }

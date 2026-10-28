@@ -1,7 +1,7 @@
 package com.danuvius.platform.controller;
 
-import cn.hutool.http.HttpStatus;
 import com.danuvius.platform.common.core.ResultBean;
+import com.danuvius.platform.common.exception.ErrorCodeInfo;
 import com.danuvius.platform.model.dto.FaultRecoveryRequestDTO;
 import com.danuvius.platform.model.vo.FaultRecoveryResponseVO;
 import com.danuvius.platform.service.FaultRecoveryService;
@@ -40,11 +40,7 @@ public class FaultRecoveryController {
 
         FaultRecoveryResponseVO response = faultRecoveryService.faultRecovery(request);
 
-        return new ResultBean<>(
-                HttpStatus.HTTP_ACCEPTED,
-                "故障恢复任务已接收",
-                response
-        );
+        return ResultBean.restResult(response, ErrorCodeInfo.ACCEPTED);
     }
 
     /**
@@ -64,7 +60,7 @@ public class FaultRecoveryController {
         FaultRecoveryResponseVO response = faultRecoveryService
                 .getFaultRecoveryStatus(normalizedTaskNo);
 
-        return ResultBean.success(response);
+        return ResultBean.restResult(response, ErrorCodeInfo.OK);
     }
 
 }

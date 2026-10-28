@@ -1,6 +1,7 @@
 package com.danuvius.platform.controller;
 
 import com.danuvius.platform.common.core.ResultBean;
+import com.danuvius.platform.common.exception.ErrorCodeInfo;
 import com.danuvius.platform.model.vo.VersionPackageItemVO;
 import com.danuvius.platform.model.vo.VersionPackagePageVO;
 import com.danuvius.platform.model.vo.VersionPackageUploadVO;
@@ -53,7 +54,7 @@ public class VersionPackageController {
         );
 
         // 3. 返回安装包上传结果。
-        return ResultBean.success(result);
+        return ResultBean.restResult(result, ErrorCodeInfo.OK);
     }
 
     /**
@@ -76,7 +77,7 @@ public class VersionPackageController {
                 versionPackageService.listPackages(pageNum, pageSize);
 
         // 3. 返回安装包分页结果。
-        return ResultBean.success(versionPackages);
+        return ResultBean.restResult(versionPackages, ErrorCodeInfo.OK);
     }
 
     /**
@@ -88,8 +89,9 @@ public class VersionPackageController {
     public ResultBean<List<VersionPackageItemVO>> enabledList() {
 
         // 查询目标版本下拉框需要的全部可用安装包。
-        return ResultBean.success(
-                versionPackageService.listEnabledPackages()
+        return ResultBean.restResult(
+                versionPackageService.listEnabledPackages(),
+                ErrorCodeInfo.OK
         );
     }
 
@@ -107,8 +109,9 @@ public class VersionPackageController {
         VersionPackageRequestValidator.validatePackageId(packageId);
 
         // 2. 启用安装包并返回最新状态。
-        return ResultBean.success(
-                versionPackageService.enablePackage(packageId)
+        return ResultBean.restResult(
+                versionPackageService.enablePackage(packageId),
+                ErrorCodeInfo.OK
         );
     }
 
@@ -126,8 +129,9 @@ public class VersionPackageController {
         VersionPackageRequestValidator.validatePackageId(packageId);
 
         // 2. 禁用安装包并返回最新状态。
-        return ResultBean.success(
-                versionPackageService.disablePackage(packageId)
+        return ResultBean.restResult(
+                versionPackageService.disablePackage(packageId),
+                ErrorCodeInfo.OK
         );
     }
 }

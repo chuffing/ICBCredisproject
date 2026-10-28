@@ -2,7 +2,7 @@ package com.danuvius.platform.controller;
 
 import com.danuvius.platform.common.constant.CommonConstant;
 import com.danuvius.platform.common.core.ResultBean;
-import com.danuvius.platform.common.exception.ErrorCode;
+import com.danuvius.platform.common.exception.ErrorCodeInfo;
 import com.danuvius.platform.common.exception.validator.IdValidator;
 import com.danuvius.platform.common.exception.validator.StringValidator;
 import com.danuvius.platform.model.dto.monitor.*;
@@ -49,7 +49,7 @@ public class MonitorController {
 
         StringValidator.isEnumValue(managementStatus, CommonConstant.MANAGEMENT_STATUS, "managementStatus");
 
-        return ResultBean.restResult(redisInstanceService.getInstanceList(managementStatus), ErrorCode.OK);
+        return ResultBean.restResult(redisInstanceService.getInstanceList(managementStatus), ErrorCodeInfo.OK);
     }
 
     /**
@@ -62,7 +62,7 @@ public class MonitorController {
             @RequestParam @NotBlank(message = "instanceId不能为空") String instanceId) {
         IdValidator.snowflake(instanceId, "instanceId");
 
-        return ResultBean.restResult(redisInstanceService.getCurrentValues(instanceId), ErrorCode.OK);
+        return ResultBean.restResult(redisInstanceService.getCurrentValues(instanceId), ErrorCodeInfo.OK);
     }
 
     /**
@@ -74,7 +74,7 @@ public class MonitorController {
     public ResultBean<TrendResponse> trend(TrendRequest req) {
         TrendRequestValidator.validate(req);
         log.info("多节点指标趋势接口：{}", req.toString());
-        return ResultBean.restResult(redisInstanceService.getTrend(req), ErrorCode.OK);
+        return ResultBean.restResult(redisInstanceService.getTrend(req), ErrorCodeInfo.OK);
     }
 
     /**
@@ -87,7 +87,7 @@ public class MonitorController {
             @RequestParam(defaultValue = "1") String managementStatus) {
         StringValidator.isEnumValue(managementStatus, CommonConstant.MANAGEMENT_STATUS, "managementStatus");
 
-        return ResultBean.restResult(sentinelNodeInfoService.getSentinelList(managementStatus), ErrorCode.OK);
+        return ResultBean.restResult(sentinelNodeInfoService.getSentinelList(managementStatus), ErrorCodeInfo.OK);
     }
 
     /**
@@ -96,7 +96,7 @@ public class MonitorController {
      */
     @GetMapping("/sentinel/topology")
     public ResultBean<TopologyResponse> topology() {
-        return ResultBean.restResult(redisInstanceService.getTopology(), ErrorCode.OK);
+        return ResultBean.restResult(redisInstanceService.getTopology(), ErrorCodeInfo.OK);
     }
 
     /**
@@ -105,7 +105,7 @@ public class MonitorController {
      */
     @GetMapping("/sentinel/nodes-status")
     public ResultBean<List<NodeStatusResponse>> nodesStatus() {
-        return ResultBean.restResult(redisInstanceService.getNodesStatus(), ErrorCode.OK);
+        return ResultBean.restResult(redisInstanceService.getNodesStatus(), ErrorCodeInfo.OK);
     }
 
     /**
@@ -117,7 +117,7 @@ public class MonitorController {
     public ResultBean<ReportQueryResponse> reportQuery(@RequestBody ReportQueryRequest req) {
         ReportQueryRequestValidator.validate(req);
 
-        return ResultBean.restResult(redisInstanceService.queryReport(req), ErrorCode.OK);
+        return ResultBean.restResult(redisInstanceService.queryReport(req), ErrorCodeInfo.OK);
     }
 
 
@@ -136,7 +136,7 @@ public class MonitorController {
         StringValidator.isEnumValue(reportType, CommonConstant.REPORT_TYPES, "reportType");
 
         return ResultBean.restResult(
-                redisInstanceService.exportReport(instanceId, reportType), ErrorCode.OK);
+                redisInstanceService.exportReport(instanceId, reportType), ErrorCodeInfo.OK);
     }
 
     /**
@@ -148,7 +148,7 @@ public class MonitorController {
         // 导出任务 id 由 exportReport 生成，格式为 EP_ + 雪花id
         IdValidator.check(taskId, "EP_", 32, "taskId");
 
-        return ResultBean.restResult(redisInstanceService.queryExportTask(taskId), ErrorCode.OK);
+        return ResultBean.restResult(redisInstanceService.queryExportTask(taskId), ErrorCodeInfo.OK);
     }
 
 

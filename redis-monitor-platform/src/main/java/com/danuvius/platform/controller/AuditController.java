@@ -1,7 +1,7 @@
 package com.danuvius.platform.controller;
 
 import com.danuvius.platform.common.core.ResultBean;
-import com.danuvius.platform.common.exception.ErrorCode;
+import com.danuvius.platform.common.exception.ErrorCodeInfo;
 import com.danuvius.platform.model.dto.audit.AuditLogPageRequest;
 import com.danuvius.platform.model.dto.audit.AuditLogPageResponse;
 import com.danuvius.platform.service.AuditLogService;
@@ -33,6 +33,6 @@ public class AuditController {
     public ResultBean<AuditLogPageResponse> logs( AuditLogPageRequest req) {
         AuditLogPageRequestValidator.validate(req);
         log.info("查询操作审计列表接口：{}", req.toString());
-        return ResultBean.restResult(auditLogService.getAuditLogPage(req), ErrorCode.OK);
+        return ResultBean.restResult(auditLogService.getAuditLogPage(req), ErrorCodeInfo.OK);
     }
 }

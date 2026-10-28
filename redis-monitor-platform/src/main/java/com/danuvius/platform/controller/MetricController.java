@@ -1,7 +1,7 @@
 package com.danuvius.platform.controller;
 
 import com.danuvius.platform.common.core.ResultBean;
-import com.danuvius.platform.common.exception.ErrorCode;
+import com.danuvius.platform.common.exception.ErrorCodeInfo;
 import com.danuvius.platform.common.exception.validator.IdValidator;
 import com.danuvius.platform.model.dto.metric.MetricReportItemDTO;
 import com.danuvius.platform.model.entity.MetricLog;
@@ -30,7 +30,7 @@ public class MetricController {
         MetricReportItemDTOValidator.validate(req);
 
         metricLogService.reportMetric(req);
-        return ResultBean.restResult("OK", ErrorCode.OK);
+        return ResultBean.restResult("OK", ErrorCodeInfo.OK);
     }
 
     /**
@@ -41,6 +41,6 @@ public class MetricController {
             @PathVariable @NotBlank(message = "instanceId不能为空") String instanceId) {
         IdValidator.snowflake(instanceId, "instanceId");
 
-        return ResultBean.restResult(metricLogService.getLatestByInstanceId(instanceId), ErrorCode.OK);
+        return ResultBean.restResult(metricLogService.getLatestByInstanceId(instanceId), ErrorCodeInfo.OK);
     }
 }

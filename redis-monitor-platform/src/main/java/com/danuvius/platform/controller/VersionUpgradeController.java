@@ -1,7 +1,7 @@
 package com.danuvius.platform.controller;
 
-import cn.hutool.http.HttpStatus;
 import com.danuvius.platform.common.core.ResultBean;
+import com.danuvius.platform.common.exception.ErrorCodeInfo;
 import com.danuvius.platform.model.dto.VersionUpgradeRequestDTO;
 import com.danuvius.platform.model.vo.VersionUpgradeResponseVO;
 import com.danuvius.platform.service.VersionUpgradeService;
@@ -36,11 +36,7 @@ public class VersionUpgradeController {
 
         VersionUpgradeResponseVO response = versionUpgradeService.upgrade(request);
 
-        return new ResultBean<>(
-                HttpStatus.HTTP_ACCEPTED,
-                "版本升级任务已接收",
-                response
-        );
+        return ResultBean.restResult(response, ErrorCodeInfo.ACCEPTED);
     }
 
     /**
@@ -53,8 +49,9 @@ public class VersionUpgradeController {
         String normalizedTaskNo =
                 OperationCommonValidator.validateTaskNo(taskNo);
 
-        return ResultBean.success(
-                versionUpgradeService.getUpgradeStatus(normalizedTaskNo)
+        return ResultBean.restResult(
+                versionUpgradeService.getUpgradeStatus(normalizedTaskNo),
+                ErrorCodeInfo.OK
         );
     }
 

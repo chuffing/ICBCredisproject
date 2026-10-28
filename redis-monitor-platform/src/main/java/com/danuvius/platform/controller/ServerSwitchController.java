@@ -1,7 +1,7 @@
 package com.danuvius.platform.controller;
 
-import cn.hutool.http.HttpStatus;
 import com.danuvius.platform.common.core.ResultBean;
+import com.danuvius.platform.common.exception.ErrorCodeInfo;
 import com.danuvius.platform.model.dto.ServerSwitchRequestDTO;
 import com.danuvius.platform.model.vo.ServerSwitchResponseVO;
 import com.danuvius.platform.service.ServerSwitchService;
@@ -36,11 +36,7 @@ public class ServerSwitchController {
 
         ServerSwitchResponseVO response = serverSwitchService.switchServer(request);
 
-        return new ResultBean<>(
-                HttpStatus.HTTP_ACCEPTED,
-                "服务器切换任务已接收",
-                response
-        );
+        return ResultBean.restResult(response, ErrorCodeInfo.ACCEPTED);
     }
 
     /**
@@ -53,8 +49,9 @@ public class ServerSwitchController {
         String normalizedTaskNo =
                 OperationCommonValidator.validateTaskNo(taskNo);
 
-        return ResultBean.success(
-                serverSwitchService.getSwitchStatus(normalizedTaskNo)
+        return ResultBean.restResult(
+                serverSwitchService.getSwitchStatus(normalizedTaskNo),
+                ErrorCodeInfo.OK
         );
     }
 
