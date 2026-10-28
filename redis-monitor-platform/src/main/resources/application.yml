@@ -2,8 +2,11 @@ server:
   port: 8100
 
 platform:
-  instance:
-    offline-threshold-seconds: 70      # 实例离线判定阈值（秒）
+
+  offline-threshold: 70      # 离线判定阈值（秒）
+
+  status-check:
+    fixed-delay-ms: ${STATUS_CHECK_FIXED_DELAY_MS:30000}            # 执行器/实例状态主动校正间隔（毫秒）
   sentinel:
     # 哨兵随指标每 5 分钟上报一次，阈值需大于采集周期（默认 330s = 5.5min）
     offline-threshold-seconds: 330
@@ -72,7 +75,8 @@ mybatis-plus:
   mapper-locations: classpath*:mapper/**/*.xml
   configuration:
     map-underscore-to-camel-case: true
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+#    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
 
 
 

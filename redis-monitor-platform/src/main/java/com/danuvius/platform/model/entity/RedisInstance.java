@@ -1,63 +1,47 @@
 package com.danuvius.platform.model.entity;
 
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.Date;
 
-/**
- * Redis实例信息实体。
- */
 @Data
 @TableName("redis_instance")
 public class RedisInstance {
-
-    /** 数据库内部主键。 */
+    /*主键id*/
     @TableId(type = IdType.ASSIGN_ID)
     private String id;
-
-    /** Redis实例业务编号，用于关联执行器和Sentinel。 */
+    /*实例id（雪花id）*/
     private String instanceId;
-
-    /** Redis实例名称。 */
+    /*实例名称*/
     private String instanceName;
-
-    /** Redis所在服务器IP。 */
+    /*服务器IP*/
     private String hostIp;
-
-    /** Redis服务端口。 */
+    /*Redis端口*/
     private String redisPort;
-
-    /** Redis当前角色：MASTER或REPLICA。 */
+    /*节点角色：MASTER/REPLICA*/
     private String role;
-
-    /** Redis版本号。 */
+    /*Redis版本号*/
     private String redisVersion;
-
-    /** Redis运行状态。 */
+    /*运行状态：0=离线/1=正常/2=警告/3=严重*/
     private String runStatus;
-
-    /** 从节点当前连接的主节点IP。 */
+    /*主节点IP（从节点有值，主节点默认''）*/
+    @TableField(insertStrategy = FieldStrategy.NOT_NULL)
     private String masterHostIp;
-
-    /** 从节点当前连接的主节点Redis端口。 */
+    /*主节点Redis端口（从节点有值，主节点默认''）*/
+    @TableField(insertStrategy = FieldStrategy.NOT_NULL)
     private String masterRedisPort;
-
-    /** Redis故障恢复备份配置文件的SHA256摘要。 */
+    /*Redis故障恢复备份配置文件的SHA256摘要，非null，默认'' */
     private String configSha256;
-
-    /** 最近一次心跳时间。 */
+    /*最近心跳时间*/
     private LocalDateTime lastHeartbeatTime;
 
-    /** 纳管状态：0=未纳管，1=已纳管。 */
+    /*纳管状态：0=未纳管/1=已纳管*/
     private String managementStatus;
-
-    /** 创建时间。 */
+    /*创建时间*/
     private LocalDateTime createdTime;
-
-    /** 更新时间。 */
+    /*最后更新时间*/
     private LocalDateTime updatedTime;
 
 }

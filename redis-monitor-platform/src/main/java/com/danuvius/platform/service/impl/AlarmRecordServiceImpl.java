@@ -100,13 +100,14 @@ public class AlarmRecordServiceImpl extends ServiceImpl<AlarmRecordMapper, Alarm
         String metricKey=req.getMetricKey();
         String recoverStatus=req.getRecoverStatus();
         String keyword=req.getKeyword();
-        String startTime=req.getStartTime();
-        String endTime=req.getEndTime();
+        LocalDateTime startTime=req.getStartTime();
+        LocalDateTime endTime=req.getEndTime();
 
         //查
         Page<RecordItemResponse> page = new Page<>(pageNum, pageSize);
         alarmRecordMapper.selectRecordPage(page,instanceId, alarmLevel, metricKey, recoverStatus, keyword, startTime, endTime);
 
+        log.info("告警记录查询结果：{}",page.toString());
         RecordPageResponse resp = new RecordPageResponse();
         resp.setPage(page);
         return resp;

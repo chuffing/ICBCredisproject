@@ -18,7 +18,7 @@ import java.util.List;
 public class AgentHttpClient {
 
     /** 采集接口路径，如执行器端有变化，改此常量即可 */
-    private static final String COLLECT_PATH = "/api/collect";
+    private static final String COLLECT_PATH = "/executor/collect";
 
     /** 请求超时（毫秒） */
     private static final int TIMEOUT_MS = 15000;

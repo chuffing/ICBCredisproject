@@ -12,7 +12,6 @@ import com.danuvius.platform.mapper.RedisInstanceMapper;
 import com.danuvius.platform.model.dto.agent.AgentRegisterResultDTO;
 import com.danuvius.platform.model.entity.ExecutorInfo;
 import com.danuvius.platform.model.entity.RedisInstance;
-import com.danuvius.platform.model.enums.instance.RunStatusEnum;
 import com.danuvius.platform.service.AuditLogService;
 import com.danuvius.platform.service.ExecutorInfoService;
 import com.danuvius.platform.service.RedisInstanceService;
@@ -20,6 +19,7 @@ import com.danuvius.platform.util.CacheKeyUtil;
 import com.github.benmanes.caffeine.cache.Cache;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,6 +42,10 @@ public class ExecutorInfoServiceImpl extends ServiceImpl<ExecutorInfoMapper, Exe
 
     @Value("${platform.register-code}")
     private List<String> validRegisterCodes;
+
+    /** 运行状态离线阈值：连续未收到心跳/上报超过该秒数判为离线 */
+    @Value("${platform.offline-threshold:70}")
+    private long offlineThreshold;
 
     public ExecutorInfoServiceImpl(ExecutorInfoMapper executorInfoMapper, RedisInstanceMapper redisInstanceMapper,
                                    RedisInstanceService redisInstanceService,
@@ -143,7 +147,55 @@ public class ExecutorInfoServiceImpl extends ServiceImpl<ExecutorInfoMapper, Exe
     }
 
     /**
-     * 批量变更执行器纳管状态，并同步其绑定 Redis 实例的纳管状态。
+     * 定时校正执行器与 Redis 实例的在线状态
+     *
+     * 执行器每 30s 发送一次心跳；如果进程退出、网络中断或机器宕机，
+     * 心跳停止后仅靠前端查询时的动态判断会受缓存影响，无法及时落库
+     * 按固定间隔主动扫描，超过离线阈值未心跳status设置0
+     */
+    @Scheduled(fixedDelayString = "${platform.status-check.fixed-delay-ms:30000}")
+    public void correctOfflineStatus() {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime before = now.minusSeconds(offlineThreshold);
+
+        // 执行器心跳超时：只更新当前仍为在线或状态为空的记录，避免重复 UPDATE 在线记录
+        int executorRows = executorInfoMapper.update(null, new LambdaUpdateWrapper<ExecutorInfo>()
+                .set(ExecutorInfo::getExecutorStatus, CommonConstant.OFFLINE)
+                .set(ExecutorInfo::getUpdatedTime, now)
+                .and(w -> w.eq(ExecutorInfo::getExecutorStatus, CommonConstant.ONLINE)
+                        .or()
+                        .isNull(ExecutorInfo::getExecutorStatus))
+                .and(w -> w.lt(ExecutorInfo::getLastHeartbeatTime, before)
+                        .or()
+                        .isNull(ExecutorInfo::getLastHeartbeatTime))
+        );
+
+        // Redis 实例心跳/上报超时：执行器断联后，其绑定实例也会随之超时
+        int instanceRows = redisInstanceMapper.update(null, new LambdaUpdateWrapper<RedisInstance>()
+                .set(RedisInstance::getRunStatus, CommonConstant.RUN_OFFLINE)
+                .set(RedisInstance::getUpdatedTime, now)
+                .and(w -> w.ne(RedisInstance::getRunStatus, CommonConstant.RUN_OFFLINE)
+                        .or()
+                        .isNull(RedisInstance::getRunStatus))
+                .and(w -> w.lt(RedisInstance::getLastHeartbeatTime, before)
+                        .or()
+                        .isNull(RedisInstance::getLastHeartbeatTime))
+        );
+
+        if (executorRows > 0 || instanceRows > 0) {
+            // 数据库状态已变化，失效相关读缓存，避免前端继续展示在线
+            caffeineCache.invalidate(CacheKeyUtil.instanceList(CommonConstant.MANAGE_ACTIVE));
+            caffeineCache.invalidate(CacheKeyUtil.instanceList(CommonConstant.MANAGE_INACTIVE));
+            caffeineCache.invalidate(CacheKeyUtil.TOPOLOGY);
+            caffeineCache.invalidate(CacheKeyUtil.NODES);
+            log.info("[状态校正] 执行器离线 {} 个，Redis实例离线 {} 个", executorRows, instanceRows);
+        } else {
+            log.debug("[状态校正] 无超时执行器/实例");
+        }
+    }
+
+    /**
+     * 批量变更执行器纳管状态，并同步其绑定 Redis 实例的纳管状态
      *
      * 前端默认实例列表/拓扑/报告只查询 management_status=1；执行器注册时默认为 0
      */
@@ -336,7 +388,9 @@ public class ExecutorInfoServiceImpl extends ServiceImpl<ExecutorInfoMapper, Exe
 
     /*执行器记录存在且实例id非空串，则已绑定*/
     private Boolean isBound(ExecutorInfo agent) {
-        return agent != null && !agent.getInstanceId().trim().isEmpty();
+        return agent != null
+                && agent.getInstanceId() != null
+                && !agent.getInstanceId().trim().isEmpty();
     }
 
     /*判断是否存在redisInfo */

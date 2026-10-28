@@ -1,6 +1,9 @@
 package com.danuvius.platform.model.dto.alarm.record;
 
 import lombok.Data;
+import org.springframework.format.annotation.DateTimeFormat;
+
+import java.time.LocalDateTime;
 
 /**
  * 告警记录分页查询请求
@@ -24,10 +27,12 @@ public class RecordPageRequest {
     private String keyword;
 
     /** 开始时间（可选），格式 yyyy-MM-dd HH:mm:ss */
-    private String startTime;
+    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime startTime;
 
     /** 结束时间（可选），格式 yyyy-MM-dd HH:mm:ss */
-    private String endTime;
+    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime endTime;
 
     /** 页码，默认 1 */
     private Integer pageNum = 1;

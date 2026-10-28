@@ -22,6 +22,7 @@ public class SentinelNodeReportDTO implements Serializable {
     /** 哨兵状态：0=离线 / 1=在线 */
     private String sentinelStatus;
 
-    /** 该哨兵监听的 master 名称（仅用于日志追踪，平台暂不落库） */
+    /** 该哨兵监听的 master 名称 */
     private String masterName;
+
 }

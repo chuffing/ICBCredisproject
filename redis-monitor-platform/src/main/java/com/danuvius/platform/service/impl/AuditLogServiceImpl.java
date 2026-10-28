@@ -108,8 +108,8 @@ public class AuditLogServiceImpl extends ServiceImpl<AuditLogMapper, AuditLog>
                                 .or()
                                 .like(AuditLog::getOperatorName, req.getKeyword())
                 )
-                .ge(StringUtils.isNotBlank(req.getStartTime()), AuditLog::getOperationTime,req.getStartTime())
-                .le(StringUtils.isNotBlank(req.getEndTime()), AuditLog::getOperationTime,req.getEndTime())
+                .ge(req.getStartTime()!=null,AuditLog::getOperationTime,req.getStartTime())
+                .le(req.getEndTime()!=null,AuditLog::getOperationTime,req.getEndTime())
                 .orderByDesc(AuditLog::getOperationTime)
         );
 

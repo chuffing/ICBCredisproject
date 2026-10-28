@@ -113,7 +113,7 @@ public class AlarmRuleServiceImpl extends ServiceImpl<AlarmRuleMapper, AlarmRule
         String alarmLevel=req.getAlarmLevel();
         List<String> scopeInstanceIds=req.getScopeInstanceIds();
         String enableStatus=req.getEnableStatus();
-
+        log.info("alarmLevel:"+alarmLevel);
 
         Page<AlarmRule> page = page(new Page<>(pageNum, pageSize), Wrappers.<AlarmRule>lambdaQuery()
                 .eq(StringUtils.isNotBlank(alarmLevel),AlarmRule::getAlarmLevel, alarmLevel)

@@ -80,7 +80,7 @@ public class MetricLogServiceImpl extends ServiceImpl<MetricLogMapper, MetricLog
         String instanceId = executor.getInstanceId();
         if (instanceId == null || instanceId.trim().isEmpty()) {
             throw new BusinessException(BusinessCode.NOT_FOUND_ERROR.getCode(),"执行器尚未完成 Redis 安装与实例绑定，" +
-                    "请执行器在本地 Redis 就绪后携带 redisReady=true 与 redisInfo 再次调用 /agent/register");
+                    "请执行器在本地 Redis 就绪后再次注册");
         }
 
         // 平台内部回填
@@ -108,7 +108,12 @@ public class MetricLogServiceImpl extends ServiceImpl<MetricLogMapper, MetricLog
         metricLog.setCollectType(metric.getCollectType());
         metricLog.setCreatedTime(now);
         metricLog.setUpdatedTime(now);
-        metricLogMapper.insert(metricLog);
+        int rows=metricLogMapper.insert(metricLog);
+        if(rows>0){
+            log.info("监控指标数据采集表插入记录：{}",CommonConstant.SUCCESS);
+        }else{
+            log.error("监控指标数据采集表插入记录：{}",CommonConstant.FAILURE);
+        }
 
         // 采集上报成功时同步更新redis_instance 最后心跳时间与运行状态
         redisInstanceService.updateHeartbeatAndStatus(metric.getInstanceId(), now, CommonConstant.RUN_NORMAL);
@@ -142,7 +147,13 @@ public class MetricLogServiceImpl extends ServiceImpl<MetricLogMapper, MetricLog
         ns.setErrorMsg(metric.getErrorMsg());
         ns.setCreatedTime(now);
         ns.setUpdatedTime(now);
-        nodeStatusMapper.insert(ns);
+
+        rows=nodeStatusMapper.insert(ns);
+        if(rows>0){
+            log.info("节点状态采集表插入记录：{}",CommonConstant.SUCCESS);
+        }else{
+            log.error("节点状态采集表插入记录：{}",CommonConstant.FAILURE);
+        }
 
         // 同一次上报携带的 Sentinel 节点：与指标一起处理，失败不影响指标入库
         if (metric.getSentinels() != null && !metric.getSentinels().isEmpty()) {

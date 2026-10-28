@@ -1,8 +1,10 @@
 package com.danuvius.platform.model.dto.audit;
 
 import lombok.Data;
+import org.springframework.format.annotation.DateTimeFormat;
 
 import java.io.Serializable;
+import java.time.LocalDateTime;
 
 /** 操作审计分页查询请求 */
 @Data
@@ -18,10 +20,12 @@ public class AuditLogPageRequest implements Serializable {
     private String keyword;
 
     /** 开始时间，格式 yyyy-MM-dd HH:mm:ss */
-    private String startTime;
+    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime startTime;
 
     /** 结束时间，格式 yyyy-MM-dd HH:mm:ss */
-    private String endTime;
+    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime endTime;
 
     /** 页码，默认 1 */
     private Integer pageNum = 1;

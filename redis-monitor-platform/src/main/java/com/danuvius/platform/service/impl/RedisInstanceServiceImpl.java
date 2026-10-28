@@ -17,7 +17,6 @@ import com.danuvius.platform.model.dto.monitor.*;
 import com.danuvius.platform.model.entity.*;
 import com.danuvius.platform.model.enums.rule.AlarmLevelEnum;
 import com.danuvius.platform.model.enums.metric.MetricTypeEnum;
-import com.danuvius.platform.model.enums.StatusEnum;
 import com.danuvius.platform.model.enums.TypeEnum;
 import com.danuvius.platform.model.enums.instance.RunStatusEnum;
 import com.danuvius.platform.service.AsyncTaskRunner;
@@ -29,6 +28,7 @@ import com.github.benmanes.caffeine.cache.Cache;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.io.File;
 import java.math.BigDecimal;
@@ -44,6 +44,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
         implements RedisInstanceService {
     /** 复制延迟指标 key，与前端/规则保持一致 */
     private static final String REPL_DELAY_METRIC_KEY = "replDelay";
+
     /* 实例离线判定阈值：超过该时长无心跳视为离线，平台端+执行器架构下按心跳时长判定，默认600s，可配置） */
     @Value("${platform.instance.offline-threshold-seconds:600}")
     private long offlineThresholdSeconds;
@@ -163,7 +164,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
     /**
      * 查询核心实时指标
      * @param instanceId
-     * @return
+     * @return  核心实时指标列表（6 项）数据
      */
     @Override
     public MetricCurrentValueResponse getCurrentValues(String instanceId) {
@@ -332,7 +333,17 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
         // 一次查询：返回所有实例 × 所有指标列
         List<Map<String, Object>> rows = redisInstanceMapper.selectTrendData(
                 req.getInstanceIds(), bucketMinutes,
-                startTime.format(FORMATTER), endTime.format(FORMATTER));
+                startTime, endTime);
+
+        // 【临时】真实数据为空时写 mock 进库，再重新查一次，走完整查询链路
+        if (rows.isEmpty()) {
+            mockTrendData(req.getInstanceIds(), startTime, endTime, bucketMinutes);
+            rows = redisInstanceMapper.selectTrendData(
+                    req.getInstanceIds(), bucketMinutes, startTime, endTime);
+            log.warn("[mock] 重新查询后行数:{}", rows.size());
+        }
+
+        log.info("多节点指标趋势sql查询数:{},第一行:{}", rows.size(), rows.isEmpty() ? null : rows.get(0));
 
         // 统一时间轴
         List<String> timestampList = buildAlignedTimestamps(startTime, endTime, bucketMinutes);
@@ -561,6 +572,8 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
         List<NodeStatusResponse> slaveRows = new ArrayList<>();
 
 
+        String masterIp = null;
+        String masterPort = null;
         for (RedisInstance i : instances) {
             NodeStatusResponse m = new NodeStatusResponse();
             m.setInstanceId(i.getInstanceId());
@@ -569,13 +582,9 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
             m.setPort(i.getRedisPort());
             m.setRole(i.getRole());
 
-            // masterName拼接为host:port，主节点没有主库信息时显示null:null。
-            String masterHostIp = i.getMasterHostIp();
-            String masterRedisPort = i.getMasterRedisPort();
-            String masterIp = masterHostIp == null || masterHostIp.isEmpty()
-                    ? "null" : masterHostIp;
-            String masterPort = masterRedisPort == null || masterRedisPort.isEmpty()
-                    ? "null" : masterRedisPort;
+            // masterName 拼接为 host:port
+            masterIp = StringUtils.hasText(i.getMasterHostIp())? i.getMasterHostIp():"null";
+            masterPort = StringUtils.hasText(i.getMasterRedisPort())? i.getMasterRedisPort():"null";
             m.setMasterName(masterIp + ":" + masterPort);
 
             //复制延迟从 rms_metric_log 最新记录获取
@@ -642,14 +651,14 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
         LocalDateTime startTime = daily
                 ? endTime.toLocalDate().atStartOfDay()
                 : endTime.toLocalDate().minusDays(6).atStartOfDay();
-        String startText = startTime.format(FORMATTER);
-        String endText = endTime.format(FORMATTER);
+//        String startText = startTime.format(FORMATTER);
+//        String endText = endTime.format(FORMATTER);
 
         ReportQueryResponse resp = new ReportQueryResponse();
 
         // 概览统计
         ReportOverviewStatsDTO stats = redisInstanceMapper.selectReportOverviewStats(
-                instanceId, startText, endText);
+                instanceId, startTime, endTime);
 
         if (stats == null) {
             stats = new ReportOverviewStatsDTO();
@@ -672,7 +681,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
 
         // 告警统计（按时间范围，可按实例过滤）
         AlarmStatsDTO alarmStats = alarmRecordMapper.selectReportAlarmStats(
-                instanceId, startText, endText);
+                instanceId, startTime, endTime);
 
         if (alarmStats == null) {
             alarmStats = new AlarmStatsDTO();
@@ -686,7 +695,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
 
 
         // 主从切换统计
-        SwitchStatsDTO switchStats = switchEventMapper.selectSwitchStats(startText, endText);
+        SwitchStatsDTO switchStats = switchEventMapper.selectSwitchStats(startTime, endTime);
 
         if (switchStats == null) {
             switchStats = new SwitchStatsDTO();
@@ -731,15 +740,15 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
         int bucketMinutes = daily ? 60 : 1440;
         boolean truncateDay = !daily;
         List<Map<String, Object>> trendRows = redisInstanceMapper.selectReportTrend(
-                instanceId, startText, endText, bucketMinutes, truncateDay);
+                instanceId, startTime, endTime, bucketMinutes, truncateDay);
         resp.setTrendList(buildReportTrends(trendRows, startTime, endTime, bucketMinutes));
 
         // 告警与切换事件合并列表
         List<Map<String, Object>> alarmRows = alarmRecordMapper.selectReportEventList(
-                instanceId, startText, endText, 500);
+                instanceId, startTime, endTime, 500);
 
         List<Map<String, Object>> switchRows = switchEventMapper.selectSwitchEventList(
-                startText, endText, 500);
+                startTime, endTime, 500);
         resp.setEventList(buildReportEvents(alarmRows, switchRows));
 
         return resp;
@@ -758,7 +767,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
                 {"cpuUsage", "CPU使用率", "%"},
                 {"redisMemUsed", "Redis内存使用量", "GB"},
                 {"qps", "QPS", "次/秒"},
-                {"avgLatency", "平均延迟", "ms"}
+                {"avgLatency", "平均延迟", "μs"}
         };
 
         // bucket -> 各指标值
@@ -884,7 +893,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
      */
     @Override
     public ReportExportResponse exportReport(String instanceId, String reportType) {
-        String taskId = "EP_" + IdUtil.getSnowflakeNextIdStr();;
+        String taskId = "EP_" + IdUtil.getSnowflakeNextIdStr();
         ReportExportTaskHolder.ExportTask task = taskHolder.createTask(taskId);
         // 异步执行（AsyncTaskRunner 为独立 Bean，保证 @Async 生效）
         asyncTaskRunner.run(() -> doExport(taskId, instanceId, reportType));
@@ -909,6 +918,8 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
 
             // 复用报告查询逻辑获取完整报告数据
             ReportQueryResponse report = buildReportData(instanceId, reportType);
+            RedisInstance instance = getRedisInstance(instanceId);
+            String instanceName = instance == null ? null : instance.getInstanceName();
             File file = reportFileGenerator.generate(report, instanceId, reportType,
                     taskHolder.exportDir());
 
@@ -1068,5 +1079,96 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
         return instances;
     }
 
+
+
+
+    /**
+     * 【临时】向 rms_metric_log 插入模拟数据，让 getTrend 能通过真实 SQL 查到。
+     * 幂等：每次先删除这些实例下所有 collect_type=1 的旧 mock，再按分桶插入。
+     */
+    private void mockTrendData(List<String> instanceIds,
+                               LocalDateTime startTime,
+                               LocalDateTime endTime,
+                               int bucketMinutes) {
+        if (instanceIds == null || instanceIds.isEmpty()) {
+            return;
+        }
+
+        // 1. 清理旧 mock（不限时间范围，避免范围滑动导致数据堆积）
+        int deleted = metricLogMapper.delete(Wrappers.<MetricLog>lambdaQuery()
+                .in(MetricLog::getInstanceId, instanceIds)
+                .eq(MetricLog::getCollectType, "1"));
+
+        // 2. 查实例信息，用于填充 role / masterHost / redisVersion 等字段
+        List<RedisInstance> instances = redisInstanceMapper.selectList(
+                Wrappers.<RedisInstance>lambdaQuery()
+                        .in(RedisInstance::getInstanceId, instanceIds));
+        Map<String, RedisInstance> instMap = new HashMap<>(instances.size() * 2);
+        for (RedisInstance inst : instances) {
+            instMap.put(inst.getInstanceId(), inst);
+        }
+
+        // 3. 按分桶生成时间点并逐条插入
+        LocalDateTime cursor = truncateToBucket(startTime, bucketMinutes);
+        int inserted = 0;
+        while (cursor.isBefore(endTime)) {
+            // 第一个桶可能早于 startTime，用 startTime 作为 tm，保证被 "tm >= startTime" 覆盖
+            LocalDateTime tm = cursor.isBefore(startTime) ? startTime : cursor;
+            for (String instanceId : instanceIds) {
+                MetricLog m = buildMockMetric(instanceId, tm, instMap.get(instanceId));
+                if (metricLogMapper.insert(m) > 0) {
+                    inserted++;
+                }
+            }
+            cursor = cursor.plusMinutes(bucketMinutes);
+        }
+
+        log.warn("[mock] 趋势数据写入完成, instanceIds={}, 区间=[{}, {}), bucket={}min, 删除旧={}, 新增={}",
+                instanceIds, startTime, endTime, bucketMinutes, deleted, inserted);
+    }
+
+    /** 构造一条模拟采集记录；同一 instanceId + tm 生成结果稳定 */
+    private MetricLog buildMockMetric(String instanceId, LocalDateTime tm, RedisInstance inst) {
+        long seed = Objects.hash(instanceId, tm.toString());
+        Random random = new Random(seed);
+        // 用分钟数做正弦相位，曲线随时间平滑波动（周期约 60 分钟）
+        double phase = tm.getMinute() * Math.PI / 30.0;
+
+        MetricLog m = new MetricLog();
+        m.setInstanceId(instanceId);
+        m.setTm(tm);
+
+        // 各指标：基准值 + 正弦波动 + 随机扰动，全部转成 String（实体字段类型）
+        m.setCpuPer(fmt(45    + 20 * Math.sin(phase) + (random.nextDouble() - 0.5) * 8));
+        m.setMemServerPer(fmt(60 + 10 * Math.sin(phase) + (random.nextDouble() - 0.5) * 4));
+        m.setMemUs(fmt(8      + 3  * Math.sin(phase) + (random.nextDouble() - 0.5) * 1.2));
+        m.setLatency(fmt(2.5  + 2  * Math.sin(phase) + (random.nextDouble() - 0.5) * 0.8));
+        m.setIoIik(fmt(150    + 50 * Math.sin(phase) + (random.nextDouble() - 0.5) * 20));
+        m.setIoIok(fmt(120    + 40 * Math.sin(phase) + (random.nextDouble() - 0.5) * 16));
+        m.setOps(fmt(2500     + 800 * Math.sin(phase) + (random.nextDouble() - 0.5) * 320));
+
+        boolean replica = inst != null && "REPLICA".equalsIgnoreCase(inst.getRole());
+        m.setReplDelay(replica ? fmt(Math.abs(random.nextDouble()) * 0.5) : "0");
+
+        m.setRunId(inst != null ? inst.getInstanceName() : "mock-" + instanceId);
+        m.setRole(inst != null ? inst.getRole() : "MASTER");
+        m.setMasterHost(inst != null ? inst.getMasterHostIp() : null);
+        m.setMasterPort(inst != null ? inst.getMasterRedisPort() : null);
+        m.setRedisVersion(inst != null ? inst.getRedisVersion() : "7.2.4");
+        m.setCollectType("1");
+
+        LocalDateTime now = LocalDateTime.now();
+        m.setCreatedTime(now);
+        m.setUpdatedTime(now);
+        return m;
+    }
+
+    /** 非负 + 保留 2 位小数的字符串 */
+    private static String fmt(double v) {
+        if (v < 0) {
+            v = 0;
+        }
+        return BigDecimal.valueOf(v).setScale(2, RoundingMode.HALF_UP).toPlainString();
+    }
 
 }

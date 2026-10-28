@@ -109,7 +109,9 @@
             AND (r.alarm_no LIKE CONCAT('%',#{keyword},'%')
             OR r.alarm_content LIKE CONCAT('%',#{keyword},'%'))
         </if>
-        AND r.trigger_time BETWEEN #{startTime} AND #{endTime}
+        <if test="startTime != null and endTime != null">
+            AND r.trigger_time BETWEEN #{startTime} AND #{endTime}
+        </if>
         ORDER BY r.trigger_time DESC
     </select>
 

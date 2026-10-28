@@ -25,18 +25,18 @@ public interface RedisInstanceMapper extends BaseMapper<RedisInstance> {
      */
     List<Map<String, Object>> selectTrendData(@Param("instanceIds") List<String> instanceIds,
                                               @Param("bucketMinutes") int bucketMinutes,
-                                              @Param("startTime") String startTime,
-                                              @Param("endTime") String endTime);
+                                              @Param("startTime") LocalDateTime startTime,
+                                              @Param("endTime") LocalDateTime endTime);
 
     /* 日周报概览统计：4项指标均值/峰值/峰值时间 + 采集点数 */
     ReportOverviewStatsDTO selectReportOverviewStats(@Param("instanceId") String instanceId,
-                                                     @Param("startTime") String startTime,
-                                                     @Param("endTime") String endTime);
+                                                     @Param("startTime") LocalDateTime startTime,
+                                                     @Param("endTime") LocalDateTime endTime);
 
     /* 日周报4项指标趋势序列,当天按小时聚合，近7天按天聚合 */
     List<Map<String, Object>> selectReportTrend(@Param("instanceId") String instanceId,
-                                                @Param("startTime") String startTime,
-                                                @Param("endTime") String endTime,
+                                                @Param("startTime") LocalDateTime startTime,
+                                                @Param("endTime") LocalDateTime endTime,
                                                 @Param("bucketMinutes") int bucketMinutes,
                                                 @Param("truncateDay") boolean truncateDay);
 

@@ -1,18 +1,20 @@
 package com.danuvius.platform.controller;
 
-import com.danuvius.platform.common.BaseResponse;
-import com.danuvius.platform.common.ResultUtils;
-import com.danuvius.platform.common.exception.BusinessCode;
-import com.danuvius.platform.common.exception.validator.*;
+import com.danuvius.platform.common.core.ResultBean;
+import com.danuvius.platform.common.exception.ErrorCode;
+import com.danuvius.platform.common.exception.validator.IdValidator;
+import com.danuvius.platform.common.exception.validator.StringValidator;
 import com.danuvius.platform.model.dto.alarm.record.*;
 import com.danuvius.platform.model.dto.alarm.rule.*;
 import com.danuvius.platform.service.AlarmRecordService;
 import com.danuvius.platform.service.AlarmRuleService;
 import com.danuvius.platform.util.validate.*;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Slf4j
 @RestController
 @RequestMapping("/alarm")
 public class AlarmController {
@@ -31,11 +33,12 @@ public class AlarmController {
      * @return
      */
     @GetMapping("/rule/list")
-    public BaseResponse<RulePageResponse> getAlarmRuleList( RuleListRequest req) {
+    public ResultBean<RulePageResponse> getAlarmRuleList( RuleListRequest req) {
         RuleListRequestValidator.validate(req);
+        log.info("告警规则列表查询接口：{}", req.toString());
 
         RulePageResponse rulePageResponse =alarmRuleService.getRulePage(req);
-        return ResultUtils.success(rulePageResponse);
+        return ResultBean.restResult(rulePageResponse, ErrorCode.OK);
     }
 
     /**
@@ -44,11 +47,12 @@ public class AlarmController {
      * @return 返回新增规则id
      */
     @PostMapping("/rule/add")
-    public BaseResponse<String> addRule( @RequestBody RuleAddRequest req) {
+    public ResultBean<String> addRule( @RequestBody RuleAddRequest req) {
         RuleAddRequestValidator.validate(req);
+        log.info("新增告警规则接口：{}", req.toString());
 
         String ruleId = alarmRuleService.addRule(req);
-        return ResultUtils.success(ruleId);
+        return ResultBean.restResult(ruleId, ErrorCode.OK);
     }
 
     /**
@@ -57,14 +61,15 @@ public class AlarmController {
      * @return
      */
     @PostMapping("/rule/update")
-    public BaseResponse<Boolean> updateRule( @RequestBody UpdateRequest req) {
+    public ResultBean<Boolean> updateRule( @RequestBody UpdateRequest req) {
         UpdateRequestValidator.validate(req);
+        log.info("修改告警规则接口：{}", req.toString());
 
         Boolean result=alarmRuleService.updateRule(req);
         if(result){
-            return ResultUtils.success(result);
+            return ResultBean.restResult(result, ErrorCode.OK);
         }
-        else return ResultUtils.error(BusinessCode.OPERATION_ERROR);
+        else return ResultBean.restResult(null, ErrorCode.OPERATION_ERROR);
     }
 
     /**
@@ -73,15 +78,15 @@ public class AlarmController {
      * @return
      */
     @PostMapping("/rule/delete")
-    public BaseResponse<Boolean> deleteRule( @RequestParam(required = false) String ruleId) {
+    public ResultBean<Boolean> deleteRule( @RequestParam(required = false) String ruleId) {
         StringValidator.notBlank(ruleId, "ruleId");
         IdValidator.check(ruleId,"RL_",32,"ruleId");
 
         Boolean result=alarmRuleService.deleteRule(ruleId);
         if(result){
-            return ResultUtils.success(result);
+            return ResultBean.restResult(result, ErrorCode.OK);
         }
-        else return ResultUtils.error(BusinessCode.OPERATION_ERROR);
+        else return ResultBean.restResult(null, ErrorCode.OPERATION_ERROR);
     }
 
     /**
@@ -90,14 +95,15 @@ public class AlarmController {
      * @return
      */
     @PostMapping("/rule/toggle-status")
-    public BaseResponse<Boolean> toggleStatus( @RequestBody RuleToggleRequest req) {
+    public ResultBean<Boolean> toggleStatus( @RequestBody RuleToggleRequest req) {
         RuleToggleRequestValidator.validate(req);
+        log.info("告警规则状态切换接口：{}", req.toString());
 
         Boolean result=alarmRuleService.toggleStatus(req.getRuleId(), req.getEnableStatus());
         if(result){
-            return ResultUtils.success(result);
+            return ResultBean.restResult(result, ErrorCode.OK);
         }
-        else return ResultUtils.error(BusinessCode.OPERATION_ERROR);
+        else return ResultBean.restResult(null, ErrorCode.OPERATION_ERROR);
     }
 
     /**
@@ -106,11 +112,11 @@ public class AlarmController {
      * @return
      */
     @PostMapping("/rule/trigger-check")
-    public BaseResponse<String> triggerCheck( @RequestParam(required = false) String ruleId) {
+    public ResultBean<String> triggerCheck( @RequestParam(required = false) String ruleId) {
         StringValidator.notBlank(ruleId, "ruleId");
         IdValidator.check(ruleId,"RL_",32,"ruleId");
 
-        return ResultUtils.success(alarmRuleService.triggerCheck(ruleId));
+        return ResultBean.restResult(alarmRuleService.triggerCheck(ruleId), ErrorCode.OK);
     }
 
     /**
@@ -118,9 +124,9 @@ public class AlarmController {
      * @return
      */
     @PostMapping("/rule/trigger-all-check")
-    public BaseResponse<String> triggerAllCheck() {
+    public ResultBean<String> triggerAllCheck() {
 
-        return ResultUtils.success(alarmRuleService.triggerAllCheck());
+        return ResultBean.restResult(alarmRuleService.triggerAllCheck(), ErrorCode.OK);
     }
 
     /**
@@ -128,9 +134,10 @@ public class AlarmController {
      * @return
      */
     @GetMapping("/rule/overview")
-    public BaseResponse<RuleOverviewDTO> ruleOverview() {
+    public ResultBean<RuleOverviewDTO> ruleOverview() {
+        log.info("告警监控页概览统计接口");
 
-        return ResultUtils.success(alarmRuleService.getRuleOverview());
+        return ResultBean.restResult(alarmRuleService.getRuleOverview(), ErrorCode.OK);
     }
 
     /**
@@ -138,8 +145,10 @@ public class AlarmController {
      * @return
      */
     @GetMapping("/rule/recent-unrecovered")
-    public BaseResponse<List<RecordItemResponse>> recentUnrecovered() {
-        return ResultUtils.success(alarmRecordService.getRecentUnrecovered());
+    public ResultBean<List<RecordItemResponse>> recentUnrecovered() {
+        log.info("未恢复告警列表接口");
+
+        return ResultBean.restResult(alarmRecordService.getRecentUnrecovered(), ErrorCode.OK);
     }
 
     /**
@@ -147,8 +156,10 @@ public class AlarmController {
      * @return
      */
     @GetMapping("/rule/recent")
-    public BaseResponse<List<RecordItemResponse>> recent() {
-        return ResultUtils.success(alarmRecordService.getRecent());
+    public ResultBean<List<RecordItemResponse>> recent() {
+        log.info("最近告警列表接口");
+
+        return ResultBean.restResult(alarmRecordService.getRecent(), ErrorCode.OK);
     }
 
     /**
@@ -156,8 +167,10 @@ public class AlarmController {
      * @return
      */
     @GetMapping("/record/overview")
-    public BaseResponse<RecordOverviewResponse> recordOverview() {
-        return ResultUtils.success(alarmRecordService.getRecordOverview());
+    public ResultBean<RecordOverviewResponse> recordOverview() {
+        log.info("告警记录页概览统计接口，最近3天");
+
+        return ResultBean.restResult(alarmRecordService.getRecordOverview(), ErrorCode.OK);
     }
 
 
@@ -167,10 +180,11 @@ public class AlarmController {
      * @return
      */
     @GetMapping("/record/page")
-    public BaseResponse<RecordPageResponse> recordPage( RecordPageRequest req) {
+    public ResultBean<RecordPageResponse> recordPage( RecordPageRequest req) {
         RecordPageRequestValidator.validate(req);
+        log.info("告警分页查询接口{}", req.toString());
 
-        return ResultUtils.success(alarmRecordService.getRecordPage(req));
+        return ResultBean.restResult(alarmRecordService.getRecordPage(req), ErrorCode.OK);
     }
 
     /**
@@ -179,10 +193,11 @@ public class AlarmController {
      * @return
      */
     @GetMapping("/record/detail")
-    public BaseResponse<RecordDetailResponse> recordDetail(@RequestParam String alarmRecordId) {
+    public ResultBean<RecordDetailResponse> recordDetail(@RequestParam String alarmRecordId) {
         IdValidator.snowflake(alarmRecordId, "alarmRecordId");
+        log.info("告警记录详情接口{}", alarmRecordId);
 
-        return ResultUtils.success(alarmRecordService.getRecordDetail(alarmRecordId));
+        return ResultBean.restResult(alarmRecordService.getRecordDetail(alarmRecordId), ErrorCode.OK);
     }
 
     /**
@@ -191,10 +206,11 @@ public class AlarmController {
      * @return
      */
     @GetMapping("/record/metric-trend")
-    public BaseResponse<RecordMetricTrendResponse> metricTrend(@RequestParam  String alarmRecordId) {
+    public ResultBean<RecordMetricTrendResponse> metricTrend(@RequestParam  String alarmRecordId) {
         IdValidator.snowflake(alarmRecordId, "alarmRecordId");
+        log.info("告警关联指标波动曲线接口{}", alarmRecordId);
 
-        return ResultUtils.success(alarmRecordService.getMetricTrend(alarmRecordId));
+        return ResultBean.restResult(alarmRecordService.getMetricTrend(alarmRecordId), ErrorCode.OK);
     }
 
     /**
@@ -203,14 +219,15 @@ public class AlarmController {
      * @return
      */
     @PostMapping("/record/recover")
-    public BaseResponse<Boolean> recoverRecord( @RequestParam String alarmRecordId) {
+    public ResultBean<Boolean> recoverRecord( @RequestParam String alarmRecordId) {
         IdValidator.snowflake(alarmRecordId, "alarmRecordId");
+        log.info("告警人工确认恢复接口{}", alarmRecordId);
 
         Boolean result = alarmRecordService.recoverAlarm(alarmRecordId);
         if (result) {
-            return ResultUtils.success(result);
+            return ResultBean.restResult(result, ErrorCode.OK);
         }
-        else return ResultUtils.error(BusinessCode.OPERATION_ERROR);
+        else return ResultBean.restResult(null, ErrorCode.OPERATION_ERROR);
     }
 
 }

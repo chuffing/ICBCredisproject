@@ -52,7 +52,7 @@ public class CommonConstant {
     );
 
     /** [校验] 单位取值值 */
-    public static final List<String> UNIT_TYPES = Arrays.asList("%", "GB","次/秒","ms","s","KB/s");
+    public static final List<String> UNIT_TYPES = Arrays.asList("%", "GB","次/秒","ms","s","KB/s","μs");
 
     public static final List<String> ROLE_TYPES = Arrays.asList("MASTER", "REPLICA");
     /** Redis run_id：40 位小写十六进制 */

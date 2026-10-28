@@ -13,7 +13,7 @@ public enum MetricTypeEnum {
     SERVER_MEM_USAGE("serverMemUsage", "服务器内存使用率", "%"),
     REDIS_MEM_USED("redisMemUsed", "Redis内存使用量", "GB"),
     QPS("qps", "QPS", "次/秒"),
-    AVG_LATENCY("avgLatency", "平均延迟", "ms"),
+    AVG_LATENCY("avgLatency", "平均延迟", "μs"),
     NET_INPUT_BANDWIDTH("netInputBandwidth", "网络输入带宽", "KB/s"),
     NET_OUTPUT_BANDWIDTH("netOutputBandwidth", "网络输出带宽", "KB/s"),
 

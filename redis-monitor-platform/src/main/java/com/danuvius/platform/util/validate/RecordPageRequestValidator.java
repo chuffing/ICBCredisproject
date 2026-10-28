@@ -28,6 +28,6 @@ public class RecordPageRequestValidator {
             StringValidator.maxLength(req.getKeyword(), 128, "keyword");
         }
 
-        DateValidator.stringRange(req.getStartTime(), req.getEndTime(), "startTime", "endTime");
+        DateValidator.range(req.getStartTime(), req.getEndTime(), "startTime", "endTime");
     }
 }

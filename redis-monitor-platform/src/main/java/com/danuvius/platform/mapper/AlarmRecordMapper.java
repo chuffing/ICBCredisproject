@@ -29,21 +29,21 @@ public interface AlarmRecordMapper extends BaseMapper<AlarmRecord> {
                                                @Param("metricKey") String metricKey,
                                                @Param("recoverStatus") String recoverStatus,
                                                @Param("keyword") String keyword,
-                                               @Param("startTime") String startTime,
-                                               @Param("endTime") String endTime);
+                                               @Param("startTime") LocalDateTime startTime,
+                                               @Param("endTime") LocalDateTime endTime);
 
 
 
     /*日周报告警明细：关联实例表补充节点 IP:Port 展示 */
     List<Map<String, Object>> selectReportEventList(@Param("instanceId") String instanceId,
-                                                    @Param("startTime") String startTime,
-                                                    @Param("endTime") String endTime,
+                                                    @Param("startTime") LocalDateTime startTime,
+                                                    @Param("endTime") LocalDateTime endTime,
                                                     @Param("limit") int limit);
 
     /*日周报告警统计：总数与分级统计 */
     AlarmStatsDTO selectReportAlarmStats(@Param("instanceId") String instanceId,
-                                         @Param("startTime") String startTime,
-                                         @Param("endTime") String endTime);
+                                         @Param("startTime") LocalDateTime startTime,
+                                         @Param("endTime") LocalDateTime endTime);
 
 
 }

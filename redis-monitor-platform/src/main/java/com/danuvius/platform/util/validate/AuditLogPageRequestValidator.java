@@ -24,9 +24,11 @@ public class AuditLogPageRequestValidator {
 
         }
 
-        StringValidator.notNull(req.getKeyword(),  "keyword");
+        // keyword 为可选模糊查询条件，未传时不做非空校验
         StringValidator.maxLength(req.getKeyword(), 128, "keyword");
 
-        DateValidator.stringRange(req.getStartTime(), req.getEndTime(), "startTime", "endTime");
+        if(req.getStartTime()!=null&&req.getEndTime()!=null) {
+            DateValidator.range(req.getStartTime(), req.getEndTime(), "startTime", "endTime");
+        }
     }
 }

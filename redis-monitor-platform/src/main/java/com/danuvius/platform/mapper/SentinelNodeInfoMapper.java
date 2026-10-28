@@ -3,7 +3,6 @@ package com.danuvius.platform.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.danuvius.platform.model.entity.SentinelNodeInfo;
 import org.apache.ibatis.annotations.Mapper;
-import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 @Mapper

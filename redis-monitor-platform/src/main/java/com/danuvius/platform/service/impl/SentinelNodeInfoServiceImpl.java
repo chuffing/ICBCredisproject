@@ -47,9 +47,9 @@ public class SentinelNodeInfoServiceImpl extends ServiceImpl<SentinelNodeInfoMap
     }
 
     /**
-     * Sentinel 节点列表。
+     * Sentinel 节点列表
      * 在线状态判定：执行器上报状态为在线，且有心跳、心跳未超时，判为在线；
-     * 否则判为离线（执行器明确上报离线时，即使刚刚上报也展示离线）。
+     * 否则判为离线（执行器明确上报离线时，即使刚刚上报也展示离线）
      */
     @Override
     public List<SentinelItemResponse> getSentinelList(String managementStatus) {
@@ -95,12 +95,12 @@ public class SentinelNodeInfoServiceImpl extends ServiceImpl<SentinelNodeInfoMap
     }
 
     /**
-     * 处理随指标一起上报的 Sentinel 节点。
+     * 处理随指标一起上报的 Sentinel 节点
      *
-     * <p>哨兵节点由执行器自动发现，平台没有独立的手工纳管入口：
+     * 哨兵节点由执行器自动发现，平台没有独立的手工纳管入口：
      * 新节点沿用执行器的纳管状态（执行器未纳管时哨兵也不进默认列表），
-     * 执行器纳管后下一次上报会把已存在哨兵置为已纳管。
-     * 以 nodeIp + nodePort 作为业务唯一键做 upsert。</p>
+     * 执行器纳管后下一次上报会把已存在哨兵置为已纳管
+     * 以 nodeIp + nodePort 作为业务唯一键做 upsert
      */
     @Override
     public int reportNodes(ExecutorInfo executor, List<SentinelNodeReportDTO> nodes) {
@@ -121,7 +121,7 @@ public class SentinelNodeInfoServiceImpl extends ServiceImpl<SentinelNodeInfoMap
             SentinelNodeInfo exist = sentinelMapper.selectOne(Wrappers.<SentinelNodeInfo>lambdaQuery()
                     .eq(SentinelNodeInfo::getNodeIp, ip)
                     .eq(SentinelNodeInfo::getNodePort, port)
-                    .last("LIMIT 1"));
+                    );
 
             String nodeName = dto.getNodeName() != null && !dto.getNodeName().trim().isEmpty()
                     ? dto.getNodeName().trim()

@@ -12,16 +12,14 @@ public class RuleListRequestValidator {
         NumberValidator.valueBetween(req.getPageNum(), 1, 100, "pageNum");
         NumberValidator.valueBetween(req.getPageSize(), 1, 20, "pageSize");
 
-        //正确值/空串
+        //alarmLevel、enableStatus 可选，未传时不做非空
         if (StringUtils.isNotBlank(req.getAlarmLevel())) {
             StringValidator.isEnumValue(req.getAlarmLevel(), CommonConstant.ALARM_LEVELS, "alarmLevel");
         }
-        StringValidator.notNull(req.getAlarmLevel(), "alarmLevel");
 
         if (StringUtils.isNotBlank(req.getEnableStatus())) {
             StringValidator.isEnumValue(req.getEnableStatus(), CommonConstant.ENABLE_STATUS, "enableStatus");
         }
-        StringValidator.notNull(req.getEnableStatus(), "enableStatus");
 
         ListValidator.noNullElement(req.getScopeInstanceIds(), "scopeInstanceIds");
         ListValidator.maxSize(req.getScopeInstanceIds(), 100, "scopeInstanceIds");
