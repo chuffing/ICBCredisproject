@@ -34,7 +34,6 @@ import java.io.File;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
@@ -97,7 +96,6 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
         this.caffeineCache = caffeineCache;
     }
 
-    private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     /**
      * 查询实例列表。
@@ -387,7 +385,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
         List<String> timestamps = new ArrayList<>();
         LocalDateTime cursor = truncateToBucket(start, bucketMinutes);
         while (!cursor.isAfter(end)) {
-            timestamps.add(cursor.format(FORMATTER));
+            timestamps.add(cursor.format(CommonConstant.FORMATTER));
             cursor = cursor.plusMinutes(bucketMinutes);
         }
         return timestamps;
@@ -446,13 +444,13 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
             return null;
         }
         if (bucket instanceof LocalDateTime) {
-            return ((LocalDateTime) bucket).format(FORMATTER);
+            return ((LocalDateTime) bucket).format(CommonConstant.FORMATTER);
         }
         if (bucket instanceof java.sql.Timestamp) {
-            return ((java.sql.Timestamp) bucket).toLocalDateTime().format(FORMATTER);
+            return ((java.sql.Timestamp) bucket).toLocalDateTime().format(CommonConstant.FORMATTER);
         }
         if (bucket instanceof Date) {
-            return new java.sql.Timestamp(((Date) bucket).getTime()).toLocalDateTime().format(FORMATTER);
+            return new java.sql.Timestamp(((Date) bucket).getTime()).toLocalDateTime().format(CommonConstant.FORMATTER);
         }
         String text = bucket.toString();
         // 兼容 "yyyy-MM-dd HH:mm:ss.0" 形式
@@ -651,8 +649,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
         LocalDateTime startTime = daily
                 ? endTime.toLocalDate().atStartOfDay()
                 : endTime.toLocalDate().minusDays(6).atStartOfDay();
-//        String startText = startTime.format(FORMATTER);
-//        String endText = endTime.format(FORMATTER);
+
 
         ReportQueryResponse resp = new ReportQueryResponse();
 

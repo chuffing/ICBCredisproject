@@ -2,6 +2,7 @@ package com.danuvius.platform.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.danuvius.platform.common.constant.CommonConstant;
 import com.danuvius.platform.mapper.AlarmNoticeLogMapper;
 import com.danuvius.platform.model.entity.AlarmNoticeLog;
 import com.danuvius.platform.model.entity.AlarmRecord;
@@ -17,7 +18,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
@@ -41,8 +41,6 @@ import java.util.List;
 @Service
 public class AlarmNoticeServiceImpl extends ServiceImpl<AlarmNoticeLogMapper, AlarmNoticeLog>
         implements AlarmNoticeService {
-
-    private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     /** 通知类型：1=邮件 */
     private static final String NOTICE_TYPE_MAIL = "1";
@@ -123,7 +121,7 @@ public class AlarmNoticeServiceImpl extends ServiceImpl<AlarmNoticeLogMapper, Al
         sb.append("告警内容：").append(record.getAlarmContent()).append("\n");
         sb.append("触发实例：").append(record.getInstanceId()).append("\n");
         sb.append("触发时间：").append(record.getTriggerTime() == null
-                ? "" : record.getTriggerTime().format(FORMATTER)).append("\n");
+                ? "" : record.getTriggerTime().format(CommonConstant.FORMATTER)).append("\n");
         if (rule != null) {
             sb.append("关联规则：").append(rule.getRuleName()).append("\n");
             sb.append("比较方式：").append(rule.getCompareType())

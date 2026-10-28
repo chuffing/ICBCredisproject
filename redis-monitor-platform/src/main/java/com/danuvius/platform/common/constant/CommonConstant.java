@@ -2,11 +2,19 @@ package com.danuvius.platform.common.constant;
 
 import com.danuvius.platform.model.enums.metric.MetricTypeEnum;
 
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
 
 public class CommonConstant {
+
+    public static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    public static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    public static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
+
+
+
     /** [校验] 告警级别合法值 */
     public static final List<String> ALARM_LEVELS = Arrays.asList("1", "2", "3");
     /** [校验] 比较方式合法值 */

@@ -22,11 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
-import java.sql.Timestamp;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -44,7 +40,6 @@ public class AlarmRecordServiceImpl extends ServiceImpl<AlarmRecordMapper, Alarm
     /*告警详情需关联实例信息与通知记录 */
     private final RedisInstanceMapper redisInstanceMapper;
     private final AlarmNoticeService alarmNoticeService;
-    private  final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private final AuditLogMapper auditLogMapper;
 
 
@@ -80,8 +75,6 @@ public class AlarmRecordServiceImpl extends ServiceImpl<AlarmRecordMapper, Alarm
         LocalDateTime end = LocalDateTime.now();
         LocalDateTime start = end.toLocalDate().minusDays(3).atStartOfDay();
 
-//        String startTime = start.toLocalDate().atStartOfDay().format(FORMATTER);
-//        String endTime = end.format(FORMATTER);
         return alarmRecordMapper.selectRecordOverview(start, end);
     }
 
@@ -218,7 +211,7 @@ public class AlarmRecordServiceImpl extends ServiceImpl<AlarmRecordMapper, Alarm
                 dto.setOperatorId(latest.getOperatorId());
                 dto.setOperatorName(latest.getOperatorName());
                 dto.setOperationTime(latest.getOperationTime() == null
-                        ? null : latest.getOperationTime().format(FORMATTER));
+                        ? null : latest.getOperationTime().format(CommonConstant.FORMATTER));
                 dto.setOperationMsg(latest.getOperationContent());
             }
         } catch (Exception e) {

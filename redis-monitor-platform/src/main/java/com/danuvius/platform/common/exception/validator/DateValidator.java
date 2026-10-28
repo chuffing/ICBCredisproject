@@ -1,12 +1,12 @@
 package com.danuvius.platform.common.exception.validator;
 
+import com.danuvius.platform.common.constant.CommonConstant;
 import com.danuvius.platform.common.exception.ParameterCode;
 import com.danuvius.platform.common.exception.ParameterException;
 import org.apache.commons.lang3.StringUtils;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 
 /**
@@ -14,10 +14,6 @@ import java.time.format.DateTimeParseException;
  */
 public final class DateValidator {
 
-    /** 平台统一格式：yyyy-MM-dd HH:mm:ss */
-    public static final DateTimeFormatter DATETIME_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-    /** 日期格式：yyyy-MM-dd */
-    public static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private DateValidator() {
     }
@@ -28,7 +24,7 @@ public final class DateValidator {
             return null;
         }
         try {
-            return LocalDateTime.parse(value.trim(), DATETIME_FMT);
+            return LocalDateTime.parse(value.trim(), CommonConstant.FORMATTER);
         } catch (DateTimeParseException e) {
             throw new ParameterException(ParameterCode.PARAM_DATE_FORMAT_ERROR,
                     "字段[" + fieldName + "]日期格式必须为yyyy-MM-dd HH:mm:ss");
@@ -41,7 +37,7 @@ public final class DateValidator {
             return null;
         }
         try {
-            return LocalDate.parse(value.trim(), DATE_FMT);
+            return LocalDate.parse(value.trim(), CommonConstant.DATE_FMT);
         } catch (DateTimeParseException e) {
             throw new ParameterException(ParameterCode.PARAM_DATE_FORMAT_ERROR,
                     "字段[" + fieldName + "]日期格式必须为yyyy-MM-dd");
