@@ -1,5 +1,6 @@
 package com.danuvius.platform.common.exception;
 
+
 public enum BusinessCode {
 
     SUCCESS(0, "ok"),

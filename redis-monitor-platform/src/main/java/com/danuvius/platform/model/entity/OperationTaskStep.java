@@ -40,7 +40,7 @@ public class OperationTaskStep {
     private String resultJson;
 
     /** 执行器返回的错误码。 */
-    private String errorCode;
+    private Integer errorCode;
 
     /** 步骤失败原因。 */
     private String failureReason;

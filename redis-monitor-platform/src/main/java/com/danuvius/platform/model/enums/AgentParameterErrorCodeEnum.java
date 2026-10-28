@@ -9,34 +9,34 @@ package com.danuvius.platform.model.enums;
 public enum AgentParameterErrorCodeEnum {
 
     /** 任务编号不合法。 */
-    TASK_NO_INVALID("PARAM_001", "任务编号不合法"),
+    TASK_NO_INVALID(40025, "任务编号不合法"),
 
     /** 步骤编号不合法。 */
-    STEP_NO_INVALID("PARAM_002", "步骤编号不合法"),
+    STEP_NO_INVALID(40026, "步骤编号不合法"),
 
     /** 任务类型不能为空。 */
-    TASK_TYPE_EMPTY("PARAM_003", "任务类型不能为空"),
+    TASK_TYPE_EMPTY(40027, "任务类型不能为空"),
 
     /** 任务类型不支持。 */
-    TASK_TYPE_UNSUPPORTED("PARAM_004", "任务类型不支持"),
+    TASK_TYPE_UNSUPPORTED(40028, "任务类型不支持"),
 
     /** 任务参数不合法。 */
-    TASK_PARAM_INVALID("PARAM_005", "任务参数不合法"),
+    TASK_PARAM_INVALID(40029, "任务参数不合法"),
 
     /** 安装包不合法。 */
-    PACKAGE_FILE_INVALID("PARAM_006", "安装包不合法"),
+    PACKAGE_FILE_INVALID(40021, "安装包不合法"),
 
     /** 安装包摘要不一致。 */
-    PACKAGE_CHECKSUM_MISMATCH("PARAM_007", "安装包摘要不一致"),
+    PACKAGE_CHECKSUM_MISMATCH(40022, "安装包摘要不一致"),
 
     /** 配置文件不合法。 */
-    CONFIG_FILE_INVALID("PARAM_008", "配置文件不合法"),
+    CONFIG_FILE_INVALID(40023, "配置文件不合法"),
 
     /** 配置文件摘要不一致。 */
-    CONFIG_CHECKSUM_MISMATCH("PARAM_009", "配置文件摘要不一致");
+    CONFIG_CHECKSUM_MISMATCH(40024, "配置文件摘要不一致");
 
     /** 错误码。 */
-    private final String code;
+    private final Integer code;
 
     /** 错误说明。 */
     private final String msg;
@@ -47,12 +47,12 @@ public enum AgentParameterErrorCodeEnum {
      * @param code 错误码
      * @param msg 错误说明
      */
-    AgentParameterErrorCodeEnum(String code, String msg) {
+    AgentParameterErrorCodeEnum(Integer code, String msg) {
         this.code = code;
         this.msg = msg;
     }
 
-    public String getCode() {
+    public Integer getCode() {
         return code;
     }
 

@@ -189,7 +189,7 @@ SELECT
     'SUCCESS',
     '{}',
     jsonb_build_object('success', true, 'message', '测试步骤执行成功'),
-    '',
+    NULL,
     '',
     LOCALTIMESTAMP - INTERVAL '3 hours' + (stages.step_no * INTERVAL '1 minute'),
     LOCALTIMESTAMP - INTERVAL '3 hours' + (stages.step_no * INTERVAL '1 minute 10 seconds'),

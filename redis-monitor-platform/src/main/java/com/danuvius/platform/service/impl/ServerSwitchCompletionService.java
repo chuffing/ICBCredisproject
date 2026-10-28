@@ -58,9 +58,6 @@ public class ServerSwitchCompletionService {
     /**
      * 最后一个任务阶段成功后，提交服务器切换产生的配置和纳管关系。
      *
-     * <p>该方法由运维任务完成事务调用。数据库更新失败时可以回滚，
-     * 已经复制到current的配置不会自动生效，正式纳管关系仍以数据库为准。</p>
-     *
      * @param task 已经完成全部执行阶段的运维任务
      */
     public void completeIfNecessary(OperationTask task) {
@@ -385,7 +382,6 @@ public class ServerSwitchCompletionService {
                         }
                     }
             );
-            return;
         }
     }
 

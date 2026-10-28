@@ -23,11 +23,12 @@ platform:
       START_SENTINEL: 180
       VERIFY_TOPOLOGY: 90
   version-package:
-    storage-dir: ${PLATFORM_VERSION_PACKAGE_DIR:./data/versionPackages}
-    max-bytes: ${PLATFORM_VERSION_PACKAGE_MAX_BYTES:52428800}
+    storage-dir: ./data/versionPackages
+    max-bytes: 52428800
   node-config:
     # 当前正式配置放在current/{IP}/下；服务器切换配置人工放入staging/{IP}/下。
-    config-dir: ${PLATFORM_NODE_CONFIG_DIR:./data/nodeConfigs}
+    # 本地联调绝对路径。
+    config-dir: D:/redis-monitor-platform/redis-monitor-platform/data/nodeConfigs
   alarm:
     notice:
       enabled: false                    # 告警邮件通知开关
@@ -36,10 +37,10 @@ platform:
     auto-recover:
       periods: 2                        #连续回落周期数，达到后自动恢复；<=0 关闭自动恢复
 
-  register-code: ${REGISTER_CODE:Danuvius}
-  retain-days: ${RETAIN_DAYS:7}
+  register-code: Danuvius
+  retain-days: 7
   report:
-    export-dir: ${REPORT_EXPORT_DIR:./exports}
+    export-dir: ./exports
     download-prefix: /report/download
 
 

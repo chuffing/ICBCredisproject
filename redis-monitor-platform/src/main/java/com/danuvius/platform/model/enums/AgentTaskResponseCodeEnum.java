@@ -41,6 +41,10 @@ public enum AgentTaskResponseCodeEnum {
      * @return 对应枚举；未定义的业务响应码返回null
      */
     public static AgentTaskResponseCodeEnum fromCode(int code) {
+        // 新执行器按照行内规范返回40000段参数错误码。
+        if (code >= 40000 && code < 40100) {
+            return PARAMETER_REJECTED;
+        }
         for (AgentTaskResponseCodeEnum responseCode : values()) {
             if (responseCode.code == code) {
                 return responseCode;

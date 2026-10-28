@@ -561,8 +561,6 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
         List<NodeStatusResponse> slaveRows = new ArrayList<>();
 
 
-        String masterIp = null;
-        String masterPort = null;
         for (RedisInstance i : instances) {
             NodeStatusResponse m = new NodeStatusResponse();
             m.setInstanceId(i.getInstanceId());
@@ -571,9 +569,13 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
             m.setPort(i.getRedisPort());
             m.setRole(i.getRole());
 
-            // masterName 拼接为 host:port
-            masterIp = i.getMasterHostIp().equals("") ? "null" : i.getMasterHostIp();
-            masterPort = i.getMasterRedisPort().equals("") ? "null" : i.getMasterRedisPort();
+            // masterName拼接为host:port，主节点没有主库信息时显示null:null。
+            String masterHostIp = i.getMasterHostIp();
+            String masterRedisPort = i.getMasterRedisPort();
+            String masterIp = masterHostIp == null || masterHostIp.isEmpty()
+                    ? "null" : masterHostIp;
+            String masterPort = masterRedisPort == null || masterRedisPort.isEmpty()
+                    ? "null" : masterRedisPort;
             m.setMasterName(masterIp + ":" + masterPort);
 
             //复制延迟从 rms_metric_log 最新记录获取

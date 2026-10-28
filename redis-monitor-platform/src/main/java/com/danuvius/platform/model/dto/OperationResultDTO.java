@@ -12,7 +12,7 @@ public class OperationResultDTO {
     private Boolean success;
 
     /** 操作失败错误码，成功时为空。 */
-    private String errorCode;
+    private Integer errorCode;
 
     /** 操作结果说明。 */
     private String message;

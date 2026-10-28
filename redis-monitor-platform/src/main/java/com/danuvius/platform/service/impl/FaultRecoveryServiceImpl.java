@@ -311,7 +311,7 @@ public class FaultRecoveryServiceImpl implements FaultRecoveryService {
         // 没有请求参数时保存空JSON对象，避免JSON字段写入null。
         step.setRequestParams(requestParams == null ? "{}" : requestParams);
         step.setResultJson("{}");
-        step.setErrorCode("");
+        step.setErrorCode(null);
         step.setFailureReason("");
         step.setCreatedTime(now);
         step.setUpdatedTime(now);

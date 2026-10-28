@@ -307,9 +307,15 @@ public class ExecutorInfoServiceImpl extends ServiceImpl<ExecutorInfoMapper, Exe
 
         String role = redisInfo.getOrDefault("role", CommonConstant.DEFAULT_ROLE_MASTER).toUpperCase();
         instance.setRole(role);
+
+        // 主节点没有master_host和master_port，数据库统一保存为空串。
+        instance.setMasterHostIp("");
+        instance.setMasterRedisPort("");
         if (CommonConstant.DEFAULT_ROLE_REPLICA.equals(role)) {
-            instance.setMasterHostIp(redisInfo.get("master_host"));
-            instance.setMasterRedisPort(redisInfo.get("master_port"));
+            String masterHostIp = redisInfo.get("master_host");
+            String masterRedisPort = redisInfo.get("master_port");
+            instance.setMasterHostIp(masterHostIp == null ? "" : masterHostIp);
+            instance.setMasterRedisPort(masterRedisPort == null ? "" : masterRedisPort);
         }
         instance.setRedisVersion(redisInfo.getOrDefault("version", ""));
         instance.setRunStatus(CommonConstant.RUN_NORMAL);

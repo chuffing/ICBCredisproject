@@ -1069,10 +1069,7 @@ public class OperationTaskServiceImpl
             TaskResultReportDTO request,
             OperationResultDTO result) {
 
-        String errorCode = result.getErrorCode();
-        if (errorCode == null) {
-            errorCode = "";
-        }
+        Integer errorCode = result.getErrorCode();
 
         String failureReason = "";
         if (!result.getSuccess()) {
