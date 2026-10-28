@@ -2,8 +2,11 @@ server:
   port: ${SERVER_PORT:8100}
 
 platform:
-  instance:
-    offline-threshold-seconds: ${OFFLINE_THRESHOLD_SECONDS:70}      # 实例离线判定阈值（秒）
+
+  offline-threshold: ${OFFLINE_THRESHOLD_SECONDS:70}      # 离线判定阈值（秒）
+
+  status-check:
+    fixed-delay-ms: ${STATUS_CHECK_FIXED_DELAY_MS:30000}            # 执行器/实例状态主动校正间隔（毫秒）
   sentinel:
     # 哨兵随指标每 5 分钟上报一次，阈值需大于采集周期（默认 330s = 5.5min）
     offline-threshold-seconds: ${SENTINEL_OFFLINE_THRESHOLD_SECONDS:330}

@@ -1,8 +1,8 @@
 package com.danuvius.platform.controller;
 
-import com.danuvius.platform.common.BaseResponse;
-import com.danuvius.platform.common.ResultUtils;
 import com.danuvius.platform.common.constant.CommonConstant;
+import com.danuvius.platform.common.core.ResultBean;
+import com.danuvius.platform.common.exception.ErrorCode;
 import com.danuvius.platform.common.exception.validator.IdValidator;
 import com.danuvius.platform.common.exception.validator.StringValidator;
 import com.danuvius.platform.model.dto.monitor.*;
@@ -13,17 +13,14 @@ import com.danuvius.platform.util.validate.TrendRequestValidator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
-import javax.validation.constraints.NotBlank;
-import java.util.List;
-
-
 import javax.servlet.http.HttpServletResponse;
-
+import javax.validation.constraints.NotBlank;
 import java.io.File;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.List;
 
 
 @RestController
@@ -47,12 +44,12 @@ public class MonitorController {
      * @return
      */
     @GetMapping("/redis/instances")
-    public BaseResponse<List<RedisInstanceItemDTO>> instances(
+    public ResultBean<List<RedisInstanceItemDTO>> instances(
             @RequestParam(defaultValue = "1") String managementStatus) {
 
         StringValidator.isEnumValue(managementStatus, CommonConstant.MANAGEMENT_STATUS, "managementStatus");
 
-        return ResultUtils.success(redisInstanceService.getInstanceList(managementStatus));
+        return ResultBean.restResult(redisInstanceService.getInstanceList(managementStatus), ErrorCode.OK);
     }
 
     /**
@@ -61,11 +58,11 @@ public class MonitorController {
      * @return
      */
     @GetMapping("/realtime/current-values")
-    public BaseResponse<MetricCurrentValueResponse> currentValues(
+    public ResultBean<MetricCurrentValueResponse> currentValues(
             @RequestParam @NotBlank(message = "instanceId不能为空") String instanceId) {
         IdValidator.snowflake(instanceId, "instanceId");
 
-        return ResultUtils.success(redisInstanceService.getCurrentValues(instanceId));
+        return ResultBean.restResult(redisInstanceService.getCurrentValues(instanceId), ErrorCode.OK);
     }
 
     /**
@@ -74,10 +71,10 @@ public class MonitorController {
      * @return
      */
     @GetMapping("/realtime/trend")
-    public BaseResponse<TrendResponse> trend(TrendRequest req) {
+    public ResultBean<TrendResponse> trend(TrendRequest req) {
         TrendRequestValidator.validate(req);
         log.info("多节点指标趋势接口：{}", req.toString());
-        return ResultUtils.success(redisInstanceService.getTrend(req));
+        return ResultBean.restResult(redisInstanceService.getTrend(req), ErrorCode.OK);
     }
 
     /**
@@ -86,11 +83,11 @@ public class MonitorController {
      * @return
      */
     @GetMapping("/sentinel/sentinels")
-    public BaseResponse<List<SentinelItemResponse>> sentinels(
+    public ResultBean<List<SentinelItemResponse>> sentinels(
             @RequestParam(defaultValue = "1") String managementStatus) {
         StringValidator.isEnumValue(managementStatus, CommonConstant.MANAGEMENT_STATUS, "managementStatus");
 
-        return ResultUtils.success(sentinelNodeInfoService.getSentinelList(managementStatus));
+        return ResultBean.restResult(sentinelNodeInfoService.getSentinelList(managementStatus), ErrorCode.OK);
     }
 
     /**
@@ -98,8 +95,8 @@ public class MonitorController {
      * @return
      */
     @GetMapping("/sentinel/topology")
-    public BaseResponse<TopologyResponse> topology() {
-        return ResultUtils.success(redisInstanceService.getTopology());
+    public ResultBean<TopologyResponse> topology() {
+        return ResultBean.restResult(redisInstanceService.getTopology(), ErrorCode.OK);
     }
 
     /**
@@ -107,8 +104,8 @@ public class MonitorController {
      * @return
      */
     @GetMapping("/sentinel/nodes-status")
-    public BaseResponse<List<NodeStatusResponse>> nodesStatus() {
-        return ResultUtils.success(redisInstanceService.getNodesStatus());
+    public ResultBean<List<NodeStatusResponse>> nodesStatus() {
+        return ResultBean.restResult(redisInstanceService.getNodesStatus(), ErrorCode.OK);
     }
 
     /**
@@ -117,10 +114,10 @@ public class MonitorController {
      * @return
      */
     @PostMapping("/report/query")
-    public BaseResponse<ReportQueryResponse> reportQuery(@RequestBody ReportQueryRequest req) {
+    public ResultBean<ReportQueryResponse> reportQuery(@RequestBody ReportQueryRequest req) {
         ReportQueryRequestValidator.validate(req);
 
-        return ResultUtils.success(redisInstanceService.queryReport(req));
+        return ResultBean.restResult(redisInstanceService.queryReport(req), ErrorCode.OK);
     }
 
 
@@ -132,25 +129,26 @@ public class MonitorController {
      * @return
      */
     @GetMapping("/report/export")
-    public BaseResponse<ReportExportResponse> reportExport(
+    public ResultBean<ReportExportResponse> reportExport(
             @RequestParam @NotBlank(message = "instanceId不能为空") String instanceId,
             @RequestParam @NotBlank(message = "reportType不能为空") String reportType) {
         IdValidator.snowflake(instanceId, "instanceId");
         StringValidator.isEnumValue(reportType, CommonConstant.REPORT_TYPES, "reportType");
 
-        return ResultUtils.success(
-                redisInstanceService.exportReport(instanceId, reportType));
+        return ResultBean.restResult(
+                redisInstanceService.exportReport(instanceId, reportType), ErrorCode.OK);
     }
 
     /**
      * 导出任务状态查询接口，前端3s轮询
      */
     @GetMapping("/report/export/status")
-    public BaseResponse<ReportExportResponse> exportStatus(
+    public ResultBean<ReportExportResponse> exportStatus(
             @RequestParam @NotBlank(message = "taskId不能为空") String taskId) {
-        IdValidator.check(taskId, "EP_",32,"taskId");
+        // 导出任务 id 由 exportReport 生成，格式为 EP_ + 雪花id
+        IdValidator.check(taskId, "EP_", 32, "taskId");
 
-        return ResultUtils.success(redisInstanceService.queryExportTask(taskId));
+        return ResultBean.restResult(redisInstanceService.queryExportTask(taskId), ErrorCode.OK);
     }
 
 

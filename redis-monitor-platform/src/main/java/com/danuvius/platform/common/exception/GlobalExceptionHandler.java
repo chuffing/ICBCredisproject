@@ -1,7 +1,6 @@
 package com.danuvius.platform.common.exception;
 
-import com.danuvius.platform.common.BaseResponse;
-import com.danuvius.platform.common.ResultUtils;
+import com.danuvius.platform.common.core.ResultBean;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
@@ -17,42 +16,54 @@ import javax.validation.ConstraintViolationException;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
-    public BaseResponse<?> handleBusinessException(BusinessException e) {
-        return ResultUtils.error(e.getCode(), e.getMessage());
+    public ResultBean<?> handleBusinessException(BusinessException e) {
+        int code = e.getCode() == null ? ErrorCode.SYSTEM_ERROR.getCode() : e.getCode();
+        String msg = e.getMsg() == null || e.getMsg().trim().isEmpty()
+                ? e.getMessage() : e.getMsg();
+        if (msg == null || msg.trim().isEmpty()) {
+            msg = ErrorCode.SYSTEM_ERROR.getMsg();
+        }
+        return ResultBean.resultBean(null, code, msg);
     }
 
     @ExceptionHandler(ParameterException.class)
-    public BaseResponse<?> handleParameterException(ParameterException e) {
-        return ResultUtils.error(e.getCode(), e.getMsg());
+    public ResultBean<?> handleParameterException(ParameterException e) {
+        int code = e.getCode() == null ? ErrorCode.PARAM_ERROR.getCode() : e.getCode();
+        String msg = e.getMsg() == null || e.getMsg().trim().isEmpty()
+                ? e.getMessage() : e.getMsg();
+        if (msg == null || msg.trim().isEmpty()) {
+            msg = ErrorCode.PARAM_ERROR.getMsg();
+        }
+        return ResultBean.resultBean(null, code, msg);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public BaseResponse<?> handleValidException(MethodArgumentNotValidException e) {
+    public ResultBean<?> handleValidException(MethodArgumentNotValidException e) {
         FieldError fieldError = e.getBindingResult().getFieldError();
-        String msg = fieldError == null ? BusinessCode.PARAMS_ERROR.getMsg() : fieldError.getDefaultMessage();
-        return ResultUtils.error(BusinessCode.PARAMS_ERROR, msg);
+        String msg = fieldError == null ? ErrorCode.PARAM_ERROR.getMsg() : fieldError.getDefaultMessage();
+        return ResultBean.resultBean(null, ErrorCode.PARAM_ERROR.getCode(), msg);
     }
 
     @ExceptionHandler(BindException.class)
-    public BaseResponse<?> handleBindException(BindException e) {
+    public ResultBean<?> handleBindException(BindException e) {
         FieldError fieldError = e.getBindingResult().getFieldError();
-        String msg = fieldError == null ? BusinessCode.PARAMS_ERROR.getMsg() : fieldError.getDefaultMessage();
-        return ResultUtils.error(BusinessCode.PARAMS_ERROR, msg);
+        String msg = fieldError == null ? ErrorCode.PARAM_ERROR.getMsg() : fieldError.getDefaultMessage();
+        return ResultBean.resultBean(null, ErrorCode.PARAM_ERROR.getCode(), msg);
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
-    public BaseResponse<?> handleConstraintViolationException(ConstraintViolationException e) {
-        String msg = BusinessCode.PARAMS_ERROR.getMsg();
+    public ResultBean<?> handleConstraintViolationException(ConstraintViolationException e) {
+        String msg = ErrorCode.PARAM_ERROR.getMsg();
         for (ConstraintViolation<?> violation : e.getConstraintViolations()) {
             msg = violation.getMessage();
             break;
         }
-        return ResultUtils.error(BusinessCode.PARAMS_ERROR, msg);
+        return ResultBean.resultBean(null, ErrorCode.PARAM_ERROR.getCode(), msg);
     }
 
     @ExceptionHandler(Exception.class)
-    public BaseResponse<?> handleException(Exception e) {
+    public ResultBean<?> handleException(Exception e) {
         log.error("系统异常", e);
-        return ResultUtils.error(BusinessCode.SYSTEM_ERROR);
+        return ResultBean.resultBean(null, ErrorCode.SYSTEM_ERROR.getCode(), ErrorCode.SYSTEM_ERROR.getMsg());
     }
 }
