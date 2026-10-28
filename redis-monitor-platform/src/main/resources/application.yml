@@ -26,7 +26,7 @@ platform:
       START_SENTINEL: 180
       VERIFY_TOPOLOGY: 90
   version-package:
-    storage-dir: ./data/versionPackages
+    storage-dir: D:/redis-monitor-platform/redis-monitor-platform/data/versionPackages
     max-bytes: 52428800
   node-config:
     # 当前正式配置放在current/{IP}/下；服务器切换配置人工放入staging/{IP}/下。
