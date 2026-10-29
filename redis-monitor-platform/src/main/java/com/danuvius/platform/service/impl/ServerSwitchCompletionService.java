@@ -325,7 +325,7 @@ public class ServerSwitchCompletionService {
             }
 
             sentinelNode.setNodeName(hostIp + ":" + SENTINEL_PORT);
-            sentinelNode.setInstanceId(redisInstance.getInstanceId());
+            // sentinelNode.setInstanceId(redisInstance.getInstanceId());
             sentinelNode.setNodeIp(hostIp);
             sentinelNode.setNodePort(SENTINEL_PORT);
             sentinelNode.setSentinelStatus(StatusEnum.ONLINE.getCode());

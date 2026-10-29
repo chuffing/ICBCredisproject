@@ -17,7 +17,7 @@ public class SentinelNodeInfo {
     @TableId(type = IdType.ASSIGN_ID)
     private String id;
     /** 关联的Redis实例业务编号。 */
-    private String instanceId;
+    // private String instanceId;
     /*哨兵节点名*/
     private String nodeName;
     /*哨兵节点IP*/
