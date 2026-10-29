@@ -24,7 +24,6 @@ platform:
       SWITCH_VERSION: 90
       START_REDIS: 180
       START_SENTINEL: 180
-      VERIFY_TOPOLOGY: 90
   version-package:
     storage-dir: D:/redis-monitor-platform/redis-monitor-platform/data/versionPackages
     max-bytes: 52428800

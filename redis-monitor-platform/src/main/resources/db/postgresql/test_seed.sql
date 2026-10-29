@@ -173,8 +173,7 @@ WITH executors(executor_id) AS (
         (2, 'STOP_REDIS'),
         (3, 'RESTORE_CONFIG'),
         (4, 'START_REDIS'),
-        (5, 'START_SENTINEL'),
-        (6, 'VERIFY_TOPOLOGY')
+        (5, 'START_SENTINEL')
 )
 INSERT INTO operation_task_step (
     task_no, step_no, executor_id, operation_type, step_status,

@@ -26,9 +26,6 @@ public final class FaultRecoveryConstants {
     /** 启动Sentinel阶段编号。 */
     public static final int START_SENTINEL_STEP_NO = 5;
 
-    /** 验证故障恢复后Redis和Sentinel拓扑的阶段编号。 */
-    public static final int VERIFY_TOPOLOGY_STEP_NO = 6;
-
     /** Redis备份配置文件SHA256任务参数名称。 */
     public static final String REDIS_CONFIG_SHA256_PARAM =
             "redisConfigSha256";

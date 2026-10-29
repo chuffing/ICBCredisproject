@@ -24,10 +24,8 @@ public final class ServerSwitchConstants {
     public static final int START_MASTER_REDIS_STEP_NO = 7;
     public static final int START_REPLICA_REDIS_STEP_NO = 8;
     public static final int START_TARGET_SENTINEL_STEP_NO = 9;
-    public static final int VERIFY_TARGET_TOPOLOGY_STEP_NO = 10;
-    public static final int STOP_SOURCE_SENTINEL_STEP_NO = 11;
-    public static final int STOP_SOURCE_REDIS_STEP_NO = 12;
-    public static final int VERIFY_FINAL_TOPOLOGY_STEP_NO = 13;
+    public static final int STOP_SOURCE_SENTINEL_STEP_NO = 10;
+    public static final int STOP_SOURCE_REDIS_STEP_NO = 11;
 
     public static final String PACKAGE_ID_PARAM = "packageId";
     public static final String TARGET_VERSION_PARAM = "targetVersion";

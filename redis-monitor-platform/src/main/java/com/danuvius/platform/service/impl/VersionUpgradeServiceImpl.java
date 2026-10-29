@@ -313,13 +313,6 @@ public class VersionUpgradeServiceImpl implements VersionUpgradeService {
                 VersionUpgradeConstants.START_SENTINEL_STEP_NO,
                 nodes, ExecutorOperationTypeEnum.START_SENTINEL, null);
 
-        // 8. 验证最终Redis和Sentinel拓扑。
-        addStageSteps(steps, taskNo,
-                VersionUpgradeConstants.VERIFY_TOPOLOGY_STEP_NO,
-                nodes,
-                ExecutorOperationTypeEnum.VERIFY_TOPOLOGY,
-                null);
-
         return steps;
     }
 

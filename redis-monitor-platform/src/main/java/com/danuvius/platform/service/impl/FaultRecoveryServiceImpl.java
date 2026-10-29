@@ -269,18 +269,6 @@ public class FaultRecoveryServiceImpl implements FaultRecoveryService {
             ));
         }
 
-        // ======== 6. 验证运维操作完成后的Redis和Sentinel拓扑 ========
-        // 三台执行器分别检查本机Redis和Sentinel，并在拓扑满足要求后上报成功。
-        for (CurrentTopologyNode node : nodes) {
-            steps.add(createRecoveryStep(
-                    taskNo,
-                    FaultRecoveryConstants.VERIFY_TOPOLOGY_STEP_NO,
-                    node,
-                    ExecutorOperationTypeEnum.VERIFY_TOPOLOGY,
-                    null
-            ));
-        }
-
         return steps;
     }
 

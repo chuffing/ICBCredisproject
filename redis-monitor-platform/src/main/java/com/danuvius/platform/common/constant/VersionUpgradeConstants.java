@@ -15,7 +15,6 @@ public final class VersionUpgradeConstants {
     public static final int SWITCH_VERSION_STEP_NO = 5;
     public static final int START_REDIS_STEP_NO = 6;
     public static final int START_SENTINEL_STEP_NO = 7;
-    public static final int VERIFY_TOPOLOGY_STEP_NO = 8;
 
     public static final String PACKAGE_ID_PARAM = "packageId";
     public static final String TARGET_VERSION_PARAM = "targetVersion";

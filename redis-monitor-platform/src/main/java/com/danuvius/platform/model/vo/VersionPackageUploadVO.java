@@ -1,5 +1,7 @@
 package com.danuvius.platform.model.vo;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -11,6 +13,7 @@ import java.time.LocalDateTime;
 public class VersionPackageUploadVO {
 
     /** 安装包记录编号。 */
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long packageId;
 
     /** Redis源码安装包文件名。 */

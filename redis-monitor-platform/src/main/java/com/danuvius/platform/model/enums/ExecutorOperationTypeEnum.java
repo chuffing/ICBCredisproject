@@ -23,9 +23,6 @@ public enum ExecutorOperationTypeEnum {
     /** 恢复配置文件。 */
     RESTORE_CONFIG,
 
-    /** 验证运维操作完成后的Redis和Sentinel拓扑。 */
-    VERIFY_TOPOLOGY,
-
     /** 部署配置文件。 */
     DEPLOY_CONFIG,
 

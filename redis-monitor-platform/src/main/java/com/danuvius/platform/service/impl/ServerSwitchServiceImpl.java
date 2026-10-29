@@ -511,12 +511,7 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
                 ServerSwitchConstants.START_TARGET_SENTINEL_STEP_NO,
                 targetNodes, ExecutorOperationTypeEnum.START_SENTINEL, null);
 
-        // 10. 切断旧环境前，先验收目标Redis和Sentinel拓扑。
-        addTargetStageSteps(steps, taskNo,
-                ServerSwitchConstants.VERIFY_TARGET_TOPOLOGY_STEP_NO,
-                targetNodes, ExecutorOperationTypeEnum.VERIFY_TOPOLOGY, null);
-
-        // 11.、12. 目标环境正常后，依次停止旧Sentinel和旧Redis。
+        // 10.、11. 目标环境启动后，依次停止旧Sentinel和旧Redis。
         addSourceStageSteps(steps, taskNo,
                 ServerSwitchConstants.STOP_SOURCE_SENTINEL_STEP_NO,
                 sourceNodes, ExecutorOperationTypeEnum.STOP_SENTINEL);
@@ -524,12 +519,6 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
                 ServerSwitchConstants.STOP_SOURCE_REDIS_STEP_NO,
                 sourceNodes, ExecutorOperationTypeEnum.STOP_REDIS);
 
-        // 13. 旧环境停止后，再次验收最终正式拓扑。
-        addTargetStageSteps(steps, taskNo,
-                ServerSwitchConstants.VERIFY_FINAL_TOPOLOGY_STEP_NO,
-                targetNodes,
-                ExecutorOperationTypeEnum.VERIFY_TOPOLOGY,
-                null);
         return steps;
     }
 
