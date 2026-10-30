@@ -53,7 +53,7 @@ public class RuleMatchHelper {
     }
 
     /**
-     * 判断规则是否作用到指定实例。
+     * 判断规则是否作用到指定实例
      */
     public boolean isRuleApplyToInstance(AlarmRule rule, String instanceId) {
         if (instanceId == null) {

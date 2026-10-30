@@ -36,7 +36,7 @@ public class AlarmController {
     @GetMapping("/rule/list")
     public ResultBean<RulePageResponse> getAlarmRuleList( RuleListRequest req) {
         RuleListRequestValidator.validate(req);
-        log.info("告警规则列表查询接口：{}", req.toString());
+        log.info("告警规则列表查询接口：{}", req);
 
         RulePageResponse rulePageResponse =alarmRuleService.getRulePage(req);
         return ResultBean.restResult(rulePageResponse, ErrorCodeInfo.OK);
@@ -50,7 +50,7 @@ public class AlarmController {
     @PostMapping("/rule/add")
     public ResultBean<String> addRule( @RequestBody RuleAddRequest req) {
         RuleAddRequestValidator.validate(req);
-        log.info("新增告警规则接口：{}", req.toString());
+        log.info("新增告警规则接口：{}", req);
 
         String ruleId = alarmRuleService.addRule(req);
         return ResultBean.restResult(ruleId, ErrorCodeInfo.OK);
@@ -64,7 +64,7 @@ public class AlarmController {
     @PostMapping("/rule/update")
     public ResultBean<Boolean> updateRule( @RequestBody UpdateRequest req) {
         UpdateRequestValidator.validate(req);
-        log.info("修改告警规则接口：{}", req.toString());
+        log.info("修改告警规则接口：{}", req);
 
         Boolean result=alarmRuleService.updateRule(req);
         if(result){
@@ -102,7 +102,7 @@ public class AlarmController {
     @PostMapping("/rule/toggle-status")
     public ResultBean<Boolean> toggleStatus( @RequestBody RuleToggleRequest req) {
         RuleToggleRequestValidator.validate(req);
-        log.info("告警规则状态切换接口：{}", req.toString());
+        log.info("告警规则状态切换接口：{}", req);
 
         Boolean result=alarmRuleService.toggleStatus(req.getRuleId(), req.getEnableStatus());
         if(result){
@@ -189,7 +189,7 @@ public class AlarmController {
     @GetMapping("/record/page")
     public ResultBean<RecordPageResponse> recordPage( RecordPageRequest req) {
         RecordPageRequestValidator.validate(req);
-        log.info("告警分页查询接口{}", req.toString());
+        log.info("告警分页查询接口{}", req);
 
         return ResultBean.restResult(alarmRecordService.getRecordPage(req), ErrorCodeInfo.OK);
     }

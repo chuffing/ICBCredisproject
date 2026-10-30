@@ -2,11 +2,19 @@ package com.danuvius.platform.common.constant;
 
 import com.danuvius.platform.model.enums.metric.MetricTypeEnum;
 
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
 
 public class CommonConstant {
+
+    public static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    public static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    public static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
+
+
+
     /** [校验] 告警级别合法值 */
     public static final List<String> ALARM_LEVELS = Arrays.asList("1", "2", "3");
     /** [校验] 比较方式合法值 */
@@ -89,6 +97,11 @@ public class CommonConstant {
     public static final String OPERATION_TYPE_SERVER_SWITCH = "服务器切换";
 
 
+    /** 在线状态 */
+    public static final String ONLINE_DESC = "在线";
+    /** 离线状态 */
+    public static final String OFFLINE_DESC = "离线";
+
     public static final String TOPOLOGY_HEALTH = "健康";
     public static final String TOPOLOGY_WARNING = "警告";
     public static final String TOPOLOGY_ANOMALY = "异常";
@@ -157,11 +170,11 @@ public class CommonConstant {
      */
     /*switchType*/
     /*
-    *       INIT("0", "基线"),
-    *       AUTO("1", "自动切换"),
-    *       MANUAL("2", "手动切换"),
-    *       OTHER("3", "其他"),
-    * */
+     *       INIT("0", "基线"),
+     *       AUTO("1", "自动切换"),
+     *       MANUAL("2", "手动切换"),
+     *       OTHER("3", "其他"),
+     * */
     public static final String SWITCH_INIT ="0";
     public static final String SWITCH_AUTO="1";
     public static final String SWITCH_MANUAL="2";

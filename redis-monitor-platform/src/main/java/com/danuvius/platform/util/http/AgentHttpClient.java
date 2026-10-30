@@ -3,6 +3,7 @@ package com.danuvius.platform.util.http;
 import cn.hutool.http.HttpUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.TypeReference;
+import com.danuvius.platform.common.core.ResultBean;
 import com.danuvius.platform.model.dto.metric.MetricReportItemDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -17,7 +18,7 @@ import java.util.List;
 @Component
 public class AgentHttpClient {
 
-    /** 采集接口路径，如执行器端有变化，改此常量即可 */
+    /** 采集接口路径 */
     private static final String COLLECT_PATH = "/executor/collect";
 
     /** 请求超时（毫秒） */
@@ -30,12 +31,12 @@ public class AgentHttpClient {
      * @param port   执行器 HTTP 端口
      * @return 统一响应；data 为采集到的指标列表。失败时 code = -1。
      */
-    public AgentCollectResponse<List<MetricReportItemDTO>> triggerCollect(String hostIp, String port) {
-        AgentCollectResponse<List<MetricReportItemDTO>> result = new AgentCollectResponse<>();
+    public ResultBean<List<MetricReportItemDTO>> triggerCollect(String hostIp, String port) {
+        ResultBean<List<MetricReportItemDTO>> result = new ResultBean<>();
 
         if (hostIp == null || hostIp.isEmpty() || port == null || port.isEmpty()) {
             result.setCode(-1);
-            result.setMessage("执行器地址为空");
+            result.setMsg("执行器地址为空");
             return result;
         }
 
@@ -44,23 +45,23 @@ public class AgentHttpClient {
             String respStr = HttpUtil.post(url, "{}", TIMEOUT_MS);
             if (respStr == null || respStr.trim().isEmpty()) {
                 result.setCode(-1);
-                result.setMessage("执行器返回为空");
+                result.setMsg("执行器返回为空");
                 return result;
             }
-            AgentCollectResponse<List<MetricReportItemDTO>> parsed = JSON.parseObject(
+            ResultBean<List<MetricReportItemDTO>> parsed = JSON.parseObject(
                     respStr,
-                    new TypeReference<AgentCollectResponse<List<MetricReportItemDTO>>>() {
+                    new TypeReference<ResultBean<List<MetricReportItemDTO>>>() {
                     });
             if (parsed == null) {
                 result.setCode(-1);
-                result.setMessage("执行器返回格式解析失败");
+                result.setMsg("执行器返回格式解析失败");
                 return result;
             }
             return parsed;
         } catch (Exception e) {
             log.error("调用执行器采集接口失败: url={}", url, e);
             result.setCode(-1);
-            result.setMessage("调用执行器失败: " + e.getMessage());
+            result.setMsg("调用执行器失败: " + e.getMessage());
             return result;
         }
     }

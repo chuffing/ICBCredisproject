@@ -28,10 +28,7 @@ import java.util.List;
 public class SentinelNodeInfoServiceImpl extends ServiceImpl<SentinelNodeInfoMapper, SentinelNodeInfo>
         implements SentinelNodeInfoService {
 
-    /** 在线状态 */
-    private static final String STATUS_ONLINE = "在线";
-    /** 离线状态 */
-    private static final String STATUS_OFFLINE = "离线";
+
 
     /* 哨兵离线判定阈值：哨兵随指标每 5 分钟上报一次，阈值需大于采集周期 */
     @Value("${platform.sentinel.offline-threshold-seconds:330}")
@@ -81,9 +78,9 @@ public class SentinelNodeInfoServiceImpl extends ServiceImpl<SentinelNodeInfoMap
                 if (reportedOffline
                         || s.getLastHeartbeatTime() == null
                         || s.getLastHeartbeatTime().isBefore(offlineBefore)) {
-                    m.setSentinelStatus(STATUS_OFFLINE);
+                    m.setSentinelStatus(CommonConstant.OFFLINE_DESC);
                 } else {
-                    m.setSentinelStatus(STATUS_ONLINE);
+                    m.setSentinelStatus(CommonConstant.ONLINE_DESC);
                 }
                 m.setLastHeartbeatTime(s.getLastHeartbeatTime());
                 result.add(m);
@@ -121,7 +118,7 @@ public class SentinelNodeInfoServiceImpl extends ServiceImpl<SentinelNodeInfoMap
             SentinelNodeInfo exist = sentinelMapper.selectOne(Wrappers.<SentinelNodeInfo>lambdaQuery()
                     .eq(SentinelNodeInfo::getNodeIp, ip)
                     .eq(SentinelNodeInfo::getNodePort, port)
-                    );
+            );
 
             String nodeName = dto.getNodeName() != null && !dto.getNodeName().trim().isEmpty()
                     ? dto.getNodeName().trim()

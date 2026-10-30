@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.danuvius.platform.common.constant.CommonConstant;
+import com.danuvius.platform.common.core.ResultBean;
 import com.danuvius.platform.common.exception.BusinessCode;
 import com.danuvius.platform.common.exception.BusinessException;
 import com.danuvius.platform.mapper.*;
@@ -22,7 +23,6 @@ import com.danuvius.platform.util.CompareUtil;
 import com.danuvius.platform.util.DetectTaskRecorder;
 import com.danuvius.platform.util.ParseUtils;
 import com.danuvius.platform.util.RuleMatchHelper;
-import com.danuvius.platform.util.http.AgentCollectResponse;
 import com.danuvius.platform.util.http.AgentHttpClient;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -239,7 +239,7 @@ public class AlarmRuleServiceImpl extends ServiceImpl<AlarmRuleMapper, AlarmRule
                     .eq(RedisInstance::getManagementStatus,"1"));
 
             for (RedisInstance instance : activeInstances) {
-                    newScopeIds.add(instance.getInstanceId());
+                newScopeIds.add(instance.getInstanceId());
             }
         } else {
             for (String id : scopeInstanceIds) {
@@ -347,7 +347,7 @@ public class AlarmRuleServiceImpl extends ServiceImpl<AlarmRuleMapper, AlarmRule
     @Override
     public boolean toggleStatus(String ruleId, String enableStatus) {
         AlarmRule rule = alarmRuleMapper.selectOne(Wrappers.<AlarmRule>lambdaQuery()
-        .eq(AlarmRule::getRuleId, ruleId));
+                .eq(AlarmRule::getRuleId, ruleId));
 
         if (rule == null) throw new BusinessException(BusinessCode.NOT_FOUND_ERROR.getCode(), "规则不存在");
 
@@ -536,12 +536,12 @@ public class AlarmRuleServiceImpl extends ServiceImpl<AlarmRuleMapper, AlarmRule
     private List<MetricReportItemDTO> triggerOneExecutor(ExecutorInfo executor) {
         List<MetricReportItemDTO> list = new ArrayList<>();
         try {
-            AgentCollectResponse<List<MetricReportItemDTO>> resp =
+            ResultBean<List<MetricReportItemDTO>> resp =
                     agentHttpClient.triggerCollect(executor.getHostIp(), executor.getExecutorPort());
             if (resp == null || resp.getCode() != 0 || resp.getData() == null) {
                 log.warn("[手动检测] 执行器 {} 采集失败: {}",
                         executor.getId(),
-                        resp == null ? "null" : resp.getMessage());
+                        resp == null ? "null" : resp.getMsg());
                 return list;
             }
             for (MetricReportItemDTO item : resp.getData()) {
