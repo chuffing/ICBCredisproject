@@ -27,14 +27,6 @@ public final class ServerSwitchConstants {
     public static final int STOP_SOURCE_SENTINEL_STEP_NO = 10;
     public static final int STOP_SOURCE_REDIS_STEP_NO = 11;
 
-    public static final String PACKAGE_ID_PARAM = "packageId";
-    public static final String TARGET_VERSION_PARAM = "targetVersion";
-    public static final String PACKAGE_SHA256_PARAM = "packageSha256";
-    public static final String REDIS_CONFIG_SHA256_PARAM =
-            "redisConfigSha256";
-    public static final String SENTINEL_CONFIG_SHA256_PARAM =
-            "sentinelConfigSha256";
-
     public static final String MASTER_ROLE = "MASTER";
     public static final String REPLICA_ROLE = "REPLICA";
 

@@ -30,6 +30,8 @@ import com.github.benmanes.caffeine.cache.Cache;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -158,31 +160,22 @@ public class OperationTaskServiceImpl
                         .orderByAsc(OperationTaskStep::getId)
         );
         if (taskSteps.isEmpty()) {
-            return null;
+            throw new BusinessException(
+                    BusinessCode.OPERATION_ERROR.getCode(),
+                    "运维任务不存在执行步骤：" + taskNo
+            );
         }
 
-        // 2. 第一个没有全部成功的阶段，就是当前执行阶段。
-        Integer currentStepNo = taskSteps.get(0).getStepNo();
-        boolean currentStageSuccess = true;
-
+        // 2. 数据已按阶段编号升序，第一条没成功的步骤所在阶段，就是当前执行阶段。
         for (OperationTaskStep step : taskSteps) {
-            if (!currentStepNo.equals(step.getStepNo())) {
-                if (!currentStageSuccess) {
-                    return currentStepNo;
-                }
-
-                currentStepNo = step.getStepNo();
-                currentStageSuccess = true;
-            }
-
             if (!OperationTaskStepStatusEnum.SUCCESS.name()
                     .equals(step.getStepStatus())) {
-                currentStageSuccess = false;
+                return step.getStepNo();
             }
         }
 
-        // 3. 全部阶段成功时返回最后一个阶段编号。
-        return currentStepNo;
+        // 3. 全部步骤都成功时，返回最后一条步骤的阶段编号。
+        return taskSteps.get(taskSteps.size() - 1).getStepNo();
     }
 
     /**
@@ -229,16 +222,16 @@ public class OperationTaskServiceImpl
         }
 
         String taskStatus = task.getTaskStatus();
+        // 只有处于CREATED和RUNNING状态的任务才可以下发阶段。
         if (!OperationTaskStatusEnum.CREATED.name().equals(taskStatus)
-                && !OperationTaskStatusEnum.RUNNING.name()
-                .equals(taskStatus)) {
+                && !OperationTaskStatusEnum.RUNNING.name().equals(taskStatus)) {
             throw new BusinessException(
                     BusinessCode.OPERATION_ERROR.getCode(),
                     "当前运维任务状态不允许继续下发"
             );
         }
 
-        // ======== 2. 首次下发时启动总任务 ========
+        // ======== 2. 总任务状态为CREATED，说明是首次下发 ——> 启动总任务 ========
 
         if (OperationTaskStatusEnum.CREATED.name().equals(taskStatus)) {
             saveTaskStatus(task, OperationTaskStatusEnum.RUNNING, null);
@@ -263,9 +256,7 @@ public class OperationTaskServiceImpl
                                 + step.getExecutorId()
                 );
             }
-            step.setStepStatus(
-                    OperationTaskStepStatusEnum.DISPATCHING.name()
-            );
+            step.setStepStatus(OperationTaskStepStatusEnum.DISPATCHING.name());
             step.setDispatchTime(now);
         }
 
@@ -475,16 +466,14 @@ public class OperationTaskServiceImpl
             }
         }
 
-        // 当前所有步骤都进入了终态。
+        // 当前所有步骤都进入了终态（SUCCESS、FAILED、RESULT_UNKNOWN）。
         if (firstUnknownStep != null) {
-
             saveTaskStatus(
                     task,
                     OperationTaskStatusEnum.RESULT_UNKNOWN,
                     buildDispatchUnknownReason(firstUnknownStep)
             );
         } else if (firstFailedStep != null) {
-
             saveTaskStatus(
                     task,
                     OperationTaskStatusEnum.FAILED,
@@ -505,7 +494,6 @@ public class OperationTaskServiceImpl
     public void saveStepResult(TaskResultReportDTO request) {
 
         // ======== 1. 锁定并校验总任务 ========
-
         OperationTask task = operationTaskMapper.selectTaskForUpdate(
                 request.getTaskNo()
         );
@@ -524,7 +512,6 @@ public class OperationTaskServiceImpl
         }
 
         // ======== 2. 锁定并校验上报步骤 ========
-
         OperationTaskStep step =
                 operationTaskStepMapper.selectTaskStepForUpdate(
                         request.getTaskNo(),
@@ -545,6 +532,7 @@ public class OperationTaskServiceImpl
         }
 
         String stepStatus = step.getStepStatus();
+        // 只有处在DISPATCHING和DISPATCHED状态的步骤可以接受执行器上报执行结果。
         if (!OperationTaskStepStatusEnum.DISPATCHING.name()
                 .equals(stepStatus)
                 && !OperationTaskStepStatusEnum.DISPATCHED.name()
@@ -556,10 +544,7 @@ public class OperationTaskServiceImpl
         }
 
         // ======== 3. 保存当前步骤的客观执行结果 ========
-
-        OperationResultDTO operationResult = parseOperationResult(
-                request.getResult()
-        );
+        OperationResultDTO operationResult = parseOperationResult(request.getResult());
         fillTaskStepResult(step, request, operationResult);
 
         int updated = operationTaskStepMapper.updateTaskStepResult(step);
@@ -608,7 +593,6 @@ public class OperationTaskServiceImpl
     public Integer finishStage(String taskNo, Integer stepNo) {
 
         // ======== 1. 锁定总任务 ========
-
         OperationTask task = operationTaskMapper.selectTaskForUpdate(taskNo);
         if (task == null) {
             throw new BusinessException(
@@ -622,7 +606,6 @@ public class OperationTaskServiceImpl
         }
 
         // ======== 2. 检查当前阶段是否全部结束 ========
-
         List<OperationTaskStep> stageSteps =
                 operationTaskStepMapper.selectTaskStageSteps(
                         taskNo,
@@ -656,7 +639,6 @@ public class OperationTaskServiceImpl
         }
 
         // ======== 3. 优先处理结果未知 ========
-
         if (firstUnknownStep != null) {
             saveTaskStatus(
                     task,
@@ -667,7 +649,6 @@ public class OperationTaskServiceImpl
         }
 
         // ======== 4. 其次处理明确失败 ========
-
         if (firstFailedStep != null) {
             saveTaskStatus(
                     task,
@@ -678,7 +659,6 @@ public class OperationTaskServiceImpl
         }
 
         // ======== 5. 当前阶段成功，查询下一阶段 ========
-
         Integer nextStepNo = operationTaskStepMapper.selectNextStepNo(
                 taskNo,
                 stepNo
@@ -688,11 +668,8 @@ public class OperationTaskServiceImpl
         }
 
         // ======== 6. 最后阶段成功，提交最终业务状态 ========
-
         completeVersionUpgradeIfNecessary(task);
         serverSwitchCompletionService.completeIfNecessary(task);
-
-        // 最终业务状态与总任务SUCCESS在当前事务中一起提交。
         saveTaskStatus(task, OperationTaskStatusEnum.SUCCESS, null);
         return null;
     }
@@ -764,7 +741,28 @@ public class OperationTaskServiceImpl
             );
         }
 
-        // 清理节点相关缓存，页面下一次查询直接读取新版本号。
+        // 数据库事务提交成功后再清理节点相关缓存，避免其他线程在提交前从数据库读取旧版本号并重新写回缓存。
+        clearVersionCacheAfterCommit();
+    }
+
+    /**
+     * 数据库事务提交成功后清理版本升级涉及的节点缓存。
+     */
+    private void clearVersionCacheAfterCommit() {
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        clearVersionCache();
+                    }
+                }
+        );
+    }
+
+    /**
+     * 清理包含Redis版本号的节点缓存。
+     */
+    private void clearVersionCache() {
         caffeineCache.invalidate(CacheKeyUtil.instanceList(
                 StatusEnum.ACTIVE.getCode()
         ));
@@ -807,7 +805,6 @@ public class OperationTaskServiceImpl
             String terminatedBy) {
 
         // ======== 1. 锁定总任务 ========
-
         OperationTask task = operationTaskMapper.selectTaskForUpdate(taskNo);
         if (task == null) {
             throw new BusinessException(
@@ -817,7 +814,6 @@ public class OperationTaskServiceImpl
         }
 
         // ======== 2. 处理重复提交 ========
-
         if (OperationTaskStatusEnum.MANUALLY_TERMINATED.name()
                 .equals(task.getTaskStatus())) {
             boolean sameReason = terminationReason.equals(
@@ -836,7 +832,6 @@ public class OperationTaskServiceImpl
         }
 
         // ======== 3. 校验任务状态 ========
-
         if (!OperationTaskStatusEnum.RESULT_UNKNOWN.name()
                 .equals(task.getTaskStatus())) {
             throw new BusinessException(
@@ -846,7 +841,6 @@ public class OperationTaskServiceImpl
         }
 
         // ======== 4. 保存人工结束状态和审计信息 ========
-
         LocalDateTime now = LocalDateTime.now();
         task.setTaskStatus(
                 OperationTaskStatusEnum.MANUALLY_TERMINATED.name()
@@ -938,27 +932,36 @@ public class OperationTaskServiceImpl
 
         task.setTaskStatus(targetStatus.name());
         // 没有失败原因时保存空串，避免字符串字段写入null。
-        task.setFailureReason(
-                failureReason == null ? "" : failureReason
-        );
+        task.setFailureReason(failureReason == null ? "" : failureReason);
         task.setUpdatedTime(now);
 
-        if (OperationTaskStatusEnum.RUNNING == targetStatus) {
-            if (task.getStartTime() == null) {
+        switch (targetStatus) {
+            case RUNNING:
+                // CREATED -> RUNNING：任务开始，记录开始时间，尚无结束时间。
                 task.setStartTime(now);
-            }
-            task.setEndTime(null);
-        } else if (OperationTaskStatusEnum.RESULT_UNKNOWN == targetStatus) {
-            if (task.getStartTime() == null) {
-                task.setStartTime(now);
-            }
-            // 结果未知仍需人工确认，人工结束之前不记录结束时间。
-            task.setEndTime(null);
-        } else {
-            if (task.getStartTime() == null) {
-                task.setStartTime(now);
-            }
-            task.setEndTime(now);
+                task.setEndTime(null);
+                break;
+
+            case RESULT_UNKNOWN:
+                // 只会从RUNNING转入，开始时间已存在；等人工确认前不记录结束时间。
+                task.setEndTime(null);
+                break;
+
+            case SUCCESS:
+            case FAILED:
+                // 下发前检查失败时任务从未进入RUNNING，此时补上开始时间。
+                if (task.getStartTime() == null) {
+                    task.setStartTime(now);
+                }
+                task.setEndTime(now);
+                break;
+
+            default:
+                // 其他状态不应通过本方法保存，直接报错，避免静默写入错误时间。
+                throw new BusinessException(
+                        BusinessCode.OPERATION_ERROR.getCode(),
+                        "不支持保存的任务状态：" + targetStatus
+                );
         }
 
         int updated = operationTaskMapper.updateTaskExecutionState(task);

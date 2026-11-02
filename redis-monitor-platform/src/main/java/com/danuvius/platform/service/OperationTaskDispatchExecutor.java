@@ -26,7 +26,7 @@ public class OperationTaskDispatchExecutor {
             operationTaskDispatchService.dispatchStage(taskNo, stepNo);
 
         } catch (Exception e) {
-            // 异步线程无法将异常返回给Controller，只记录完整日志供人工排查。
+            // 异步线程无法将异常返回给Controller，只记录日志供人工排查。
             log.error(
                     "运维任务阶段调度异常，taskNo={}，stepNo={}",
                     taskNo,

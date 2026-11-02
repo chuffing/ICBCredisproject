@@ -16,10 +16,6 @@ public final class VersionUpgradeConstants {
     public static final int START_REDIS_STEP_NO = 6;
     public static final int START_SENTINEL_STEP_NO = 7;
 
-    public static final String PACKAGE_ID_PARAM = "packageId";
-    public static final String TARGET_VERSION_PARAM = "targetVersion";
-    public static final String PACKAGE_SHA256_PARAM = "packageSha256";
-
     public static final String TASK_CREATED_MESSAGE = "版本升级任务已创建";
     public static final String TASK_RUNNING_MESSAGE = "版本升级正在执行";
     public static final String TASK_RESULT_UNKNOWN_MESSAGE =

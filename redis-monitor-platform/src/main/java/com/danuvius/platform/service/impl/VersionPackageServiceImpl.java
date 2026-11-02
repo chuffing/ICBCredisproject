@@ -97,8 +97,8 @@ public class VersionPackageServiceImpl implements VersionPackageService {
         }
         String fileNameVersion = fileNameMatcher.group(1);
 
-        // 2. 准备安装包存储目录，并在该目录中创建临时文件。
-        Path storageDirectory = prepareStorageDirectory();
+        // 2. 使用平台启动时已经校验通过的安装包存储目录创建临时文件。
+        Path storageDirectory = Paths.get(storageDir);
         Path temporaryFile = null;
         Path storedFile = null;
         boolean storedFileCreated = false;
@@ -355,33 +355,6 @@ public class VersionPackageServiceImpl implements VersionPackageService {
             );
         }
         return packageName;
-    }
-
-    /**
-     * 准备安装包存储目录。
-     */
-    private Path prepareStorageDirectory() {
-
-        String configuredPath = storageDir;
-        if (configuredPath == null || configuredPath.trim().isEmpty()) {
-            throw new BusinessException(
-                    BusinessCode.OPERATION_ERROR.getCode(),
-                    "Redis安装包存储目录未配置"
-            );
-        }
-
-        try {
-            Path storageDirectory = Paths.get(configuredPath.trim())
-                    .toAbsolutePath().normalize();
-            Files.createDirectories(storageDirectory);
-            return storageDirectory.toRealPath();
-        } catch (IOException exception) {
-            throw new BusinessException(
-                    BusinessCode.OPERATION_ERROR.getCode(),
-                    "无法准备Redis安装包存储目录："
-                            + exception.getMessage()
-            );
-        }
     }
 
     /**

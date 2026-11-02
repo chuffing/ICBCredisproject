@@ -3,18 +3,26 @@ package com.danuvius.platform.service.impl;
 import com.danuvius.platform.common.exception.BusinessException;
 import com.danuvius.platform.mapper.OperationTaskMapper;
 import com.danuvius.platform.mapper.OperationTaskStepMapper;
+import com.danuvius.platform.mapper.RedisVersionPackageMapper;
 import com.danuvius.platform.model.dto.TaskResultReportDTO;
 import com.danuvius.platform.model.entity.OperationTask;
 import com.danuvius.platform.model.entity.OperationTaskStep;
+import com.danuvius.platform.model.entity.RedisInstance;
+import com.danuvius.platform.model.entity.RedisVersionPackage;
 import com.danuvius.platform.model.enums.OperationTaskStatusEnum;
 import com.danuvius.platform.model.enums.OperationTaskStepStatusEnum;
 import com.danuvius.platform.model.enums.OperationTaskTypeEnum;
+import com.danuvius.platform.model.enums.StatusEnum;
 import com.danuvius.platform.service.AuditLogService;
 import com.danuvius.platform.service.RedisInstanceService;
 import com.danuvius.platform.service.TaskNoService;
+import com.danuvius.platform.util.CacheKeyUtil;
+import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -36,6 +44,9 @@ class OperationTaskServiceImplTest {
     private OperationTaskMapper taskMapper;
     private OperationTaskStepMapper stepMapper;
     private ServerSwitchCompletionService switchCompletionService;
+    private RedisInstanceService redisInstanceService;
+    private RedisVersionPackageMapper versionPackageMapper;
+    private Cache<String, Object> caffeineCache;
     private OperationTaskServiceImpl service;
 
     @BeforeEach
@@ -43,14 +54,18 @@ class OperationTaskServiceImplTest {
         taskMapper = mock(OperationTaskMapper.class);
         stepMapper = mock(OperationTaskStepMapper.class);
         switchCompletionService = mock(ServerSwitchCompletionService.class);
+        redisInstanceService = mock(RedisInstanceService.class);
+        versionPackageMapper = mock(RedisVersionPackageMapper.class);
+        caffeineCache = Caffeine.newBuilder().build();
         service = new OperationTaskServiceImpl(
                 taskMapper,
                 stepMapper,
                 mock(AuditLogService.class),
                 mock(TaskNoService.class),
                 switchCompletionService,
-                mock(RedisInstanceService.class),
-                Caffeine.newBuilder().build());
+                redisInstanceService,
+                versionPackageMapper,
+                caffeineCache);
     }
 
     @Test
@@ -152,6 +167,62 @@ class OperationTaskServiceImplTest {
 
         assertThrows(BusinessException.class, () -> service.saveStepResult(report));
         verify(stepMapper, never()).updateTaskStepResult(any());
+    }
+
+    @Test
+    void shouldInvalidateVersionCachesOnlyAfterTransactionCommit() {
+        OperationTask task = runningTask();
+        task.setTaskType(OperationTaskTypeEnum.VERSION_UPGRADE.name());
+        task.setRequestParams("{\"packageId\":1}");
+
+        when(taskMapper.selectTaskForUpdate(task.getTaskNo())).thenReturn(task);
+        when(stepMapper.selectTaskStageSteps(task.getTaskNo(), 1)).thenReturn(
+                Arrays.asList(step("a", OperationTaskStepStatusEnum.SUCCESS),
+                        step("b", OperationTaskStepStatusEnum.SUCCESS),
+                        step("c", OperationTaskStepStatusEnum.SUCCESS)));
+        when(stepMapper.selectNextStepNo(task.getTaskNo(), 1)).thenReturn(null);
+        when(taskMapper.updateTaskExecutionState(task)).thenReturn(1);
+
+        RedisVersionPackage versionPackage = new RedisVersionPackage();
+        versionPackage.setId(1L);
+        versionPackage.setRedisVersion("6.2.20");
+        when(versionPackageMapper.selectById(1L)).thenReturn(versionPackage);
+
+        RedisInstance first = new RedisInstance();
+        RedisInstance second = new RedisInstance();
+        RedisInstance third = new RedisInstance();
+        when(redisInstanceService.list(any())).thenReturn(
+                Arrays.asList(first, second, third));
+        when(redisInstanceService.updateBatchById(any())).thenReturn(true);
+
+        String instanceListKey = CacheKeyUtil.instanceList(
+                StatusEnum.ACTIVE.getCode());
+        caffeineCache.put(instanceListKey, "old-instance-list");
+        caffeineCache.put(CacheKeyUtil.TOPOLOGY, "old-topology");
+        caffeineCache.put(CacheKeyUtil.NODES, "old-nodes");
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            assertNull(service.finishStage(task.getTaskNo(), 1));
+
+            assertEquals("old-instance-list",
+                    caffeineCache.getIfPresent(instanceListKey));
+            assertEquals("old-topology",
+                    caffeineCache.getIfPresent(CacheKeyUtil.TOPOLOGY));
+            assertEquals("old-nodes",
+                    caffeineCache.getIfPresent(CacheKeyUtil.NODES));
+
+            for (TransactionSynchronization synchronization
+                    : TransactionSynchronizationManager.getSynchronizations()) {
+                synchronization.afterCommit();
+            }
+
+            assertNull(caffeineCache.getIfPresent(instanceListKey));
+            assertNull(caffeineCache.getIfPresent(CacheKeyUtil.TOPOLOGY));
+            assertNull(caffeineCache.getIfPresent(CacheKeyUtil.NODES));
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 
     private OperationTask runningTask() {

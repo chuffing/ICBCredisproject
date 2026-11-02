@@ -28,11 +28,9 @@ public class OperationTaskResultServiceImpl
     public void reportTaskResult(TaskResultReportDTO request) {
 
         // ======== 1. 独立提交执行器步骤结果 ========
-
         operationTaskService.saveStepResult(request);
 
         // ======== 2. 独立汇总当前阶段结果 ========
-
         finishStageSafely(request.getTaskNo(), request.getStepNo());
     }
 
@@ -75,15 +73,13 @@ public class OperationTaskResultServiceImpl
                     taskNo,
                     stepNo
             );
-
-            // finishStage返回时当前事务已经提交，可以安全下发下一阶段。
+            // finishStage返回时汇总事务已经提交，可以安全下发下一阶段。
             if (nextStepNo != null) {
                 operationTaskDispatchExecutor.dispatchStage(
                         taskNo,
                         nextStepNo
                 );
             }
-
         } catch (RuntimeException finishException) {
             log.error(
                     "运维任务阶段结果汇总失败，taskNo={}，stepNo={}",
@@ -102,7 +98,6 @@ public class OperationTaskResultServiceImpl
                         taskNo,
                         reason
                 );
-
             } catch (RuntimeException updateException) {
                 // 连结果未知也无法保存时，将异常继续返回并保留原始原因。
                 finishException.addSuppressed(updateException);

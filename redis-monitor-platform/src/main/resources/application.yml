@@ -25,11 +25,12 @@ platform:
       START_REDIS: 180
       START_SENTINEL: 180
   version-package:
+    # 必须使用不含首尾空格、.或..路径段的绝对路径，目录需提前创建并具备读写访问权限。
     storage-dir: D:/redis-monitor-platform/redis-monitor-platform/data/versionPackages
     max-bytes: 52428800
   node-config:
     # 当前正式配置放在current/{IP}/下；服务器切换配置人工放入staging/{IP}/下。
-    # 本地联调绝对路径。
+    # 必须使用不含首尾空格、.或..路径段的绝对路径，current和staging目录需提前创建并具备读写访问权限。
     config-dir: D:/redis-monitor-platform/redis-monitor-platform/data/nodeConfigs
   alarm:
     notice:

@@ -34,13 +34,13 @@ C:\Users\86135\AppData\Local\redis-monitor-platform-postgres\data
 mvn spring-boot:run "-Dspring-boot.run.profiles=local"
 ```
 
-平台第一次连接本地数据库时，会自动执行：
+初始化空数据库时，手工执行唯一建表脚本：
 
 ```text
-src/main/resources/db/postgresql/local_schema.sql
+src/main/resources/db/postgresql/schema.sql
 ```
 
-初始化脚本使用`CREATE TABLE IF NOT EXISTS`，后续重新启动平台不会删除已有数据。
+该脚本使用`CREATE TABLE IF NOT EXISTS`，不会主动删除已有表和数据。它只用于空数据库首次建表，不代替存量数据库版本升级。
 
 ## 3. 本地数据库连接信息
 

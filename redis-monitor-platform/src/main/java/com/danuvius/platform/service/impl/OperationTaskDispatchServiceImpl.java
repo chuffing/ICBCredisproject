@@ -3,7 +3,7 @@ package com.danuvius.platform.service.impl;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.TypeReference;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.danuvius.platform.common.constant.ServerSwitchConstants;
+import com.danuvius.platform.common.constant.AgentTaskParamConstants;
 import com.danuvius.platform.common.exception.AgentTaskDispatchUnknownException;
 import com.danuvius.platform.common.exception.AgentTaskRejectedException;
 import com.danuvius.platform.common.exception.BusinessCode;
@@ -75,17 +75,14 @@ public class OperationTaskDispatchServiceImpl
     public void dispatchStage(String taskNo, Integer stepNo) {
 
         // ======== 1. 查询当前阶段步骤 ========
-
         List<OperationTaskStep> stageSteps =
                 operationTaskService.getStageSteps(taskNo, stepNo);
 
         // ======== 2. 阶段开始前统一校验执行器 ========
-
         Map<String, ExecutorInfo> executorById = loadExecutors(stageSteps);
         Map<String, String> rejectedReasons =
                 validateStageExecutors(stageSteps, executorById);
-
-        // 任意执行器不满足条件时，整个阶段都不发送HTTP。
+        // 任意执行器不满足条件时，不开始下发。
         if (!rejectedReasons.isEmpty()) {
             operationTaskService.rejectStageBeforeDispatch(
                     taskNo,
@@ -96,8 +93,7 @@ public class OperationTaskDispatchServiceImpl
             return;
         }
 
-        // ======== 3. 在一个事务中启动总任务和当前阶段 ========
-
+        // ======== 3. 启动当前阶段，将全部步骤改为下发中（如果是首次下发，同时设置总任务状态为RUNNING ========
         stageSteps = operationTaskService.startStageDispatch(
                 taskNo,
                 stepNo,
@@ -105,9 +101,7 @@ public class OperationTaskDispatchServiceImpl
         );
 
         // ======== 4. 并行向三台执行器发送HTTP请求 ========
-
-        List<CompletableFuture<DispatchResult>> dispatchFutures =
-                new ArrayList<>();
+        List<CompletableFuture<DispatchResult>> dispatchFutures = new ArrayList<>();
 
         for (OperationTaskStep step : stageSteps) {
             CompletableFuture<DispatchResult> future =
@@ -127,7 +121,6 @@ public class OperationTaskDispatchServiceImpl
         ).join();
 
         // ======== 5. 保存本阶段全部HTTP下发结果并检查下发结果是否已经足以结束总任务。 ========
-
         saveDispatchResults(taskNo, stepNo, dispatchFutures);
     }
 
@@ -164,11 +157,8 @@ public class OperationTaskDispatchServiceImpl
             Map<String, ExecutorInfo> executorById) {
 
         Map<String, String> rejectedReasons = new LinkedHashMap<>();
-
         for (OperationTaskStep step : stageSteps) {
-
             ExecutorInfo executor = executorById.get(step.getExecutorId());
-
             if (executor == null) {
                 rejectedReasons.put(
                         step.getExecutorId(),
@@ -215,9 +205,8 @@ public class OperationTaskDispatchServiceImpl
                 try {
                     request.setParams(JSON.parseObject(
                             step.getRequestParams(),
-                            new TypeReference<Map<String, String>>() {
-                            }
-                    ));
+                            new TypeReference<Map<String, String>>() {})
+                    );
                 } catch (Exception e) {
                     throw new AgentTaskRejectedException(
                             "平台保存的任务参数无法解析"
@@ -225,37 +214,37 @@ public class OperationTaskDispatchServiceImpl
                 }
             }
 
-            // 版本部署阶段需要同时上传源码包。
             if (ExecutorOperationTypeEnum.DEPLOY_VERSION.name()
                     .equals(step.getOperationType())) {
-
+                // 版本部署阶段需要同时上传源码包。
+                // 根据部署步骤中的安装包编号读取平台正式存储文件。
                 File packageFile = loadVersionPackageFile(request);
-
                 agentTaskClient.dispatchVersionTask(
                         executor,
                         request,
                         packageFile
                 );
 
-                // 配置部署阶段需要按目标服务器上传两份人工配置。
             } else if (ExecutorOperationTypeEnum.DEPLOY_CONFIG.name()
                     .equals(step.getOperationType())) {
-                try {
+                // 配置部署阶段需要按目标服务器上传两份人工配置。
 
+                try {
+                    // 读取staging目录中指定服务器的Redis、Sentinel配置文件。
                     File redisConfigFile = configFileService
                             .getStagingRedisConfigFile(
                                     executor.getHostIp());
-
                     File sentinelConfigFile = configFileService
                             .getStagingSentinelConfigFile(
                                     executor.getHostIp());
-
+                    // 下发前重新计算两份配置的摘要，防止任务创建后文件被修改。
                     validateConfigSha256(
                             request,
                             redisConfigFile,
                             sentinelConfigFile
                     );
 
+                    // 向指定执行器上传Redis、Sentinel配置并下发配置部署任务。
                     agentTaskClient.dispatchConfigTask(
                             executor,
                             request,
@@ -268,8 +257,9 @@ public class OperationTaskDispatchServiceImpl
                             exception.getMessage()
                     );
                 }
-                // 其他的运维类型不需要传文件了，正常发。
+
             } else {
+                // 除部署版本和部署配置之外，其他的操作类型无需传输文件。
                 agentTaskClient.dispatchTask(executor, request);
             }
             return DispatchResult.dispatched(step);
@@ -295,23 +285,19 @@ public class OperationTaskDispatchServiceImpl
     private File loadVersionPackageFile(AgentTaskRequestDTO request) {
 
         Map<String, String> params = request.getParams();
-        String packageIdValue = params == null
-                ? null : params.get("packageId");
-
+        String packageIdValue = params == null ? null
+                : params.get(AgentTaskParamConstants.PACKAGE_ID);
         long packageId;
 
         try {
             packageId = Long.parseLong(packageIdValue);
-
         } catch (NumberFormatException | NullPointerException exception) {
             throw new AgentTaskRejectedException(
                     "版本部署步骤中的安装包编号不正确"
             );
         }
 
-        RedisVersionPackage versionPackage = versionPackageMapper.selectById(
-                packageId
-        );
+        RedisVersionPackage versionPackage = versionPackageMapper.selectById(packageId);
         if (versionPackage == null
                 || versionPackage.getStoragePath() == null) {
             throw new AgentTaskRejectedException("版本部署安装包不存在");
@@ -334,11 +320,11 @@ public class OperationTaskDispatchServiceImpl
             File sentinelConfigFile) {
         Map<String, String> params = request.getParams();
         String expectedRedisSha256 = params == null ? null
-                : params.get(ServerSwitchConstants
-                .REDIS_CONFIG_SHA256_PARAM);
+                : params.get(AgentTaskParamConstants
+                .REDIS_CONFIG_SHA256);
         String expectedSentinelSha256 = params == null ? null
-                : params.get(ServerSwitchConstants
-                .SENTINEL_CONFIG_SHA256_PARAM);
+                : params.get(AgentTaskParamConstants
+                .SENTINEL_CONFIG_SHA256);
 
         String actualRedisSha256;
         String actualSentinelSha256;

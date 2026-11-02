@@ -1,6 +1,7 @@
 package com.danuvius.platform.service.impl;
 
 import com.alibaba.fastjson.JSON;
+import com.danuvius.platform.common.constant.AgentTaskParamConstants;
 import com.danuvius.platform.common.constant.FaultRecoveryConstants;
 import com.danuvius.platform.common.exception.BusinessCode;
 import com.danuvius.platform.common.exception.BusinessException;
@@ -76,6 +77,7 @@ public class FaultRecoveryServiceImpl implements FaultRecoveryService {
         operationTaskService.saveSteps(steps);
 
         // 4. 当前事务提交后，异步下发故障恢复的第一个阶段。避免任务步骤尚未成功保存，就开始向执行器下发。
+        // 故障恢复第一阶段：停止三台sentinel。
         registerStageDispatchAfterCommit(
                 task.getTaskNo(),
                 FaultRecoveryConstants.STOP_SENTINEL_STEP_NO
@@ -173,11 +175,7 @@ public class FaultRecoveryServiceImpl implements FaultRecoveryService {
             Integer stepNo) {
 
         TransactionSynchronizationManager.registerSynchronization(
-
-                // 创建一个事务回调对象。
                 new TransactionSynchronization() {
-
-                    // afterCommit()表示：当前数据库事务成功提交之后，执行这里的代码。
                     @Override
                     public void afterCommit() {
                         operationTaskDispatchExecutor.dispatchStage(
@@ -230,12 +228,12 @@ public class FaultRecoveryServiceImpl implements FaultRecoveryService {
             // 执行器恢复前会再次校验本地备份，防止恢复错误文件。
             Map<String, String> restoreConfigParams = new HashMap<>();
             restoreConfigParams.put(
-                    FaultRecoveryConstants.REDIS_CONFIG_SHA256_PARAM,
-                    node.getRedisInstance().getConfigSha256()
+                    AgentTaskParamConstants.REDIS_CONFIG_SHA256,
+                    node.getRedisConfigSha256()
             );
             restoreConfigParams.put(
-                    FaultRecoveryConstants.SENTINEL_CONFIG_SHA256_PARAM,
-                    node.getSentinelNode().getConfigSha256()
+                    AgentTaskParamConstants.SENTINEL_CONFIG_SHA256,
+                    node.getSentinelConfigSha256()
             );
 
             steps.add(createRecoveryStep(
@@ -293,7 +291,7 @@ public class FaultRecoveryServiceImpl implements FaultRecoveryService {
         OperationTaskStep step = new OperationTaskStep();
         step.setTaskNo(taskNo);
         step.setStepNo(stepNo);
-        step.setExecutorId(node.getExecutorInfo().getId());
+        step.setExecutorId(node.getExecutorId());
         step.setOperationType(operationType.name());
         step.setStepStatus(OperationTaskStepStatusEnum.CREATED.name());
         // 没有请求参数时保存空JSON对象，避免JSON字段写入null。

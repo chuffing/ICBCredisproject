@@ -36,15 +36,9 @@ public class NodeConfigFileService {
             @Value("${platform.node-config.config-dir}")
             String configDirectory) {
 
-        Path rootDirectory = Paths.get(configDirectory)
-                .toAbsolutePath()
-                .normalize();
-        this.currentDirectory = rootDirectory
-                .resolve(CURRENT_DIRECTORY_NAME)
-                .normalize();
-        this.stagingDirectory = rootDirectory
-                .resolve(STAGING_DIRECTORY_NAME)
-                .normalize();
+        Path rootDirectory = Paths.get(configDirectory);
+        this.currentDirectory = rootDirectory.resolve(CURRENT_DIRECTORY_NAME);
+        this.stagingDirectory = rootDirectory.resolve(STAGING_DIRECTORY_NAME);
     }
 
     /**

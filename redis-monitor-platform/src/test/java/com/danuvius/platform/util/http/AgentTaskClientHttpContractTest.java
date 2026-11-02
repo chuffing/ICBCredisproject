@@ -104,6 +104,57 @@ class AgentTaskClientHttpContractTest {
     }
 
     @Test
+    void shouldAcceptExplicitAcceptedSubmitStatus() {
+        responseBody.set(acceptedBodyWithStatus(
+                TASK_NO,
+                "ACCEPTED",
+                "任务已接收"
+        ));
+
+        new AgentTaskClient().dispatchTask(executor, request);
+    }
+
+    @Test
+    void shouldRejectExplicitNonAcceptedSubmitStatus() {
+        responseBody.set(acceptedBodyWithStatus(
+                TASK_NO,
+                "BUSY",
+                "执行器繁忙，任务未接收"
+        ));
+
+        AgentTaskRejectedException exception = assertThrows(
+                AgentTaskRejectedException.class,
+                () -> new AgentTaskClient().dispatchTask(executor, request));
+
+        assertEquals("执行器繁忙，任务未接收", exception.getMessage());
+    }
+
+    @Test
+    void shouldTreatMissingSubmitStatusAsUnknown() {
+        responseBody.set("{\"code\":202,\"msg\":\"任务已接收\","
+                + "\"data\":{\"taskNo\":\"" + TASK_NO + "\"}}");
+
+        assertThrows(
+                AgentTaskDispatchUnknownException.class,
+                () -> new AgentTaskClient().dispatchTask(executor, request)
+        );
+    }
+
+    @Test
+    void shouldTreatUnknownSubmitStatusAsUnknown() {
+        responseBody.set(acceptedBodyWithStatus(
+                TASK_NO,
+                "UNKNOWN",
+                "未知状态"
+        ));
+
+        assertThrows(
+                AgentTaskDispatchUnknownException.class,
+                () -> new AgentTaskClient().dispatchTask(executor, request)
+        );
+    }
+
+    @Test
     void shouldTreatMalformedOrMismatchedResponseAsUnknown() {
         responseBody.set("not-json");
         assertThrows(AgentTaskDispatchUnknownException.class,
@@ -168,7 +219,19 @@ class AgentTaskClientHttpContractTest {
     }
 
     private String acceptedBody(String taskNo) {
+        return acceptedBodyWithStatus(
+                taskNo,
+                "ACCEPTED",
+                "任务已接收"
+        );
+    }
+
+    private String acceptedBodyWithStatus(
+            String taskNo,
+            String status,
+            String message) {
         return "{\"code\":202,\"msg\":\"任务已接收\",\"data\":{\"taskNo\":\""
-                + taskNo + "\"}}";
+                + taskNo + "\",\"status\":\"" + status
+                + "\",\"message\":\"" + message + "\"}}";
     }
 }

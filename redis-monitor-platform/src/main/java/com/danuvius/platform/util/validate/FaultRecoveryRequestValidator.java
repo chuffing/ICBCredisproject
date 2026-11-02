@@ -9,9 +9,6 @@ import com.danuvius.platform.model.dto.FaultRecoveryRequestDTO;
  */
 public final class FaultRecoveryRequestValidator {
 
-    private FaultRecoveryRequestValidator() {
-    }
-
     /**
      * 校验并规范化故障恢复请求。
      */

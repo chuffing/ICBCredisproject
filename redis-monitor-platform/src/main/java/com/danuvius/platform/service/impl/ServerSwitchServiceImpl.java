@@ -2,6 +2,7 @@ package com.danuvius.platform.service.impl;
 
 import com.alibaba.fastjson.JSON;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.danuvius.platform.common.constant.AgentTaskParamConstants;
 import com.danuvius.platform.common.constant.OperationTaskConstants;
 import com.danuvius.platform.common.constant.ServerSwitchConstants;
 import com.danuvius.platform.common.constant.VersionPackageConstants;
@@ -432,11 +433,11 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
 
         // 2. 在三台目标服务器部署目标Redis版本。
         Map<String, String> deployVersionParams = new HashMap<>();
-        deployVersionParams.put(ServerSwitchConstants.PACKAGE_ID_PARAM,
+        deployVersionParams.put(AgentTaskParamConstants.PACKAGE_ID,
                 String.valueOf(versionPackage.getId()));
-        deployVersionParams.put(ServerSwitchConstants.TARGET_VERSION_PARAM,
+        deployVersionParams.put(AgentTaskParamConstants.TARGET_VERSION,
                 versionPackage.getRedisVersion());
-        deployVersionParams.put(ServerSwitchConstants.PACKAGE_SHA256_PARAM,
+        deployVersionParams.put(AgentTaskParamConstants.PACKAGE_SHA256,
                 versionPackage.getSha256());
         addTargetStageSteps(steps, taskNo,
                 ServerSwitchConstants.DEPLOY_VERSION_STEP_NO,
@@ -455,11 +456,11 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
         for (TargetNode targetNode : targetNodes) {
             Map<String, String> configParams = new HashMap<>();
             configParams.put(
-                    ServerSwitchConstants.REDIS_CONFIG_SHA256_PARAM,
+                    AgentTaskParamConstants.REDIS_CONFIG_SHA256,
                     targetNode.redisConfigSha256
             );
             configParams.put(
-                    ServerSwitchConstants.SENTINEL_CONFIG_SHA256_PARAM,
+                    AgentTaskParamConstants.SENTINEL_CONFIG_SHA256,
                     targetNode.sentinelConfigSha256
             );
             steps.add(createStep(
@@ -473,7 +474,7 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
 
         // 6. 将目标服务器的current软链接切换到目标版本。
         Map<String, String> switchVersionParams = new HashMap<>();
-        switchVersionParams.put(ServerSwitchConstants.TARGET_VERSION_PARAM,
+        switchVersionParams.put(AgentTaskParamConstants.TARGET_VERSION,
                 versionPackage.getRedisVersion());
         addTargetStageSteps(steps, taskNo,
                 ServerSwitchConstants.SWITCH_VERSION_STEP_NO,

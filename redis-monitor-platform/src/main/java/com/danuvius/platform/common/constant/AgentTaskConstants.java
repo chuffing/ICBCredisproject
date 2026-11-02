@@ -22,6 +22,21 @@ public final class AgentTaskConstants {
     /** Bearer认证前缀。 */
     public static final String BEARER_PREFIX = "Bearer ";
 
+    /** multipart中的任务报文部分名称。 */
+    public static final String TASK_PART_NAME = "task";
+
+    /** multipart中的版本安装包部分名称。 */
+    public static final String VERSION_FILE_PART_NAME = "file";
+
+    /** multipart中的Redis配置文件部分名称。 */
+    public static final String REDIS_CONFIG_PART_NAME = "redisFile";
+
+    /** multipart中的Sentinel配置文件部分名称。 */
+    public static final String SENTINEL_CONFIG_PART_NAME = "sentinelFile";
+
+    /** multipart中任务JSON部分使用的文件名。 */
+    public static final String TASK_PART_FILE_NAME = "task.json";
+
     /** 任务下发超时时间，单位为毫秒。 */
     public static final int TIMEOUT_MS = 10000;
 

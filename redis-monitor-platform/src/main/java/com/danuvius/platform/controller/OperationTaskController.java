@@ -46,11 +46,8 @@ public class OperationTaskController {
      */
     @PostMapping("/report")
     public ResultBean<Void> reportTaskResult(
-            @RequestHeader(
-                    value = AgentTaskConstants.AUTHORIZATION_HEADER,
-                    required = false
-            ) String authorization,
-            @RequestBody(required = false) TaskResultReportDTO request) {
+            @RequestHeader(value = AgentTaskConstants.AUTHORIZATION_HEADER) String authorization,
+            @RequestBody TaskResultReportDTO request) {
 
         // 1. 校验并规范化执行器上报参数。
         OperationTaskRequestValidator.validateReport(request);

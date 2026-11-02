@@ -102,13 +102,13 @@ public class CurrentTopologyService {
             }
         }
 
-        // 5. 按实例编号建立执行器索引。
+        // 5. 按redis实例编号建立执行器索引。
         Map<String, ExecutorInfo> executorByInstanceId = new HashMap<>();
         for (ExecutorInfo executor : executors) {
             executorByInstanceId.put(executor.getInstanceId(), executor);
         }
 
-        // 6. 将同一台服务器上的Redis、Sentinel和执行器组合为运维节点。
+        // 6. 提取后续运维步骤实际需要的执行器编号和配置摘要。
         List<CurrentTopologyNode> nodes = new ArrayList<>();
         Set<String> redisHosts = new HashSet<>();
         for (RedisInstance redisInstance : redisInstances) {
@@ -144,9 +144,9 @@ public class CurrentTopologyService {
             );
 
             nodes.add(new CurrentTopologyNode(
-                    redisInstance,
-                    sentinelNode,
-                    executor
+                    executor.getId(),
+                    redisInstance.getConfigSha256(),
+                    sentinelNode.getConfigSha256()
             ));
         }
 

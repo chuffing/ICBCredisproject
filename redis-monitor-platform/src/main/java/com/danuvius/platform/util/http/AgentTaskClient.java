@@ -7,7 +7,7 @@ import cn.hutool.http.HttpResponse;
 import cn.hutool.http.HttpStatus;
 import cn.hutool.core.io.resource.BytesResource;
 import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONObject;
+import com.alibaba.fastjson.TypeReference;
 import com.danuvius.platform.common.core.ResultBean;
 import com.danuvius.platform.common.constant.AgentTaskConstants;
 import com.danuvius.platform.common.exception.AgentTaskDispatchUnknownException;
@@ -40,12 +40,11 @@ public class AgentTaskClient {
             ExecutorInfo executor,
             AgentTaskRequestDTO request) {
 
-        // 根据执行器的IP合端口拼接接口地址。
-        String url = "http://"
-                + executor.getHostIp()
-                + ":"
-                + executor.getExecutorPort()
-                + AgentTaskConstants.TASK_PATH;
+        // 根据执行器地址和接口路径生成完整请求地址
+        String url = buildExecutorUrl(
+                executor,
+                AgentTaskConstants.TASK_PATH
+        );
 
         // 创建并发送HTTP请求，得到执行器response。
         try (HttpResponse response = HttpRequest.post(url)
@@ -59,19 +58,15 @@ public class AgentTaskClient {
                 .timeout(AgentTaskConstants.TIMEOUT_MS)
                 .execute()) {
 
-            // 获得真实HTTP状态码。
-            int statusCode = response.getStatus();
-            // 获取HTTP响应体。
-            String responseBody = response.body();
-
+            // 校验执行器的HTTP状态码、业务响应码和任务编号。
             validateAcceptedResponse(
                     request,
-                    statusCode,
-                    responseBody);
+                    response.getStatus(),
+                    response.body()
+            );
 
         } catch (AgentTaskRejectedException
                  | AgentTaskDispatchUnknownException e) {
-
             throw e;
 
         } catch (Exception e) {
@@ -83,7 +78,6 @@ public class AgentTaskClient {
                     url,
                     e
             );
-
             throw new AgentTaskDispatchUnknownException(
                     "无法确认执行器是否收到任务",
                     e
@@ -99,16 +93,18 @@ public class AgentTaskClient {
             AgentTaskRequestDTO request,
             File packageFile) {
 
-        String url = "http://"
-                + executor.getHostIp()
-                + ":"
-                + executor.getExecutorPort()
-                + AgentTaskConstants.VERSION_DEPLOY_PATH;
+        String url = buildExecutorUrl(
+                executor,
+                AgentTaskConstants.VERSION_DEPLOY_PATH
+        );
 
         byte[] taskBytes = JSON.toJSONString(request)
                 .getBytes(StandardCharsets.UTF_8);
         HttpResource taskPart = new HttpResource(
-                new BytesResource(taskBytes, "task.json"),
+                new BytesResource(
+                        taskBytes,
+                        AgentTaskConstants.TASK_PART_FILE_NAME
+                ),
                 ContentType.JSON.getValue()
         );
 
@@ -118,11 +114,16 @@ public class AgentTaskClient {
                         AgentTaskConstants.BEARER_PREFIX
                                 + executor.getExecutorToken()
                 )
-                .form("task", taskPart)
-                .form("file", packageFile, packageFile.getName())
+                .form(AgentTaskConstants.TASK_PART_NAME, taskPart)
+                .form(
+                        AgentTaskConstants.VERSION_FILE_PART_NAME,
+                        packageFile,
+                        packageFile.getName()
+                )
                 .timeout(AgentTaskConstants.VERSION_UPLOAD_TIMEOUT_MS)
                 .execute()) {
 
+            // 校验执行器的HTTP状态码、业务响应码和任务编号。
             validateAcceptedResponse(
                     request,
                     response.getStatus(),
@@ -156,16 +157,18 @@ public class AgentTaskClient {
             File redisConfigFile,
             File sentinelConfigFile) {
 
-        String url = "http://"
-                + executor.getHostIp()
-                + ":"
-                + executor.getExecutorPort()
-                + AgentTaskConstants.CONFIG_DEPLOY_PATH;
+        String url = buildExecutorUrl(
+                executor,
+                AgentTaskConstants.CONFIG_DEPLOY_PATH
+        );
 
         byte[] taskBytes = JSON.toJSONString(request)
                 .getBytes(StandardCharsets.UTF_8);
         HttpResource taskPart = new HttpResource(
-                new BytesResource(taskBytes, "task.json"),
+                new BytesResource(
+                        taskBytes,
+                        AgentTaskConstants.TASK_PART_FILE_NAME
+                ),
                 ContentType.JSON.getValue()
         );
 
@@ -175,14 +178,21 @@ public class AgentTaskClient {
                         AgentTaskConstants.BEARER_PREFIX
                                 + executor.getExecutorToken()
                 )
-                .form("task", taskPart)
-                .form("redisFile", redisConfigFile,
-                        redisConfigFile.getName())
-                .form("sentinelFile", sentinelConfigFile,
-                        sentinelConfigFile.getName())
+                .form(AgentTaskConstants.TASK_PART_NAME, taskPart)
+                .form(
+                        AgentTaskConstants.REDIS_CONFIG_PART_NAME,
+                        redisConfigFile,
+                        redisConfigFile.getName()
+                )
+                .form(
+                        AgentTaskConstants.SENTINEL_CONFIG_PART_NAME,
+                        sentinelConfigFile,
+                        sentinelConfigFile.getName()
+                )
                 .timeout(AgentTaskConstants.CONFIG_UPLOAD_TIMEOUT_MS)
                 .execute()) {
 
+            // 校验执行器的HTTP状态码、业务响应码和任务编号。
             validateAcceptedResponse(
                     request,
                     response.getStatus(),
@@ -262,6 +272,31 @@ public class AgentTaskClient {
                     "执行器响应的任务编号与下发任务不一致"
             );
         }
+
+        String submitStatus = result.getStatus();
+        if (submitStatus == null || submitStatus.trim().isEmpty()) {
+            throw new AgentTaskDispatchUnknownException(
+                    "执行器已返回接收成功，但任务接收状态为空"
+            );
+        }
+
+        AgentTaskSubmitStatusEnum status;
+        try {
+            status = AgentTaskSubmitStatusEnum.valueOf(submitStatus);
+        } catch (IllegalArgumentException exception) {
+            throw new AgentTaskDispatchUnknownException(
+                    "执行器返回未知任务接收状态：" + submitStatus,
+                    exception
+            );
+        }
+
+        if (status != AgentTaskSubmitStatusEnum.ACCEPTED) {
+            String message = result.getMessage();
+            if (message == null || message.trim().isEmpty()) {
+                message = "执行器未接收任务";
+            }
+            throw new AgentTaskRejectedException(message);
+        }
     }
 
 
@@ -275,24 +310,26 @@ public class AgentTaskClient {
         }
 
         try {
-            JSONObject responseJson = JSON.parseObject(responseBody);
-            if (!responseJson.containsKey("code")
-                    || !responseJson.containsKey("msg")) {
-                return null;
-            }
-
-            ResultBean<AgentTaskSubmitResponseVO> responseResult =
-                    new ResultBean<>();
-            responseResult.setCode(responseJson.getIntValue("code"));
-            responseResult.setMsg(responseJson.getString("msg"));
-            responseResult.setData(responseJson.getObject(
-                    "data",
-                    AgentTaskSubmitResponseVO.class
-            ));
-            return responseResult;
+            return JSON.parseObject(
+                    responseBody,
+                    new TypeReference<
+                            ResultBean<AgentTaskSubmitResponseVO>>() {
+                    }
+            );
         } catch (Exception e) {
             log.warn("执行器任务接收响应解析失败：{}", responseBody, e);
             return null;
         }
+    }
+
+    /** 根据执行器地址和接口路径生成完整请求地址。 */
+    private String buildExecutorUrl(
+            ExecutorInfo executor,
+            String path) {
+        return "http://"
+                + executor.getHostIp()
+                + ":"
+                + executor.getExecutorPort()
+                + path;
     }
 }

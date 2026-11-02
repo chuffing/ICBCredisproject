@@ -2,7 +2,7 @@ package com.danuvius.platform.contract;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
-import com.danuvius.platform.common.ResultUtils;
+import com.danuvius.platform.common.core.ResultBean;
 import com.danuvius.platform.common.exception.ParameterException;
 import com.danuvius.platform.model.dto.agent.AgentHeartbeatRequest;
 import com.danuvius.platform.model.dto.agent.AgentRegisterRequest;
@@ -56,7 +56,7 @@ class AgentRegistrationContractTest {
 
     @Test
     void platformRegistrationResponseContainsAgentExpectedKeys() {
-        String responseJson = JSON.toJSONString(ResultUtils.success(
+        String responseJson = JSON.toJSONString(ResultBean.success(
                 new AgentRegisterResultDTO("test-token", "instance-1")));
         JSONObject response = JSON.parseObject(responseJson);
 

@@ -1,7 +1,7 @@
 package com.danuvius.platform.service.impl;
 
 import com.alibaba.fastjson.JSON;
-import com.danuvius.platform.common.constant.FaultRecoveryConstants;
+import com.danuvius.platform.common.constant.AgentTaskParamConstants;
 import com.danuvius.platform.common.constant.VersionPackageConstants;
 import com.danuvius.platform.common.constant.VersionUpgradeConstants;
 import com.danuvius.platform.common.exception.BusinessCode;
@@ -237,15 +237,15 @@ public class VersionUpgradeServiceImpl implements VersionUpgradeService {
         // 1. 先在三台服务器部署目标版本，失败时不影响当前服务。
         Map<String, String> deployParams = new HashMap<>();
         deployParams.put(
-                VersionUpgradeConstants.PACKAGE_ID_PARAM,
+                AgentTaskParamConstants.PACKAGE_ID,
                 String.valueOf(versionPackage.getId())
         );
         deployParams.put(
-                VersionUpgradeConstants.TARGET_VERSION_PARAM,
+                AgentTaskParamConstants.TARGET_VERSION,
                 versionPackage.getRedisVersion()
         );
         deployParams.put(
-                VersionUpgradeConstants.PACKAGE_SHA256_PARAM,
+                AgentTaskParamConstants.PACKAGE_SHA256,
                 versionPackage.getSha256()
         );
 
@@ -272,12 +272,12 @@ public class VersionUpgradeServiceImpl implements VersionUpgradeService {
         for (CurrentTopologyNode node : nodes) {
             Map<String, String> restoreParams = new HashMap<>();
             restoreParams.put(
-                    FaultRecoveryConstants.REDIS_CONFIG_SHA256_PARAM,
-                    node.getRedisInstance().getConfigSha256()
+                    AgentTaskParamConstants.REDIS_CONFIG_SHA256,
+                    node.getRedisConfigSha256()
             );
             restoreParams.put(
-                    FaultRecoveryConstants.SENTINEL_CONFIG_SHA256_PARAM,
-                    node.getSentinelNode().getConfigSha256()
+                    AgentTaskParamConstants.SENTINEL_CONFIG_SHA256,
+                    node.getSentinelConfigSha256()
             );
             steps.add(createUpgradeStep(
                     taskNo,
@@ -291,7 +291,7 @@ public class VersionUpgradeServiceImpl implements VersionUpgradeService {
         // 5. 将三台服务器的current软链接切换到目标版本。
         Map<String, String> switchParams = new HashMap<>();
         switchParams.put(
-                VersionUpgradeConstants.TARGET_VERSION_PARAM,
+                AgentTaskParamConstants.TARGET_VERSION,
                 versionPackage.getRedisVersion()
         );
         addStageSteps(
@@ -344,7 +344,7 @@ public class VersionUpgradeServiceImpl implements VersionUpgradeService {
         OperationTaskStep step = new OperationTaskStep();
         step.setTaskNo(taskNo);
         step.setStepNo(stepNo);
-        step.setExecutorId(node.getExecutorInfo().getId());
+        step.setExecutorId(node.getExecutorId());
         step.setOperationType(operationType.name());
         step.setStepStatus(OperationTaskStepStatusEnum.CREATED.name());
         // 没有请求参数时保存空JSON对象，避免JSON字段写入null。

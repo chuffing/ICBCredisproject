@@ -35,7 +35,6 @@ public class FaultRecoveryController {
     public ResultBean<FaultRecoveryResponseVO> faultRecovery(
             @RequestBody FaultRecoveryRequestDTO request) {
 
-        // 校验并规范化请求参数。
         FaultRecoveryRequestValidator.validate(request);
 
         FaultRecoveryResponseVO response = faultRecoveryService.faultRecovery(request);
@@ -53,9 +52,7 @@ public class FaultRecoveryController {
     public ResultBean<FaultRecoveryResponseVO> getFaultRecoveryStatus(
             @PathVariable String taskNo) {
 
-        // 校验并规范化任务编号。
-        String normalizedTaskNo =
-                OperationCommonValidator.validateTaskNo(taskNo);
+        String normalizedTaskNo = OperationCommonValidator.validateTaskNo(taskNo);
 
         FaultRecoveryResponseVO response = faultRecoveryService
                 .getFaultRecoveryStatus(normalizedTaskNo);
