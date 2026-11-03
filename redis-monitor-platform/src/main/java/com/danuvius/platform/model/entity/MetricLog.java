@@ -31,6 +31,8 @@ public class MetricLog {
     private String memUs;
     /*命令加权平均延迟（微秒）*/
     private String latency;
+    /*执行器 ping 平台的 HTTP 往返延迟（毫秒）*/
+    private String pingLatency;
     /*网络输入带宽（kbps）*/
     private String ioIik;
     /*网络输出带宽（kbps）*/

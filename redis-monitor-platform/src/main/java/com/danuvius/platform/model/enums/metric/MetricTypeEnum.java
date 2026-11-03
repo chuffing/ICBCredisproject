@@ -2,6 +2,10 @@ package com.danuvius.platform.model.enums.metric;
 
 import lombok.Getter;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
 /**
  * 采集数据定义
  */
@@ -40,7 +44,26 @@ public enum MetricTypeEnum {
     }
 
     /**
-     * 根据 metricKey 查找枚举。
+     * 允许配置告警规则的指标（按指标维度拆分规则）
+     *
+     * 仅包含可量化、可写入 rms_metric_log 的指标；
+     * nodeRunStatus / sentinelStatus 属于系统状态事件（节点离线、主从切换等由平台直接产生系统告警），
+     * 不参与阈值规则，避免出现“规则永远无法命中”的死规则
+     */
+    public static final List<MetricTypeEnum> RULE_METRICS = Collections.unmodifiableList(Arrays.asList(
+            CPU_USAGE,
+            SERVER_MEM_USAGE,
+            REDIS_MEM_USED,
+            QPS,
+            AVG_LATENCY,
+            NET_INPUT_BANDWIDTH,
+            NET_OUTPUT_BANDWIDTH,
+            REPL_DELAY,
+            PING_LATENCY
+    ));
+
+    /**
+     * 根据 metricKey 查找枚举
      */
     public static MetricTypeEnum of(String key) {
         for (MetricTypeEnum item : values()) {
@@ -49,5 +72,13 @@ public enum MetricTypeEnum {
             }
         }
         return null;
+    }
+
+    /**
+     * 根据 metricKey 查找“可作为告警规则指标”的枚举；非规则指标返回 null
+     */
+    public static MetricTypeEnum ruleOf(String key) {
+        MetricTypeEnum item = of(key);
+        return item != null && RULE_METRICS.contains(item) ? item : null;
     }
 }

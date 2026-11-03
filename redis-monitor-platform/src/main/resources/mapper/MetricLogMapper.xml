@@ -11,6 +11,7 @@
         <result column="mem_server_per" property="memServerPer"/>
         <result column="mem_us"         property="memUs"/>
         <result column="latency"    property="latency"/>
+        <result column="ping_latency" property="pingLatency"/>
         <result column="io_iik"         property="ioIik"/>
         <result column="io_iok"         property="ioIok"/>
         <result column="ops"            property="ops"/>
@@ -27,7 +28,7 @@
 
     <!-- 通用查询列 -->
     <sql id="Base_Column_List">
-        id, instance_id, tm, cpu_per, mem_server_per, mem_us, latency,
+        id, instance_id, tm, cpu_per, mem_server_per, mem_us, latency, ping_latency,
         io_iik, io_iok, ops, role, redis_version, run_id, master_host, master_port,
         repl_delay, collect_type, created_time, updated_time
     </sql>
@@ -41,7 +42,7 @@
         SELECT <include refid="Base_Column_List"/>
         FROM rms_metric_log
         WHERE instance_id = #{instanceId}
-        ORDER BY tm DESC
+        ORDER BY tm DESC, id DESC
         LIMIT 1
     </select>
 
@@ -57,6 +58,7 @@
                    WHEN #{metricKey} = 'netInputBandwidth' THEN io_iik
                    WHEN #{metricKey} = 'netOutputBandwidth' THEN io_iok
                    WHEN #{metricKey} = 'replDelay'         THEN repl_delay
+                   WHEN #{metricKey} = 'pingLatency'       THEN ping_latency
                    ELSE NULL
                    END AS "value"
         FROM rms_metric_log
@@ -78,11 +80,12 @@
                 WHEN #{metricKey} = 'netInputBandwidth'  THEN io_iik
                 WHEN #{metricKey} = 'netOutputBandwidth' THEN io_iok
                 WHEN #{metricKey} = 'replDelay'          THEN repl_delay
+                WHEN #{metricKey} = 'pingLatency'        THEN ping_latency
                 ELSE NULL
                 END AS value
         FROM rms_metric_log
         WHERE instance_id = #{instanceId}
-        ORDER BY tm DESC
+        ORDER BY tm DESC, id DESC
         LIMIT #{limit}
     </select>
 

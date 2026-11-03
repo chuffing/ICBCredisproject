@@ -20,6 +20,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
@@ -264,13 +265,13 @@ public class ReportFileGenerator {
 
         AlarmStatsDTO stats = ov == null ? null : ov.getAlarmStatsDTO();
         addOverviewCard(table, "CPU平均使用率",
-                withUnit(percent(ov == null ? null : ov.getCpuAvg()), "%"),
-                "峰值" + withUnit(percent(ov == null ? null : ov.getCpuMax()), "%")
+                withUnit(percent(ov == null ? null : ov.getCpuAvg()), CommonConstant.UNIT_PERCENT),
+                "峰值" + withUnit(percent(ov == null ? null : ov.getCpuMax()), CommonConstant.UNIT_PERCENT)
                         + timeSuffix(ov == null ? null : ov.getCpuMaxTim()),
                 titleFont, valueFont, descFont);
         addOverviewCard(table, "Redis内存平均使用量",
-                withUnit(decimal(ov == null ? null : ov.getRedisMemAvg(), 2), "GB"),
-                "峰值" + withUnit(decimal(ov == null ? null : ov.getRedisMemMax(), 2), "GB")
+                withUnit(decimal(ov == null ? null : ov.getRedisMemAvg(), 2), CommonConstant.UNIT_GB),
+                "峰值" + withUnit(decimal(ov == null ? null : ov.getRedisMemMax(), 2), CommonConstant.UNIT_GB)
                         + timeSuffix(ov == null ? null : ov.getRedisMemMaxTim()),
                 titleFont, valueFont, descFont);
         addOverviewCard(table, "QPS平均值",
@@ -279,8 +280,8 @@ public class ReportFileGenerator {
                         + timeSuffix(ov == null ? null : ov.getQpsMaxTim()),
                 titleFont, valueFont, descFont);
         addOverviewCard(table, "平均延迟",
-                withUnit(decimal(ov == null ? null : ov.getLatencyAvg(), 2), "ms"),
-                "峰值" + withUnit(decimal(ov == null ? null : ov.getLatencyMax(), 2), "ms")
+                withUnit(decimal(ov == null ? null : ov.getLatencyAvg(), 2), CommonConstant.UNIT_MICROSECOND),
+                "峰值" + withUnit(decimal(ov == null ? null : ov.getLatencyMax(), 2), CommonConstant.UNIT_MICROSECOND)
                         + timeSuffix(ov == null ? null : ov.getLatencyMaxTim()),
                 titleFont, valueFont, descFont);
         addOverviewCard(table, "告警次数",
@@ -294,8 +295,8 @@ public class ReportFileGenerator {
                 "最近切换：" + timeText(ov == null ? null : ov.getLastSwitchTime()),
                 titleFont, valueFont, descFont);
         addOverviewCard(table, "Redis服务可用率",
-                withUnit(decimal(ov == null ? null : ov.getServiceAvailableRate(), 2), "%"),
-                "整体运行稳定",
+                withUnit(decimal(ov == null ? null : ov.getServiceAvailableRate(), 2), CommonConstant.UNIT_PERCENT),
+                serviceAvailableRateStatus(ov.getServiceAvailableRate()),
                 titleFont, valueFont, descFont);
         addOverviewCard(table, "当前节点数",
                 String.valueOf(longValue(ov == null ? null : ov.getMasterCount())
@@ -304,6 +305,22 @@ public class ReportFileGenerator {
                         + "｜REPLICA" + longValue(ov == null ? null : ov.getReplicaCount()),
                 titleFont, valueFont, descFont);
         return table;
+    }
+
+    private String serviceAvailableRateStatus(BigDecimal rate) {
+        String stability;
+        if (rate == null) {
+            stability = "数据不足";                       // 样本太少，不轻易定性
+        } else if (rate.compareTo(CommonConstant.RATE_EXCELLENT) >= 0) {
+            stability = "优秀";//95-100
+        } else if (rate.compareTo(CommonConstant.RATE_STABLE) >= 0) {
+            stability = "整体运行稳定";//85-95
+        } else if (rate.compareTo(CommonConstant.RATE_WARNING) >= 0) {
+            stability = "亚健康";//75-85
+        } else {
+            stability = "异常";
+        }
+        return stability;
     }
 
     private void addOverviewCard(PdfPTable table, String title, String value,

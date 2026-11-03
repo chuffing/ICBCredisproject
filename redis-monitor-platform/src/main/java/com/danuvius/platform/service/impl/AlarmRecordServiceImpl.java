@@ -202,7 +202,7 @@ public class AlarmRecordServiceImpl extends ServiceImpl<AlarmRecordMapper, Alarm
         try {
             AuditLog latest = auditLogMapper.selectOne(Wrappers.<AuditLog>lambdaQuery()
                     .eq(AuditLog::getTargetId, alarmRecordId)
-                    .eq(AuditLog::getOperationType,CommonConstant.OPERATION_TYPE_ALARM_RECOVERY)
+                    .eq(AuditLog::getOperationType,CommonConstant.OPERATION_TYPE_ALARM_MANUAL_RECOVERY)
                     .orderByDesc(AuditLog::getOperationTime)
                     .last("LIMIT 1")
             );
@@ -251,7 +251,7 @@ public class AlarmRecordServiceImpl extends ServiceImpl<AlarmRecordMapper, Alarm
 
         if (rows > 0) {
             //人工确认恢复记入操作审计日志
-            auditLogService.record(CommonConstant.MODULE_ALARM_RECORD, CommonConstant.OPERATION_TYPE_ALARM_RECOVERY, alarmRecordId,
+            auditLogService.record(CommonConstant.MODULE_ALARM_RECORD, CommonConstant.OPERATION_TYPE_ALARM_MANUAL_RECOVERY, alarmRecordId,
                     "人工确认恢复告警：" + record.getAlarmNo());
         }
         return rows > 0;

@@ -2,6 +2,7 @@ package com.danuvius.platform.common.constant;
 
 import com.danuvius.platform.model.enums.metric.MetricTypeEnum;
 
+import java.math.BigDecimal;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
@@ -15,31 +16,44 @@ public class CommonConstant {
 
 
 
-    /** [校验] 告警级别合法值 */
+    /**  告警级别合法值 */
     public static final List<String> ALARM_LEVELS = Arrays.asList("1", "2", "3");
-    /** [校验] 比较方式合法值 */
+    /**  比较方式合法值 */
     public static final List<String> COMPARE_TYPES = Arrays.asList(">", "<", ">=", "<=", "=");
-    /** [校验] 生效范围合法值 */
+    /**  生效范围合法值 */
     public static final List<String> SCOPE_TYPES = Arrays.asList("1", "2");
-    /** [校验] 启用状态合法值 */
+    /**  启用状态合法值 */
     public static final List<String> ENABLE_STATUS = Arrays.asList("0", "1");
-    /** [校验] 恢复状态合法值 */
+    /**  恢复状态合法值 */
     public static final List<String> RECOVER_STATUS = Arrays.asList("0", "1");
     /*执行器状态合法值*/
     public static final List<String> EXECUTOR_STATUS = Arrays.asList("0", "1");
 
-    /** [校验] 纳管状态合法值 */
+    /**  纳管状态合法值 */
     public static final List<String> MANAGEMENT_STATUS = Arrays.asList("0", "1");
-    /** [校验] 趋势时间范围合法值 */
+    /**  趋势时间范围合法值 */
     public static final List<String> TIME_RANGES = Arrays.asList("近1h", "近6h");
-    /** [校验] 报告类型合法值 */
+    /**  报告类型合法值 */
     public static final List<String> REPORT_TYPES = Arrays.asList("日报", "周报");
-    /** [校验] 趋势指标 key 合法值（与 MetricTypeEnum 采集指标对齐） */
+    /**  趋势指标 key 合法值（与 MetricTypeEnum 采集指标对齐） */
     public static final List<String> METRIC_KEYS = Arrays.asList(
             "cpuUsage", "serverMemUsage", "redisMemUsed", "qps", "avgLatency",
             "netInputBandwidth", "netOutputBandwidth",
             "nodeRunStatus","sentinelStatus","replDelay","pingLatency"
     );
+
+    /**
+     * 告警规则的指标 key
+     */
+    public static final List<String> RULE_METRIC_KEYS = Arrays.asList(
+            "cpuUsage", "serverMemUsage", "redisMemUsed", "qps", "avgLatency",
+            "netInputBandwidth", "netOutputBandwidth", "replDelay", "pingLatency"
+    );
+
+    /** 同一指标 + 同一生效范围下的规则级别数上限（提示/警告/严重各一条） */
+    public static final int MAX_RULE_LEVELS_PER_SCOPE = 3;
+    /** 同一指标允许配置的启用规则总数上限，避免为同一指标叠加过多细节规则 */
+    public static final int MAX_RULES_PER_METRIC = 30;
 
     public static final List<MetricTypeEnum> CORE_METRICS = Arrays.asList(
             MetricTypeEnum.CPU_USAGE,
@@ -52,14 +66,14 @@ public class CommonConstant {
     );
 
 
-    /** [校验] 趋势指标 name 合法值（与 MetricTypeEnum 采集指标对齐） */
+    /**  趋势指标 name 合法值（与 MetricTypeEnum 采集指标对齐） */
     public static final List<String> METRIC_NAMES = Arrays.asList(
             "CPU使用率", "服务器内存使用率", "Redis内存使用量", "QPS", "平均延迟",
             "网络输入带宽", "网络输出带宽",
             "节点存活状态","哨兵状态","主从复制延迟","连通性延迟"
     );
 
-    /** [校验] 单位取值值 */
+    /**  单位取值值 */
     public static final List<String> UNIT_TYPES = Arrays.asList("%", "GB","次/秒","ms","s","KB/s","μs");
 
     public static final List<String> ROLE_TYPES = Arrays.asList("MASTER", "REPLICA");
@@ -91,11 +105,25 @@ public class CommonConstant {
     public static final String OPERATION_TYPE_ADD = "新增";
     public static final String OPERATION_TYPE_UPDATE = "修改";
     public static final String OPERATION_TYPE_DELETE = "删除";
-    public static final String OPERATION_TYPE_ALARM_RECOVERY = "告警恢复";
+    public static final String OPERATION_TYPE_ALARM_AUTO_RECOVERY = "告警自动恢复";
+    public static final String OPERATION_TYPE_ALARM_MANUAL_RECOVERY = "告警人工恢复";
     public static final String OPERATION_TYPE_FAULT_RECOVERY = "故障恢复";
     public static final String OPERATION_TYPE_VERSION_UPGRADE = "版本更新";
     public static final String OPERATION_TYPE_SERVER_SWITCH = "服务器切换";
 
+    /*单位常量*/
+    public static final String UNIT_PERCENT           = "%";
+    public static final String UNIT_GB                = "GB";
+    public static final String UNIT_TIMES_PER_SECOND  = "次/秒";
+    public static final String UNIT_MILLISECOND       = "ms";
+    public static final String UNIT_SECOND            = "s";
+    public static final String UNIT_KB_PER_SECOND     = "KB/s";
+    public static final String UNIT_MICROSECOND       = "μs";
+
+    /*报告redis节点可用率/节点数据完整度：实际采集点数 / 理论采集点数（5分钟一个采集周期）判断*/
+    public static final BigDecimal RATE_EXCELLENT  = new BigDecimal("95.00");
+    public static final BigDecimal RATE_STABLE     = new BigDecimal("85.00");
+    public static final BigDecimal RATE_WARNING    = new BigDecimal("75.00");
 
     /** 在线状态 */
     public static final String ONLINE_DESC = "在线";

@@ -18,12 +18,17 @@ public class UpdateRequestValidator {
         StringValidator.notBlank(req.getRuleName(), "ruleName");
         StringValidator.maxLength(req.getRuleName(), 64, "ruleName");
 
-        StringValidator.isEnumValue(req.getMetricKey(),CommonConstant.METRIC_KEYS,"metricKey");
-        StringValidator.isEnumValue(req.getMetricName(),CommonConstant.METRIC_NAMES,"metricName");
+        StringValidator.isEnumValue(req.getMetricKey(),CommonConstant.RULE_METRIC_KEYS,"metricKey");
+        // metricName 由后端按 metricKey 从枚举派生，客户端可不再传；传了也只做长度防御
+        if (StringUtils.isNotBlank(req.getMetricName())) {
+            StringValidator.maxLength(req.getMetricName(), 64, "metricName");
+        }
 
         StringValidator.isEnumValue(req.getCompareType(), CommonConstant.COMPARE_TYPES, "compareType");
 
         NumberValidator.notNull(req.getThreshold(), "threshold");
+        NumberValidator.nonNegative(req.getThreshold(), "threshold");
+        NumberValidator.valueBetween(req.getThreshold(), 0, 1_000_000_000_000d, "threshold");
 
         StringValidator.notNull(req.getUnit(), "unit");
         if(StringUtils.isNotBlank(req.getUnit())){

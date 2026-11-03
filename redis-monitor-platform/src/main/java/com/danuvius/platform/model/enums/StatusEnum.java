@@ -10,9 +10,9 @@ import lombok.Getter;
 public enum StatusEnum {
 
     /**
-     * executor_info表 / sentinel_node_info表 / rms_node_status_log表
+     * executor_info表 / sentinel_node_info表
      */
-    /*executorStatus / sentinelStatus / collectStatus*/
+    /*executorStatus / sentinelStatus*/
     OFFLINE("0","离线"),
     ONLINE("1","在线"),
 

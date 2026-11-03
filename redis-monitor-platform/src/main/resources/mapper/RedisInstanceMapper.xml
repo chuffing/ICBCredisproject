@@ -28,9 +28,15 @@
     </sql>
 
     <!-- 时间分桶表达式：按指定分钟数取整到小时内边界（5分钟/15分钟） -->
+<!--    <sql id="bucketExpr">-->
+<!--        tm - (extract(epoch from tm)::bigint % (#{bucketMinutes}::bigint * 60)) * interval '1 second'-->
+<!--    </sql>-->
     <sql id="bucketExpr">
-        tm - (extract(epoch from tm)::bigint % (#{bucketMinutes}::bigint * 60)) * interval '1 second'
+        date_trunc('hour', tm)
+                  + (floor(extract(minute from tm) / #{bucketMinutes}::numeric)
+                        * #{bucketMinutes}::numeric) * interval '1 minute'
     </sql>
+
 
     <!-- 趋势查询 -->
     <select id="selectTrendData" resultType="java.util.Map">

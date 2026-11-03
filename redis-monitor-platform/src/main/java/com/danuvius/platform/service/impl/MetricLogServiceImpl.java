@@ -35,7 +35,6 @@ public class MetricLogServiceImpl extends ServiceImpl<MetricLogMapper, MetricLog
     private int retainDays;
 
     private final MetricLogMapper metricLogMapper;
-    private final NodeStatusMapper nodeStatusMapper;
     private final RedisInstanceMapper redisInstanceMapper;
     private final RedisSwitchEventMapper switchEventMapper;
     private final ExecutorInfoMapper executorInfoMapper;
@@ -46,7 +45,6 @@ public class MetricLogServiceImpl extends ServiceImpl<MetricLogMapper, MetricLog
     private final Cache<String, Object> caffeineCache;
 
     public MetricLogServiceImpl(MetricLogMapper metricLogMapper,
-                                NodeStatusMapper nodeStatusMapper,
                                 RedisInstanceMapper redisInstanceMapper,
                                 RedisSwitchEventMapper switchEventMapper,
                                 ExecutorInfoMapper executorInfoMapper,
@@ -56,7 +54,6 @@ public class MetricLogServiceImpl extends ServiceImpl<MetricLogMapper, MetricLog
                                 SentinelNodeInfoService sentinelNodeInfoService,
                                 Cache<String, Object> caffeineCache) {
         this.metricLogMapper = metricLogMapper;
-        this.nodeStatusMapper = nodeStatusMapper;
         this.redisInstanceMapper = redisInstanceMapper;
         this.switchEventMapper = switchEventMapper;
         this.executorInfoMapper = executorInfoMapper;
@@ -96,6 +93,8 @@ public class MetricLogServiceImpl extends ServiceImpl<MetricLogMapper, MetricLog
         metricLog.setMemServerPer(metric.getMemServerPer());
         metricLog.setMemUs(metric.getMemUs());
         metricLog.setLatency(metric.getLatency());
+        // 执行器 ping 平台延迟随指标一次入库（原 rms_node_status_log.ping_latency）
+        metricLog.setPingLatency(metric.getPingLatency());
         metricLog.setIoIik(metric.getIoIik());
         metricLog.setIoIok(metric.getIoIok());
         metricLog.setOps(metric.getOps());
@@ -131,29 +130,6 @@ public class MetricLogServiceImpl extends ServiceImpl<MetricLogMapper, MetricLog
         caffeineCache.invalidate(CacheKeyUtil.TOPOLOGY);
         caffeineCache.invalidate(CacheKeyUtil.instanceList(CommonConstant.MANAGE_ACTIVE));
         caffeineCache.invalidate(CacheKeyUtil.instanceList(CommonConstant.MANAGE_INACTIVE));
-
-
-
-        // 写节点状态日志
-        NodeStatus ns = new NodeStatus();
-        ns.setInstanceId(metric.getInstanceId());
-        ns.setRunId(metric.getRunId());
-        ns.setTm(now);
-        // 能收到采集信息，默认在线
-        ns.setCollectStatus(CommonConstant.ONLINE);
-        // 执行器端上报的连通性延迟，没有则默认 0
-        ns.setPingLatency(metric.getPingLatency());
-        ns.setRole(metric.getRole());
-        ns.setErrorMsg(metric.getErrorMsg());
-        ns.setCreatedTime(now);
-        ns.setUpdatedTime(now);
-
-        rows=nodeStatusMapper.insert(ns);
-        if(rows>0){
-            log.info("节点状态采集表插入记录：{}",CommonConstant.SUCCESS);
-        }else{
-            log.error("节点状态采集表插入记录：{}",CommonConstant.FAILURE);
-        }
 
         // 同一次上报携带的 Sentinel 节点：与指标一起处理，失败不影响指标入库
         if (metric.getSentinels() != null && !metric.getSentinels().isEmpty()) {
@@ -319,26 +295,12 @@ public class MetricLogServiceImpl extends ServiceImpl<MetricLogMapper, MetricLog
         LocalDateTime threshold = LocalDateTime.now().minusDays(retainDays);
 
         int rowsM = metricLogMapper.delete(new LambdaQueryWrapper<MetricLog>()
-                        .lt(MetricLog::getTm, threshold));
+                .lt(MetricLog::getTm, threshold));
         if (rowsM>0) {
             log.info("采集数据表rms_metric_log定期清理结果：{}", CommonConstant.SUCCESS);
         }
         else{
             log.info("采集数据表rms_metric_log定期清理结果：{}", CommonConstant.FAILURE);
-
         }
-
-        int rowsN = nodeStatusMapper.delete(new LambdaQueryWrapper<NodeStatus>()
-                .lt(NodeStatus::getTm, threshold));
-
-        if (rowsN>0) {
-            log.info("节点状态表rms_node_status_log定期清理结果：{}", CommonConstant.SUCCESS);
-        }
-        else{
-            log.info("节点状态表rms_node_status_log定期清理结果：{}", CommonConstant.FAILURE);
-
-        }
-
-
     }
 }

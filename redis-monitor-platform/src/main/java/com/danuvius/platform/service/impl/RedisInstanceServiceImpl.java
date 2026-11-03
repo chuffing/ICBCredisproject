@@ -54,7 +54,6 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
     private final AlarmRuleMapper alarmRuleMapper;
     private final AlarmRecordMapper alarmRecordMapper;
     private final MetricLogMapper metricLogMapper;
-    private final NodeStatusMapper nodeStatusMapper;
     private final RuleMatchHelper  ruleMatchHelper;
     /* 报告导出记操作审计日志 */
     private final AuditLogService auditLogService;
@@ -74,7 +73,6 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
                                     AlarmRuleMapper alarmRuleMapper,
                                     AlarmRecordMapper alarmRecordMapper,
                                     MetricLogMapper metricLogMapper,
-                                    NodeStatusMapper  nodeStatusMapper,
                                     RuleMatchHelper ruleMatchHelper,
                                     AuditLogService auditLogService,
                                     RedisSwitchEventService redisSwitchEventService,
@@ -87,7 +85,6 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
         this.alarmRuleMapper = alarmRuleMapper;
         this.alarmRecordMapper = alarmRecordMapper;
         this.metricLogMapper = metricLogMapper;
-        this.nodeStatusMapper = nodeStatusMapper;
         this.ruleMatchHelper = ruleMatchHelper;
         this.auditLogService = auditLogService;
         this.redisSwitchEventService = redisSwitchEventService;
@@ -335,12 +332,12 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
                 startTime, endTime);
 
         // 【临时】真实数据为空时写 mock 进库，再重新查一次，走完整查询链路
-        if (rows.isEmpty()) {
-            mockTrendData(req.getInstanceIds(), startTime, endTime, bucketMinutes);
-            rows = redisInstanceMapper.selectTrendData(
-                    req.getInstanceIds(), bucketMinutes, startTime, endTime);
-            log.warn("[mock] 重新查询后行数:{}", rows.size());
-        }
+//        if (rows.isEmpty()) {
+//            mockTrendData(req.getInstanceIds(), startTime, endTime, bucketMinutes);
+//            rows = redisInstanceMapper.selectTrendData(
+//                    req.getInstanceIds(), bucketMinutes, startTime, endTime);
+//            log.warn("[mock] 重新查询后行数:{}", rows.size());
+//        }
 
         log.info("多节点指标趋势sql查询数:{},第一行:{}", rows.size(), rows.isEmpty() ? null : rows.get(0));
 
@@ -585,19 +582,16 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
             masterPort = StringUtils.hasText(i.getMasterRedisPort())? i.getMasterRedisPort():"null";
             m.setMasterName(masterIp + ":" + masterPort);
 
-            //复制延迟从 rms_metric_log 最新记录获取
-            String replDelay = getLatestReplDelay(i.getInstanceId());
+            //复制延迟、连通延迟统一从 rms_metric_log 最新记录获取
+            MetricLog latestMetric = metricLogMapper.selectLatestByInstanceId(i.getInstanceId());
+            String replDelay = latestMetric == null ? null : latestMetric.getReplDelay();
             String safeReplDelay = replDelay == null ? "" : replDelay.trim();
             m.setCopyDelay(!safeReplDelay.isEmpty() ? safeReplDelay : "0");
             //复制状态由告警规则判断
             m.setCopyStatus(judgeReplDelayStatus(i.getInstanceId(), replDelay, allRules));
 
-            // 最近一次节点状态中的“执行器 ping 平台”延迟
-            NodeStatus latestNodeStatus = nodeStatusMapper.selectOne(Wrappers.<NodeStatus>lambdaQuery()
-                    .eq(NodeStatus::getInstanceId, i.getInstanceId())
-                    .orderByDesc(NodeStatus::getTm)
-                    .last("LIMIT 1"));
-            m.setPingLatency(latestNodeStatus == null ? "0" : latestNodeStatus.getPingLatency());
+            // 最近一次采集中的“执行器 ping 平台”延迟
+            m.setPingLatency(latestMetric == null ? null : latestMetric.getPingLatency());
 
 
             m.setRunStatus(RunStatusEnum.descOf(i.getRunStatus()));

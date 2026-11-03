@@ -365,8 +365,10 @@ public class ExecutorInfoServiceImpl extends ServiceImpl<ExecutorInfoMapper, Exe
         }
         instance.setRedisVersion(redisInfo.getOrDefault("version", ""));
         instance.setRunStatus(CommonConstant.RUN_NORMAL);
-        // 平台手动纳管
-        instance.setManagementStatus(CommonConstant.MANAGE_INACTIVE);
+        // 新实例继承执行器当前纳管状态：已纳管执行器重新绑定实例时不能再次落成未纳管
+        instance.setManagementStatus(
+                CommonConstant.MANAGE_ACTIVE.equals(managementStatus)
+                        ? CommonConstant.MANAGE_ACTIVE : CommonConstant.MANAGE_INACTIVE);
         LocalDateTime now = LocalDateTime.now();
         instance.setLastHeartbeatTime(now);
         instance.setCreatedTime(now);

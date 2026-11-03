@@ -26,13 +26,16 @@ platform:
       START_SENTINEL: 180
   version-package:
     # 必须使用不含首尾空格、.或..路径段的绝对路径，目录需提前创建并具备读写访问权限。
-    storage-dir: D:/redis-monitor-platform/redis-monitor-platform/data/versionPackages
+    storage-dir: E:/tmp/versionPackages
     max-bytes: 52428800
   node-config:
     # 当前正式配置放在current/{IP}/下；服务器切换配置人工放入staging/{IP}/下。
     # 必须使用不含首尾空格、.或..路径段的绝对路径，current和staging目录需提前创建并具备读写访问权限。
-    config-dir: D:/redis-monitor-platform/redis-monitor-platform/data/nodeConfigs
+    config-dir: E:/tmp/nodeConfigs
   alarm:
+    check:
+      interval-ms: ${ALARM_CHECK_INTERVAL_MS:300000}   # 自动告警检测间隔（毫秒），默认 5 分钟
+      max-data-age-seconds: ${ALARM_MAX_DATA_AGE_SECONDS:900}  # 最新采集数据有效期，超过视为离线不参与判定
     notice:
       enabled: false                    # 告警邮件通知开关
       receivers:                        # 接收人列表
@@ -48,6 +51,10 @@ platform:
 
 
 spring:
+  task:
+    scheduling:
+      pool:
+        size: 4                         # 执行器/哨兵状态校正、告警检测、任务超时扫描并行执行，避免互相阻塞
   servlet:
     multipart:
       max-file-size: 50MB
@@ -60,9 +67,9 @@ spring:
     name: redis-monitor-platform
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://db.izikxhetvxbnlukyytae.supabase.co:5432/postgres?sslmode=require
-    username: postgres
-    password: ZJYrrZJY7518
+    url: jdbc:postgresql://aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres
+    username: postgres.dbtakxbjecdydxfeytov
+    password: Danuvius5732
     hikari:
       maximum-pool-size: 20
       minimum-idle: 5

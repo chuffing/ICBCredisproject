@@ -18,9 +18,13 @@ public class RuleAddRequestValidator {
         StringValidator.maxLength(req.getRuleName(), 64, "ruleName");
 
         StringValidator.notBlank(req.getMetricKey(), "metricKey");
+        StringValidator.isEnumValue(req.getMetricKey(), CommonConstant.RULE_METRIC_KEYS, "metricKey");
         StringValidator.isEnumValue(req.getCompareType(), CommonConstant.COMPARE_TYPES, "compareType");
 
         NumberValidator.notNull(req.getThreshold(), "threshold");
+        NumberValidator.nonNegative(req.getThreshold(), "threshold");
+
+        NumberValidator.valueBetween(req.getThreshold(), 0, 1_000_000_000_000d, "threshold");
         StringValidator.notNull(req.getUnit(), "unit");
         //如果非空串
         if(StringUtils.isNotBlank(req.getUnit())){

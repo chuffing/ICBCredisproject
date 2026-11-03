@@ -26,8 +26,10 @@ public class MetricReportItemDTOValidator {
         StringValidator.notNull(req.getIoIok(), "ioIok");
         NumberValidator.parseDoubleNonNegative(req.getIoIok(), "ioIok");
 
-        StringValidator.notBlank(req.getCpuPer(), "pingLatency");
-        NumberValidator.parseDoubleNonNegative(req.getPingLatency(), "pingLatency");
+        // 执行器 ping 平台延迟：可空，有值非负
+        if (req.getPingLatency() != null && !req.getPingLatency().trim().isEmpty()) {
+            NumberValidator.parseDoubleNonNegative(req.getPingLatency(), "pingLatency");
+        }
 
         // 节点角色
         StringValidator.isEnumValue(req.getRole(), CommonConstant.ROLE_TYPES, "role");
