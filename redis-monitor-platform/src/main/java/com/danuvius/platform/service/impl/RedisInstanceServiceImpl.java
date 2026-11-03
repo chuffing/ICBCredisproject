@@ -29,7 +29,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-import java.sql.Timestamp;
 import java.io.File;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -96,7 +95,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
 
 
     /**
-     * 查询实例列表。
+     * 查询实例列表
      */
     @Override
     public List<RedisInstanceItemDTO> getInstanceList(String managementStatus) {
@@ -377,7 +376,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
     }
 
     /**
-     * 生成对齐后的统一时间轴（yyyy-MM-dd HH:mm:ss，升序）。
+     * 生成对齐后的统一时间轴（yyyy-MM-dd HH:mm:ss，升序）
      */
     private List<String> buildAlignedTimestamps(LocalDateTime start, LocalDateTime end, int bucketMinutes) {
         List<String> timestamps = new ArrayList<>();
@@ -390,7 +389,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
     }
 
     /**
-     * 将时间按分桶粒度向下取整（与 SQL bucketExpr 口径一致）。
+     * 将时间按分桶粒度向下取整（与 SQL bucketExpr 口径一致）
      */
     private LocalDateTime truncateToBucket(LocalDateTime time, int bucketMinutes) {
         int minuteOfHour = time.getMinute();
@@ -435,7 +434,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
     }
 
     /**
-     * 统一时间桶格式：JDBC 可能返回 Timestamp/LocalDateTime/String，统一为 yyyy-MM-dd HH:mm:ss。
+     * 统一时间桶格式：JDBC 可能返回 Timestamp/LocalDateTime/String，统一为 yyyy-MM-dd HH:mm:ss
      */
     private String formatBucket(Object bucket) {
         if (bucket == null) {
@@ -460,7 +459,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
 
 
     /**
-     * 主从拓扑。
+     * 主从拓扑
      */
     @Override
     public TopologyResponse getTopology() {
@@ -540,7 +539,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
     }
 
     /**
-     * 主从状态表格。
+     * 主从状态表格
      */
     @Override
     public List<NodeStatusResponse> getNodesStatus() {
@@ -615,7 +614,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
     }
 
     /**
-     * 日周报查询。
+     * 日周报查询
      * 当天=00:00~当前时刻、近7天=前推6天共7自然日，
      */
     @Override
@@ -633,7 +632,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
     }
 
     /**
-     * 组装完整报告数据，查询与导出共用。
+     * 组装完整报告数据，查询与导出共用
      */
     @Override
     public ReportQueryResponse buildReportData(String instanceId, String reportType) {
@@ -746,7 +745,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
     }
 
     /**
-     * 组装4项指标趋势序列，时间轴对齐、缺失补 null。
+     * 组装4项指标趋势序列，时间轴对齐、缺失补 null
      */
     private List<ReportTrendDTO> buildReportTrends(List<Map<String, Object>> rows,
                                                    LocalDateTime start, LocalDateTime end,
@@ -787,7 +786,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
     }
 
     /**
-     * 合并告警与主从切换明细，按触发时间倒序，补充节点展示字段。
+     * 合并告警与主从切换明细，按触发时间倒序，补充节点展示字段
      */
     private List<ReportEventDTO> buildReportEvents(List<Map<String, Object>> alarmRows,
                                                    List<Map<String, Object>> switchRows) {
@@ -878,9 +877,9 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
     }
 
     /**
-     * 报告导出。
+     * 报告导出
      * 补充 exportType 入参，异步生成文件并更新任务状态，
-     * 任务与文件30分钟有效；原实现为占位空任务。
+     * 任务与文件30分钟有效；原实现为占位空任务
      */
     @Override
     public ReportExportResponse exportReport(String instanceId, String reportType) {
@@ -920,8 +919,8 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
             task.setTaskStatus("success");
 
             /* 将操作人、文件id、报告类型、导出实例、时间范围、操作类型、操作时间记入操作审计日志 */
-            auditLogService.record("报告导出", "导出", taskId,
-                    "导出Redis运行报告，实例：" + instanceId + "，报告类型：" + reportType);
+            auditLogService.record("报告导出", CommonConstant.OPERATION_TYPE_EXPORT, taskId,
+                    "导出Redis运行报告，实例：" + instanceId+"|"+instanceName + "，报告类型：" + reportType);
 
             log.info("[报告导出] 异步任务完成, taskId={}, file={}", taskId, file.getAbsolutePath());
         } catch (Exception e) {
@@ -932,7 +931,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
     }
 
     /**
-     * 查询导出任务状态。
+     * 查询导出任务状态
      */
     @Override
     public ReportExportResponse queryExportTask(String taskId) {
@@ -949,7 +948,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
     }
 
     /**
-     * 获取导出文件。
+     * 获取导出文件
      */
     @Override
     public File getExportFile(String taskId) {
@@ -968,7 +967,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
     }
 
     /**
-     * 取实例最新复制延迟（从 rms_metric_log 最新记录）。
+     * 取实例最新复制延迟
      */
     private String getLatestReplDelay(String instanceId) {
         MetricLog latest = metricLogMapper.selectLatestByInstanceId(instanceId);
@@ -976,7 +975,7 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
     }
 
     /**
-     * 根据告警规则判断复制状态。
+     * 根据告警规则判断复制状态
      * - 无规则限制      -> 正常
      * - 有规则但未触发  -> 正常
      * - 有规则且触发    -> 延迟
@@ -1074,8 +1073,8 @@ public class RedisInstanceServiceImpl extends ServiceImpl<RedisInstanceMapper, R
 
 
     /**
-     * 【临时】向 rms_metric_log 插入模拟数据，让 getTrend 能通过真实 SQL 查到。
-     * 幂等：每次先删除这些实例下所有 collect_type=1 的旧 mock，再按分桶插入。
+     * 【临时】向 rms_metric_log 插入模拟数据，让 getTrend 能通过真实 SQL 查到
+     * 幂等：每次先删除这些实例下所有 collect_type=1 的旧 mock，再按分桶插入
      */
     private void mockTrendData(List<String> instanceIds,
                                LocalDateTime startTime,

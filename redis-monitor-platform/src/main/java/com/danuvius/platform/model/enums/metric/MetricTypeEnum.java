@@ -45,10 +45,6 @@ public enum MetricTypeEnum {
 
     /**
      * 允许配置告警规则的指标（按指标维度拆分规则）
-     *
-     * 仅包含可量化、可写入 rms_metric_log 的指标；
-     * nodeRunStatus / sentinelStatus 属于系统状态事件（节点离线、主从切换等由平台直接产生系统告警），
-     * 不参与阈值规则，避免出现“规则永远无法命中”的死规则
      */
     public static final List<MetricTypeEnum> RULE_METRICS = Collections.unmodifiableList(Arrays.asList(
             CPU_USAGE,

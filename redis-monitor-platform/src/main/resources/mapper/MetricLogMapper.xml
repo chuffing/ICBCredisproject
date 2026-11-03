@@ -59,7 +59,6 @@
                    WHEN #{metricKey} = 'netOutputBandwidth' THEN io_iok
                    WHEN #{metricKey} = 'replDelay'         THEN repl_delay
                    WHEN #{metricKey} = 'pingLatency'       THEN ping_latency
-                   ELSE NULL
                    END AS "value"
         FROM rms_metric_log
         WHERE instance_id = #{instanceId}

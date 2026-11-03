@@ -8,7 +8,6 @@ import com.danuvius.platform.common.exception.validator.StringValidator;
 import com.danuvius.platform.model.dto.alarm.rule.UpdateRequest;
 import org.apache.commons.lang3.StringUtils;
 
-import java.util.List;
 
 public class UpdateRequestValidator {
     public static void validate(UpdateRequest req) {

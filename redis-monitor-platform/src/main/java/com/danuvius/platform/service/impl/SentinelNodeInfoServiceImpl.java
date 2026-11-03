@@ -16,7 +16,6 @@ import com.danuvius.platform.util.validate.SentinelNodeReportDTOValidator;
 import com.github.benmanes.caffeine.cache.Cache;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -94,8 +93,6 @@ public class SentinelNodeInfoServiceImpl extends ServiceImpl<SentinelNodeInfoMap
 
     /**
      * 处理随指标一起上报的 Sentinel 节点
-     *
-     * 哨兵节点由执行器自动发现，平台没有独立的手工纳管入口：
      * 新节点沿用执行器的纳管状态（执行器未纳管时哨兵也不进默认列表），
      * 执行器纳管后下一次上报会把已存在哨兵置为已纳管
      */
@@ -156,7 +153,7 @@ public class SentinelNodeInfoServiceImpl extends ServiceImpl<SentinelNodeInfoMap
         caffeineCache.invalidate(CacheKeyUtil.sentinelList(CommonConstant.MANAGE_ACTIVE));
         caffeineCache.invalidate(CacheKeyUtil.sentinelList(CommonConstant.MANAGE_INACTIVE));
         log.info("执行器 {} 随指标上报 Sentinel 节点 {} 个", executor == null ? "-" : executor.getId(), handled);
-        log.info("SentinelNodeReportDTO:{}",nodes.toString());
+        log.info("SentinelNodeReportDTO:{}",nodes);
         return handled;
     }
 }

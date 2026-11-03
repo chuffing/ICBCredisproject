@@ -33,9 +33,6 @@ platform:
     # 必须使用不含首尾空格、.或..路径段的绝对路径，current和staging目录需提前创建并具备读写访问权限。
     config-dir: E:/tmp/nodeConfigs
   alarm:
-    check:
-      interval-ms: ${ALARM_CHECK_INTERVAL_MS:300000}   # 自动告警检测间隔（毫秒），默认 5 分钟
-      max-data-age-seconds: ${ALARM_MAX_DATA_AGE_SECONDS:900}  # 最新采集数据有效期，超过视为离线不参与判定
     notice:
       enabled: false                    # 告警邮件通知开关
       receivers:                        # 接收人列表
@@ -45,9 +42,6 @@ platform:
 
   register-code: Danuvius
   retain-days: 7
-  report:
-    export-dir: ./exports
-    download-prefix: /report/download
 
 
 spring:

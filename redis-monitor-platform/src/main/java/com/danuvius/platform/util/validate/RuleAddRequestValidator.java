@@ -7,7 +7,6 @@ import com.danuvius.platform.common.exception.validator.StringValidator;
 import com.danuvius.platform.model.dto.alarm.rule.RuleAddRequest;
 import org.apache.commons.lang3.StringUtils;
 
-import java.util.List;
 
 
 public class RuleAddRequestValidator {

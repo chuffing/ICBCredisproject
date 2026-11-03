@@ -73,9 +73,6 @@ public class AlarmRuleServiceImpl extends ServiceImpl<AlarmRuleMapper, AlarmRule
     @Value("${platform.alarm.auto-recover.periods:2}")
     private int autoRecoverPeriods;
 
-    // 自动检测只使用该时间窗口内的最新采集数据，过期数据视为离线，不参与阈值判定
-    @Value("${platform.alarm.check.max-data-age-seconds:900}")
-    private long maxDataAgeSeconds;
 
     public AlarmRuleServiceImpl(AlarmRuleMapper alarmRuleMapper,
                                 AlarmRecordMapper alarmRecordMapper,
