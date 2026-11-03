@@ -312,6 +312,7 @@ CREATE TABLE IF NOT EXISTS rms_metric_log (
     mem_server_per      character varying(20) NOT NULL,
     mem_us              character varying(30) NOT NULL,
     latency             character varying(20) NOT NULL,
+    ping_latency        character varying(20),
     io_iik              character varying(20) NOT NULL,
     io_iok              character varying(20) NOT NULL,
     ops                 character varying(30) NOT NULL,
@@ -334,6 +335,7 @@ COMMENT ON COLUMN rms_metric_log.cpu_per IS 'CPU占用率（%）';
 COMMENT ON COLUMN rms_metric_log.mem_server_per IS '服务器内存占用率（%）';
 COMMENT ON COLUMN rms_metric_log.mem_us IS 'Redis内存使用量（GB，执行器按字节/1024^3换算后上报）';
 COMMENT ON COLUMN rms_metric_log.latency IS '命令加权平均延迟（毫秒）';
+COMMENT ON COLUMN rms_node_status_log.ping_latency IS '执行器ping平台的HTTP往返延迟（毫秒）';
 COMMENT ON COLUMN rms_metric_log.io_iik IS '网络输入带宽（KB/s）';
 COMMENT ON COLUMN rms_metric_log.io_iok IS '网络输出带宽（KB/s）';
 COMMENT ON COLUMN rms_metric_log.ops IS '瞬时QPS（次/秒）';
@@ -355,33 +357,33 @@ CREATE INDEX IF NOT EXISTS idx_metric_time
 -- ============================================================
 -- 节点状态采集表
 -- ============================================================
-CREATE TABLE IF NOT EXISTS rms_node_status_log (
-    id                  character varying(32) PRIMARY KEY NOT NULL,
-    instance_id         character varying(32) NOT NULL,
-    run_id              character varying(100) NOT NULL,
-    tm                  timestamp NOT NULL,
-    collect_status      character varying(4) NOT NULL,
-    error_msg           character varying(500),
-    role                character varying(16),
-    ping_latency        character varying(20),
-    created_time        timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_time        timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
-);
-
-COMMENT ON TABLE rms_node_status_log IS '节点状态采集表:定时采集节点状态记录表';
-COMMENT ON COLUMN rms_node_status_log.id IS '主键id';
-COMMENT ON COLUMN rms_node_status_log.instance_id IS '实例id';
-COMMENT ON COLUMN rms_node_status_log.run_id IS 'Redis运行id';
-COMMENT ON COLUMN rms_node_status_log.tm IS '采集时间';
-COMMENT ON COLUMN rms_node_status_log.collect_status IS '采集时节点状态：0=离线/1=在线';
-COMMENT ON COLUMN rms_node_status_log.error_msg IS '失败原因';
-COMMENT ON COLUMN rms_node_status_log.role IS '节点角色';
-COMMENT ON COLUMN rms_node_status_log.ping_latency IS '执行器ping平台的HTTP往返延迟（毫秒）';
-COMMENT ON COLUMN rms_node_status_log.created_time IS '创建时间';
-COMMENT ON COLUMN rms_node_status_log.updated_time IS '最后更新时间';
-
-CREATE INDEX IF NOT EXISTS idx_node_status_instance_tm
-    ON rms_node_status_log(instance_id, tm DESC);
+-- CREATE TABLE IF NOT EXISTS rms_node_status_log (
+--     id                  character varying(32) PRIMARY KEY NOT NULL,
+--     instance_id         character varying(32) NOT NULL,
+--     run_id              character varying(100) NOT NULL,
+--     tm                  timestamp NOT NULL,
+--     collect_status      character varying(4) NOT NULL,
+--     error_msg           character varying(500),
+--     role                character varying(16),
+--     ping_latency        character varying(20),
+--     created_time        timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+--     updated_time        timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL
+-- );
+--
+-- COMMENT ON TABLE rms_node_status_log IS '节点状态采集表:定时采集节点状态记录表';
+-- COMMENT ON COLUMN rms_node_status_log.id IS '主键id';
+-- COMMENT ON COLUMN rms_node_status_log.instance_id IS '实例id';
+-- COMMENT ON COLUMN rms_node_status_log.run_id IS 'Redis运行id';
+-- COMMENT ON COLUMN rms_node_status_log.tm IS '采集时间';
+-- COMMENT ON COLUMN rms_node_status_log.collect_status IS '采集时节点状态：0=离线/1=在线';
+-- COMMENT ON COLUMN rms_node_status_log.error_msg IS '失败原因';
+-- COMMENT ON COLUMN rms_node_status_log.role IS '节点角色';
+-- COMMENT ON COLUMN rms_node_status_log.ping_latency IS '执行器ping平台的HTTP往返延迟（毫秒）';
+-- COMMENT ON COLUMN rms_node_status_log.created_time IS '创建时间';
+-- COMMENT ON COLUMN rms_node_status_log.updated_time IS '最后更新时间';
+--
+-- CREATE INDEX IF NOT EXISTS idx_node_status_instance_tm
+--     ON rms_node_status_log(instance_id, tm DESC);
 
 
 -- ============================================================
