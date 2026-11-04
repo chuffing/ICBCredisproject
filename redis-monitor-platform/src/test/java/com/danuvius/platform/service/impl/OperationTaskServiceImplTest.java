@@ -9,10 +9,10 @@ import com.danuvius.platform.model.entity.OperationTask;
 import com.danuvius.platform.model.entity.OperationTaskStep;
 import com.danuvius.platform.model.entity.RedisInstance;
 import com.danuvius.platform.model.entity.RedisVersionPackage;
+import com.danuvius.platform.model.enums.instance.ManagementStatusEnum;
 import com.danuvius.platform.model.enums.operation.OperationTaskStatusEnum;
 import com.danuvius.platform.model.enums.operation.OperationTaskStepStatusEnum;
 import com.danuvius.platform.model.enums.operation.OperationTaskTypeEnum;
-import com.danuvius.platform.model.enums.StatusEnum;
 import com.danuvius.platform.service.AuditLogService;
 import com.danuvius.platform.service.RedisInstanceService;
 import com.danuvius.platform.service.TaskNoService;
@@ -196,7 +196,7 @@ class OperationTaskServiceImplTest {
         when(redisInstanceService.updateBatchById(any())).thenReturn(true);
 
         String instanceListKey = CacheKeyUtil.instanceList(
-                StatusEnum.ACTIVE.getCode());
+                ManagementStatusEnum.ACTIVE.getCode());
         caffeineCache.put(instanceListKey, "old-instance-list");
         caffeineCache.put(CacheKeyUtil.TOPOLOGY, "old-topology");
         caffeineCache.put(CacheKeyUtil.NODES, "old-nodes");

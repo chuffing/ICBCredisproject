@@ -1,8 +1,11 @@
 package com.danuvius.platform.model.enums.report;
 
+import lombok.Getter;
+
 /**
  * 报告导出任务状态
  */
+@Getter
 public enum ExportTaskStatusEnum {
 
     /** 任务已创建，异步生成中 */
@@ -20,13 +23,6 @@ public enum ExportTaskStatusEnum {
         this.desc = desc;
     }
 
-    public String getCode() {
-        return code;
-    }
-
-    public String getDesc() {
-        return desc;
-    }
 
     /** 判断给定状态码是否为成功 */
     public static boolean isSuccess(String code) {

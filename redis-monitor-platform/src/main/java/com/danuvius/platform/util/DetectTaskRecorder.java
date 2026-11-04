@@ -43,14 +43,6 @@ public class DetectTaskRecorder {
         return record.success ? "运行正常" : "运行异常";
     }
 
-    /** 最近一次检测时间，无则 null */
-    public LocalDateTime lastDetectTime() {
-        TaskRecord record = records.get("all-rule");
-        if (record == null) {
-            record = records.get("single-rule");
-        }
-        return record == null ? null : record.executeTime;
-    }
 
     private static class TaskRecord {
         private final LocalDateTime executeTime;

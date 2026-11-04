@@ -1,7 +1,6 @@
 package com.danuvius.platform.util;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.danuvius.platform.common.constant.CommonConstant;
 import com.danuvius.platform.mapper.RedisInstanceMapper;
 import com.danuvius.platform.model.entity.AlarmRule;
 import com.danuvius.platform.model.entity.RedisInstance;

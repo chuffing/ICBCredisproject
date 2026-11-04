@@ -1,7 +1,6 @@
 package com.danuvius.platform.service.impl;
 
 import cn.hutool.core.util.IdUtil;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -23,10 +22,10 @@ import com.danuvius.platform.util.CacheKeyUtil;
 import com.github.benmanes.caffeine.cache.Cache;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 @Slf4j
 @Service
@@ -34,8 +33,7 @@ public class MetricLogServiceImpl extends ServiceImpl<MetricLogMapper, MetricLog
         implements MetricLogService {
 
     private static final String ROLE_MASTER = "MASTER";
-    @Value("${platform.retain-days:7}")
-    private int retainDays;
+
 
     private final MetricLogMapper metricLogMapper;
     private final RedisInstanceMapper redisInstanceMapper;
@@ -174,8 +172,8 @@ public class MetricLogServiceImpl extends ServiceImpl<MetricLogMapper, MetricLog
             }
         } else {
 
-            if (!equalsNullable(metric.getMasterHost(), inst.getMasterHostIp())
-                    || !equalsNullable(metric.getMasterPort(), inst.getMasterRedisPort())) {
+            if (!Objects.equals(metric.getMasterHost(), inst.getMasterHostIp())
+                    || !Objects.equals(metric.getMasterPort(), inst.getMasterRedisPort())) {
                 masterHost = metric.getMasterHost();
                 masterPort = metric.getMasterPort();
                 changed = true;
@@ -273,13 +271,6 @@ public class MetricLogServiceImpl extends ServiceImpl<MetricLogMapper, MetricLog
         } catch (Exception e) {
             log.error("[主从切换检测] 生成切换告警记录失败, newMasterId={}", newMasterId, e);
         }
-    }
-
-    private boolean equalsNullable(String a, String b) {
-        if (a == null) {
-            return b == null;
-        }
-        return a.equals(b);
     }
 
     /**
