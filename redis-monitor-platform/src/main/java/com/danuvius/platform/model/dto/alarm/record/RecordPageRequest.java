@@ -3,13 +3,14 @@ package com.danuvius.platform.model.dto.alarm.record;
 import lombok.Data;
 import org.springframework.format.annotation.DateTimeFormat;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
  * 告警记录分页查询请求
  */
 @Data
-public class RecordPageRequest {
+public class RecordPageRequest implements Serializable {
 
     /** 实例ID（可选） */
     private String instanceId;

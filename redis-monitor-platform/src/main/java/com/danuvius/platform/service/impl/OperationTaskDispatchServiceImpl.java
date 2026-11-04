@@ -4,18 +4,17 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.TypeReference;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.danuvius.platform.common.constant.AgentTaskParamConstants;
+import com.danuvius.platform.common.constant.CommonConstant;
 import com.danuvius.platform.common.exception.AgentTaskDispatchUnknownException;
 import com.danuvius.platform.common.exception.AgentTaskRejectedException;
-import com.danuvius.platform.common.exception.BusinessCode;
 import com.danuvius.platform.common.exception.BusinessException;
 import com.danuvius.platform.mapper.RedisVersionPackageMapper;
-import com.danuvius.platform.model.dto.AgentTaskRequestDTO;
+import com.danuvius.platform.model.dto.operation.AgentTaskRequestDTO;
 import com.danuvius.platform.model.entity.ExecutorInfo;
 import com.danuvius.platform.model.entity.OperationTaskStep;
 import com.danuvius.platform.model.entity.RedisVersionPackage;
-import com.danuvius.platform.model.enums.ExecutorOperationTypeEnum;
-import com.danuvius.platform.model.enums.OperationTaskStepStatusEnum;
-import com.danuvius.platform.model.enums.StatusEnum;
+import com.danuvius.platform.model.enums.operation.ExecutorOperationTypeEnum;
+import com.danuvius.platform.model.enums.operation.OperationTaskStepStatusEnum;
 import com.danuvius.platform.service.ExecutorInfoService;
 import com.danuvius.platform.service.OperationTaskDispatchService;
 import com.danuvius.platform.service.OperationTaskService;
@@ -164,7 +163,7 @@ public class OperationTaskDispatchServiceImpl
                         step.getExecutorId(),
                         "执行器不存在：" + step.getExecutorId()
                 );
-            } else if (!StatusEnum.ONLINE.getCode()
+            } else if (!CommonConstant.ONLINE
                     .equals(executor.getExecutorStatus())) {
                 rejectedReasons.put(
                         step.getExecutorId(),

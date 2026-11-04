@@ -2,7 +2,7 @@ package com.danuvius.platform.controller;
 
 import com.danuvius.platform.common.core.ResultBean;
 import com.danuvius.platform.common.exception.ErrorCodeInfo;
-import com.danuvius.platform.model.dto.VersionUpgradeRequestDTO;
+import com.danuvius.platform.model.dto.operation.VersionUpgradeRequestDTO;
 import com.danuvius.platform.model.vo.VersionUpgradeResponseVO;
 import com.danuvius.platform.service.VersionUpgradeService;
 import com.danuvius.platform.util.validate.OperationCommonValidator;

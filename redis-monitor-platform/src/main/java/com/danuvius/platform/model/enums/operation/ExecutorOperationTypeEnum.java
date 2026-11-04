@@ -1,4 +1,4 @@
-package com.danuvius.platform.model.enums;
+package com.danuvius.platform.model.enums.operation;
 
 /**
  * 执行器支持的运维操作类型。

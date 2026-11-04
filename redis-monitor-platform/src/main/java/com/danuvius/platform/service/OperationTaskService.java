@@ -1,10 +1,10 @@
 package com.danuvius.platform.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.danuvius.platform.model.dto.TaskResultReportDTO;
+import com.danuvius.platform.model.dto.operation.TaskResultReportDTO;
 import com.danuvius.platform.model.entity.OperationTask;
 import com.danuvius.platform.model.entity.OperationTaskStep;
-import com.danuvius.platform.model.enums.OperationTaskTypeEnum;
+import com.danuvius.platform.model.enums.operation.OperationTaskTypeEnum;
 
 import java.util.List;
 import java.util.Map;

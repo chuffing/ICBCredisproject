@@ -1,4 +1,4 @@
-package com.danuvius.platform.model.enums;
+package com.danuvius.platform.model.enums.agent;
 
 /**
  * 执行器接收运维任务后的状态。

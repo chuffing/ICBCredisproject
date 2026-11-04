@@ -1,6 +1,6 @@
 package com.danuvius.platform.service;
 
-import com.danuvius.platform.model.dto.ServerSwitchRequestDTO;
+import com.danuvius.platform.model.dto.operation.ServerSwitchRequestDTO;
 import com.danuvius.platform.model.vo.ServerSwitchResponseVO;
 
 /**

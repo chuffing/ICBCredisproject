@@ -11,6 +11,9 @@ import com.danuvius.platform.common.exception.BusinessException;
 import com.danuvius.platform.mapper.*;
 import com.danuvius.platform.model.dto.metric.MetricReportItemDTO;
 import com.danuvius.platform.model.entity.*;
+import com.danuvius.platform.model.enums.instance.SwitchTypeEnum;
+import com.danuvius.platform.model.enums.instance.ManagementStatusEnum;
+import com.danuvius.platform.model.enums.instance.RunStatusEnum;
 import com.danuvius.platform.model.enums.rule.AlarmLevelEnum;
 import com.danuvius.platform.service.MetricLogService;
 import com.danuvius.platform.service.RedisInstanceService;
@@ -115,7 +118,7 @@ public class MetricLogServiceImpl extends ServiceImpl<MetricLogMapper, MetricLog
         }
 
         // 采集上报成功时同步更新redis_instance 最后心跳时间与运行状态
-        redisInstanceService.updateHeartbeatAndStatus(metric.getInstanceId(), now, CommonConstant.RUN_NORMAL);
+        redisInstanceService.updateHeartbeatAndStatus(metric.getInstanceId(), now, RunStatusEnum.RUN_NORMAL.getCode());
 
         // 记录执行器最近一次状态上报时间
         executorInfoMapper.update(null, new LambdaUpdateWrapper<ExecutorInfo>()
@@ -128,8 +131,8 @@ public class MetricLogServiceImpl extends ServiceImpl<MetricLogMapper, MetricLog
         // 节点状态表/拓扑中的复制延迟、ping 延迟随最新采集变化，相关缓存一并失效
         caffeineCache.invalidate(CacheKeyUtil.NODES);
         caffeineCache.invalidate(CacheKeyUtil.TOPOLOGY);
-        caffeineCache.invalidate(CacheKeyUtil.instanceList(CommonConstant.MANAGE_ACTIVE));
-        caffeineCache.invalidate(CacheKeyUtil.instanceList(CommonConstant.MANAGE_INACTIVE));
+        caffeineCache.invalidate(CacheKeyUtil.instanceList(ManagementStatusEnum.ACTIVE.getCode()));
+        caffeineCache.invalidate(CacheKeyUtil.instanceList(ManagementStatusEnum.INACTIVE.getCode()));
 
         // 同一次上报携带的 Sentinel 节点：与指标一起处理，失败不影响指标入库
         if (metric.getSentinels() != null && !metric.getSentinels().isEmpty()) {
@@ -207,13 +210,13 @@ public class MetricLogServiceImpl extends ServiceImpl<MetricLogMapper, MetricLog
         }
         //无记录，插入初始基准记录
         if (lastEvent == null) {
-            insertSwitchEvent("", instanceId, CommonConstant.SWITCH_INIT, now);
+            insertSwitchEvent("", instanceId, SwitchTypeEnum.INIT.getCode(), now);
             log.info("[主从切换检测] 建立初始主基线: masterId={}", instanceId);
             return;
         }
 
 
-        insertSwitchEvent(lastMasterId, instanceId, CommonConstant.SWITCH_AUTO, now);
+        insertSwitchEvent(lastMasterId, instanceId, SwitchTypeEnum.AUTO.getCode(), now);
         caffeineCache.invalidate(CacheKeyUtil.TOPOLOGY);
         caffeineCache.invalidate(CacheKeyUtil.NODES);
         log.info("[主从切换检测] 检测到主节点变更: {} -> {}", lastMasterId, instanceId);
@@ -234,7 +237,7 @@ public class MetricLogServiceImpl extends ServiceImpl<MetricLogMapper, MetricLog
         switchEventMapper.insert(event);
 
         /* 检测到主节点变更时，除失效拓扑/节点状态缓存外，同时生成告警记录 */
-        if (switchType.equals(CommonConstant.SWITCH_AUTO)) {
+        if (switchType.equals(SwitchTypeEnum.AUTO.getCode())) {
             generateSwitchAlarm(oldMasterId, newMasterId, now);
         }
     }
@@ -250,7 +253,7 @@ public class MetricLogServiceImpl extends ServiceImpl<MetricLogMapper, MetricLog
             AlarmRecord record = new AlarmRecord();
             record.setAlarmNo("AL" + IdUtil.getSnowflakeNextIdStr()
                     + String.format("%03d", (int) (Math.random() * 1000)));
-            // 系统切换事件，不关联具体规则
+            // 系统切换事件，无规则
             record.setRuleId("");
             record.setInstanceId(newMasterId);
             record.setMetricKey(CommonConstant.MASTER_SWITCH);
@@ -289,18 +292,4 @@ public class MetricLogServiceImpl extends ServiceImpl<MetricLogMapper, MetricLog
         return metricLogMapper.selectLatestByInstanceId(instanceId);
     }
 
-    @Override
-    @Scheduled(cron = "0 0 3 * * ?")
-    public void cleanExpiredData() {
-        LocalDateTime threshold = LocalDateTime.now().minusDays(retainDays);
-
-        int rowsM = metricLogMapper.delete(new LambdaQueryWrapper<MetricLog>()
-                .lt(MetricLog::getTm, threshold));
-        if (rowsM>0) {
-            log.info("采集数据表rms_metric_log定期清理结果：{}", CommonConstant.SUCCESS);
-        }
-        else{
-            log.info("采集数据表rms_metric_log定期清理结果：{}", CommonConstant.FAILURE);
-        }
-    }
 }

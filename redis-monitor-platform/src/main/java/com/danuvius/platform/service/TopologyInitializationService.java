@@ -1,6 +1,6 @@
 package com.danuvius.platform.service;
 
-import com.danuvius.platform.model.dto.TopologyInitializationRequestDTO;
+import com.danuvius.platform.model.dto.operation.TopologyInitializationRequestDTO;
 import com.danuvius.platform.model.vo.TopologyInitializationCandidateVO;
 import com.danuvius.platform.model.vo.TopologyInitializationResponseVO;
 

@@ -1,5 +1,7 @@
 package com.danuvius.platform.util;
 
+import com.danuvius.platform.common.constant.ReportConstants;
+import com.danuvius.platform.model.enums.report.ExportTaskStatusEnum;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import org.springframework.beans.factory.annotation.Value;
@@ -10,9 +12,9 @@ import java.time.LocalDateTime;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 报告导出任务存储。
+ * 报告导出任务存储
  * 异步提交报告生成任务，同步返回任务id，前端3s轮询任务状态，
- * 任务与临时文件 30 分钟有效，过期自动清理。
+ * 任务与临时文件 30 分钟有效，过期自动清理
  */
 @Component
 public class ReportExportTaskHolder {
@@ -30,7 +32,7 @@ public class ReportExportTaskHolder {
 
         public ExportTask(String taskId) {
             this.taskId = taskId;
-            this.taskStatus = "pending";
+            this.taskStatus = ExportTaskStatusEnum.PENDING.getCode();
             this.createTime = LocalDateTime.now();
         }
 
@@ -56,8 +58,8 @@ public class ReportExportTaskHolder {
 
     public ReportExportTaskHolder() {
         this.taskCache = Caffeine.newBuilder()
-                .expireAfterWrite(30, TimeUnit.MINUTES)
-                .maximumSize(500)
+                .expireAfterWrite(ReportConstants.EXPORT_TASK_TTL_MINUTES, TimeUnit.MINUTES)
+                .maximumSize(ReportConstants.EXPORT_TASK_CACHE_MAX)
                 .removalListener((String key, ExportTask task, com.github.benmanes.caffeine.cache.RemovalCause cause) -> {
                     // 任务过期时清理临时文件
                     if (task != null && task.getFilePath() != null) {

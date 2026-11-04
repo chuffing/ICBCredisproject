@@ -6,7 +6,7 @@ import com.danuvius.platform.common.exception.ParameterCode;
 import com.danuvius.platform.common.exception.ParameterException;
 import com.danuvius.platform.common.exception.validator.ListValidator;
 import com.danuvius.platform.common.exception.validator.StringValidator;
-import com.danuvius.platform.model.dto.TopologyInitializationRequestDTO;
+import com.danuvius.platform.model.dto.operation.TopologyInitializationRequestDTO;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;

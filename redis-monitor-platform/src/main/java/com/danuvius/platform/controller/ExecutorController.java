@@ -8,6 +8,7 @@ import com.danuvius.platform.model.dto.agent.AgentRegisterRequest;
 import com.danuvius.platform.model.dto.agent.AgentRegisterResultDTO;
 import com.danuvius.platform.model.dto.executor.ExecutorManagementRequest;
 import com.danuvius.platform.service.ExecutorInfoService;
+import com.danuvius.platform.util.AuthTokenUtil;
 import com.danuvius.platform.util.validate.AgentHeartbeatRequestValidator;
 import com.danuvius.platform.util.validate.AgentRegisterRequestValidator;
 import com.danuvius.platform.util.validate.ExecutorManagementRequestValidator;
@@ -28,38 +29,21 @@ public class ExecutorController {
     @PostMapping("/register")
     public ResultBean<AgentRegisterResultDTO> register( @RequestBody AgentRegisterRequest req) {
         AgentRegisterRequestValidator.validate(req);
-
-        try {
-            AgentRegisterResultDTO result = executorInfoService.register(
-                    req.getRegisterCode(),
-                    req.getHostIp(), req.getExecutorPort(), req.getRedisInfo(),req.getRedisReady());
-            return ResultBean.restResult(result, ErrorCodeInfo.OK);
-        } catch (Exception e) {
-            return ResultBean.resultBean(
-                    null,
-                    BusinessCode.OPERATION_ERROR.getCode(),
-                    BusinessCode.OPERATION_ERROR.getMsg()
-            );
-        }
+        return ResultBean.restResult(executorInfoService.register(req), ErrorCodeInfo.OK);
     }
 
+    /**
+     * 执行器心跳上报
+     */
     @PostMapping("/heartbeat")
-    public ResultBean<Object> heartbeat(@RequestHeader("Authorization") @NotBlank(message = "Authorization不能为空") String auth,
-                                           @RequestBody AgentHeartbeatRequest req) {
-        AgentHeartbeatRequestValidator.validate(auth,req);
+    public ResultBean<Boolean> heartbeat(@RequestHeader("Authorization") String auth,
+                                         @RequestBody AgentHeartbeatRequest req) {
+        AgentHeartbeatRequestValidator.validate(auth, req);
 
-        String token = auth.replace("Bearer ", "");
-        try {
-            Boolean flag = executorInfoService.heartbeat(
-                    token, req.getHostIp(), req.getExecutorPort());
-            return ResultBean.restResult(flag, ErrorCodeInfo.OK);
-        } catch (Exception e) {
-            return ResultBean.resultBean(
-                    null,
-                    BusinessCode.OPERATION_ERROR.getCode(),
-                    BusinessCode.OPERATION_ERROR.getMsg()
-            );
-        }
+        String token = AuthTokenUtil.extractBearer(auth);
+        return ResultBean.restResult(
+                executorInfoService.heartbeat(token, req.getHostIp(), req.getExecutorPort()),
+                ErrorCodeInfo.OK);
     }
 
 

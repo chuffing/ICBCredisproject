@@ -227,7 +227,7 @@ public final class ApiUtil {
     }
 
     /**
-     * 创建唯一ID（客户流水号，不超过32位。）
+     * 创建唯一ID（客户流水号，不超过32位）
      */
     public static String createId() {
         String uuid = new UUID(ThreadLocalRandom.current().nextLong(), ThreadLocalRandom.current().nextLong()).toString();

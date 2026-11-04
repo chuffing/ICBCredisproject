@@ -1,10 +1,11 @@
-package com.danuvius.platform.service;
+package com.danuvius.platform.task;
 
 import com.danuvius.platform.config.OperationTaskProperties;
 import com.danuvius.platform.mapper.OperationTaskStepMapper;
 import com.danuvius.platform.model.entity.OperationTaskStep;
-import com.danuvius.platform.model.enums.OperationTaskStatusEnum;
-import com.danuvius.platform.model.enums.OperationTaskStepStatusEnum;
+import com.danuvius.platform.model.enums.operation.OperationTaskStatusEnum;
+import com.danuvius.platform.model.enums.operation.OperationTaskStepStatusEnum;
+import com.danuvius.platform.service.OperationTaskResultService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;

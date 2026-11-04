@@ -11,13 +11,18 @@ import com.danuvius.platform.common.constant.CommonConstant;
 import com.danuvius.platform.common.core.ResultBean;
 import com.danuvius.platform.common.exception.BusinessCode;
 import com.danuvius.platform.common.exception.BusinessException;
+import com.danuvius.platform.executor.AsyncTaskRunner;
 import com.danuvius.platform.mapper.*;
 import com.danuvius.platform.model.dto.alarm.rule.*;
 import com.danuvius.platform.model.dto.metric.MetricReportItemDTO;
 import com.danuvius.platform.model.entity.*;
+import com.danuvius.platform.model.enums.instance.ManagementStatusEnum;
+import com.danuvius.platform.model.enums.metric.CollectTypeEnum;
 import com.danuvius.platform.model.enums.metric.MetricTypeEnum;
-import com.danuvius.platform.model.enums.StatusEnum;
+import com.danuvius.platform.model.enums.rule.AlarmLevelEnum;
+import com.danuvius.platform.model.enums.rule.DelFlagEnum;
 import com.danuvius.platform.model.enums.rule.EnableStatusEnum;
+import com.danuvius.platform.model.enums.rule.ScopeTypeEnum;
 import com.danuvius.platform.service.*;
 import com.danuvius.platform.util.CompareUtil;
 import com.danuvius.platform.util.DetectTaskRecorder;
@@ -200,7 +205,7 @@ public class AlarmRuleServiceImpl extends ServiceImpl<AlarmRuleMapper, AlarmRule
         rule.setScopeInstanceId(ParseUtils.joinIds(normalizeInstanceIds(req.getScopeInstanceIds())));
         rule.setEnableStatus(req.getEnableStatus());
 
-        rule.setDelFlag(CommonConstant.NOT_DELETED);
+        rule.setDelFlag(DelFlagEnum.NOT_DELETED.getCode());
 
         rule.setCreatedBy(req.getCreatedBy());
         rule.setCreatedTime(LocalDateTime.now());
@@ -217,13 +222,10 @@ public class AlarmRuleServiceImpl extends ServiceImpl<AlarmRuleMapper, AlarmRule
      * 告警规则治理校验（新增/修改共用）
      *
      * 设计原则：多规则定义 + 抑制/分组治理
-     * 1. 一条规则只绑定一个指标维度，指标必须属于可量化的规则指标；
-     * 2. 同一指标 + 同一生效范围允许“提示/警告/严重”多级阈值，各级别只能有一条；
-     * 3. 同一指标 + 同一生效范围的比较方式必须一致，阈值随级别单调递增（> / >=）
-     *    或单调递减（< / <=），避免多级规则互相矛盾；
-     * 4. = 只允许单条规则；同一阈值重复配置直接拒绝；
-     * 5. 同一指标启用规则总数受 CommonConstant类  MAX_RULES_PER_METRIC 限制，
-     *    避免为同一指标叠加过多“细节规则”
+     * 一条规则只绑定一个指标维度,同一指标 + 同一生效范围允许“提示/警告/严重”多级阈值，各级别只能有一条
+     * 同一指标 + 同一生效范围的比较方式必须一致，阈值随级别单调
+     * = 只允许单条规则；同一阈值不能重复配置
+     * 同一指标启用规则总数受 CommonConstant类  MAX_RULES_PER_METRIC 限制，
      *
      * @param metricKey        监控指标
      * @param compareType      比较方式
@@ -240,7 +242,7 @@ public class AlarmRuleServiceImpl extends ServiceImpl<AlarmRuleMapper, AlarmRule
         MetricTypeEnum metricType = MetricTypeEnum.ruleOf(metricKey);
         if (metricType == null) {
             throw new BusinessException(BusinessCode.PARAMS_ERROR.getCode(),
-                    "不支持的监控指标：" + metricKey + "（节点存活/哨兵状态属于系统事件，不开放阈值规则）");
+                     metricKey + "有误");
         }
         if (thresholdValue == null) {
             throw new BusinessException(BusinessCode.PARAMS_ERROR.getCode(), "告警阈值不能为空");
@@ -253,7 +255,7 @@ public class AlarmRuleServiceImpl extends ServiceImpl<AlarmRuleMapper, AlarmRule
         }
 
         List<AlarmRule> sameMetricRules = alarmRuleMapper.selectList(Wrappers.<AlarmRule>lambdaQuery()
-                .eq(AlarmRule::getEnableStatus, CommonConstant.ENABLE)
+                .eq(AlarmRule::getEnableStatus, EnableStatusEnum.ENABLE.getCode())
                 .eq(AlarmRule::getMetricKey, metricKey)
         );
 
@@ -278,7 +280,7 @@ public class AlarmRuleServiceImpl extends ServiceImpl<AlarmRuleMapper, AlarmRule
                     "指标【" + metricType.getName() + "】的启用规则已达上限 "
                             + CommonConstant.MAX_RULES_PER_METRIC + " 条，请先清理冗余规则");
         }
-        // 7. 同一指标 + 同一生效范围最多 3 个级别
+        // 同一指标 + 同一生效范围最多 3 个级别
         if (sameScopeRules.size() >= CommonConstant.MAX_RULE_LEVELS_PER_SCOPE) {
             throw new BusinessException(BusinessCode.OPERATION_ERROR.getCode(),
                     "指标【" + metricType.getName() + "】在该生效范围内已达到 "
@@ -348,7 +350,7 @@ public class AlarmRuleServiceImpl extends ServiceImpl<AlarmRuleMapper, AlarmRule
 
     /** 生效范围签名：全部节点=ALL；指定节点=排序去重后的实例id集合 */
     private String scopeSignature(String scopeType, List<String> instanceIds) {
-        if (CommonConstant.ALL_INSTANCE_IDS.equals(scopeType)) {
+        if (ScopeTypeEnum.ALL_INSTANCE_IDS.getCode().equals(scopeType)) {
             return "ALL";
         }
         java.util.TreeSet<String> sorted = new java.util.TreeSet<>();
@@ -392,11 +394,11 @@ public class AlarmRuleServiceImpl extends ServiceImpl<AlarmRuleMapper, AlarmRule
     private String levelDesc(String level) {
         switch (level) {
             case "1":
-                return "提示";
+                return AlarmLevelEnum.INFO.getDesc();
             case "2":
-                return "警告";
+                return AlarmLevelEnum.WARNING.getDesc();
             case "3":
-                return "严重";
+                return AlarmLevelEnum.CRITICAL.getDesc();
             default:
                 return level;
         }
@@ -499,7 +501,7 @@ public class AlarmRuleServiceImpl extends ServiceImpl<AlarmRuleMapper, AlarmRule
             /* 操作审计日志记录 */
             auditLogService.record(CommonConstant.MODULE_ALARM_RULE, CommonConstant.OPERATION_TYPE_UPDATE, ruleId,
                     "切换告警规则启用状态：" + rule.getRuleName() + " -> "
-                            + ("1".equals(enableStatus) ? CommonConstant.ENABLE_DEC : CommonConstant.DISABLE_DEC));
+                            + (EnableStatusEnum.ENABLE.getCode().equals(enableStatus) ? EnableStatusEnum.ENABLE.getDesc() : EnableStatusEnum.DISABLE.getDesc()));
         }
         return rows > 0;
     }
@@ -523,7 +525,7 @@ public class AlarmRuleServiceImpl extends ServiceImpl<AlarmRuleMapper, AlarmRule
         if (rule == null) {
             throw new BusinessException(BusinessCode.NOT_FOUND_ERROR.getCode(), "规则不存在");
         }
-        if (!CommonConstant.ENABLE.equals(rule.getEnableStatus())) {
+        if (!EnableStatusEnum.ENABLE.getCode().equals(rule.getEnableStatus())) {
             throw new BusinessException(BusinessCode.OPERATION_ERROR.getCode(), "规则禁用，无法检测");
         }
         asyncTaskRunner.run(() -> {
@@ -557,7 +559,7 @@ public class AlarmRuleServiceImpl extends ServiceImpl<AlarmRuleMapper, AlarmRule
     }
 
     /**
-     * 单规则检测执行体（由 AlarmCheckExecutor 异步调用）
+     * 单规则检测执行体
      */
     @Override
     public void executeSingleCheck(String ruleId) {
@@ -566,7 +568,7 @@ public class AlarmRuleServiceImpl extends ServiceImpl<AlarmRuleMapper, AlarmRule
 
 
         //找不到rule 或者规则禁用
-        if (rule == null || CommonConstant.DISABLE.equals(rule.getEnableStatus())) {
+        if (rule == null || EnableStatusEnum.DISABLE.getCode().equals(rule.getEnableStatus())) {
             return;
         }
         //解析规则作用范围的实例列表
@@ -580,12 +582,12 @@ public class AlarmRuleServiceImpl extends ServiceImpl<AlarmRuleMapper, AlarmRule
     }
 
     /**
-     * 全规则检测执行体（由 AlarmCheckExecutor 异步调用）
+     * 全规则检测执行体
      */
     @Override
     public void executeAllCheck() {
         List<AlarmRule> rules= alarmRuleMapper.selectList(Wrappers.<AlarmRule>lambdaQuery()
-                .eq(AlarmRule::getEnableStatus, CommonConstant.ENABLE)
+                .eq(AlarmRule::getEnableStatus, EnableStatusEnum.ENABLE.getCode())
         );
 
         if (rules.isEmpty()) {
@@ -617,7 +619,7 @@ public class AlarmRuleServiceImpl extends ServiceImpl<AlarmRuleMapper, AlarmRule
         item.setRunId(metricLog.getRunId());
         item.setMasterHost(metricLog.getMasterHost());
         item.setMasterPort(metricLog.getMasterPort());
-        item.setCollectType(CommonConstant.AUTO);
+        item.setCollectType(CollectTypeEnum.AUTO_COLLECT.getCode());
         return item;
     }
 
@@ -678,7 +680,7 @@ public class AlarmRuleServiceImpl extends ServiceImpl<AlarmRuleMapper, AlarmRule
     private List<MetricReportItemDTO> collectFromAllExecutors() {
         List<MetricReportItemDTO> collected = new ArrayList<>();
         List<ExecutorInfo> executors = executorInfoMapper.selectList(new LambdaQueryWrapper<ExecutorInfo>()
-                .eq(ExecutorInfo::getManagementStatus, CommonConstant.MANAGE_ACTIVE)
+                .eq(ExecutorInfo::getManagementStatus, ManagementStatusEnum.ACTIVE.getCode())
                 .eq(ExecutorInfo::getExecutorStatus,CommonConstant.ONLINE)
         );
 
@@ -716,7 +718,7 @@ public class AlarmRuleServiceImpl extends ServiceImpl<AlarmRuleMapper, AlarmRule
                 list.add(item);
                 // 手动采集记录入表
                 item.setToken(executor.getExecutorToken());
-                item.setCollectType(CommonConstant.MANUAL);
+                item.setCollectType(CollectTypeEnum.MANUAL_COLLECT.getCode());
                 try {
                     metricLogService.reportMetric(item);
                 } catch (Exception e) {
@@ -866,8 +868,8 @@ public class AlarmRuleServiceImpl extends ServiceImpl<AlarmRuleMapper, AlarmRule
         if (current == null) {
             return true;
         }
-        boolean candidateNode = CommonConstant.SPECIFIED_INSTNACE_ID.equals(candidate.rule.getScopeType());
-        boolean currentNode = CommonConstant.SPECIFIED_INSTNACE_ID.equals(current.rule.getScopeType());
+        boolean candidateNode = ScopeTypeEnum.SPECIFIED_INSTNACE_ID.getCode().equals(candidate.rule.getScopeType());
+        boolean currentNode = ScopeTypeEnum.SPECIFIED_INSTNACE_ID.getCode().equals(current.rule.getScopeType());
         if (candidateNode != currentNode) {
             return candidateNode;
         }
@@ -892,7 +894,7 @@ public class AlarmRuleServiceImpl extends ServiceImpl<AlarmRuleMapper, AlarmRule
      * @return null = 全部实例；空集 = 指定实例但配置无效；否则为实例集合
      */
     private List<String> resolveScope(AlarmRule rule) {
-        if (CommonConstant.ALL_INSTANCE_IDS.equals(rule.getScopeType())) {
+        if (ScopeTypeEnum.ALL_INSTANCE_IDS.getCode().equals(rule.getScopeType())) {
             return null;
         }
         String ids = rule.getScopeInstanceId();
@@ -1074,7 +1076,7 @@ public class AlarmRuleServiceImpl extends ServiceImpl<AlarmRuleMapper, AlarmRule
             record.setThreshold(rule.getThreshold());
             record.setUnit(rule.getUnit());
             record.setTriggerTime(now);
-            record.setRecoverStatus(StatusEnum.UNRECOVER.getCode());
+            record.setRecoverStatus(CommonConstant.UNRECOVER);
             record.setCreatedTime(now);
             record.setUpdatedTime(now);
             alarmRecordMapper.insert(record);
@@ -1118,7 +1120,7 @@ public class AlarmRuleServiceImpl extends ServiceImpl<AlarmRuleMapper, AlarmRule
         if (rule.getMetricName() != null && !rule.getMetricName().trim().isEmpty()) {
             return rule.getMetricName();
         }
-        MetricTypeEnum metricType = MetricTypeEnum.of(rule.getMetricKey());
+        MetricTypeEnum metricType = MetricTypeEnum.keyToName(rule.getMetricKey());
         return metricType != null ? metricType.getName() : rule.getMetricKey();
     }
 

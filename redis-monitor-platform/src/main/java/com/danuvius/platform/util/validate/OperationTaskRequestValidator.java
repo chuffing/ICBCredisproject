@@ -5,10 +5,10 @@ import com.danuvius.platform.common.exception.ParameterCode;
 import com.danuvius.platform.common.exception.ParameterException;
 import com.danuvius.platform.common.exception.validator.NumberValidator;
 import com.danuvius.platform.common.exception.validator.StringValidator;
-import com.danuvius.platform.model.dto.ManualTerminateTaskRequestDTO;
-import com.danuvius.platform.model.dto.TaskResultReportDTO;
-import com.danuvius.platform.model.enums.ExecutorOperationTypeEnum;
-import com.danuvius.platform.model.enums.OperationTaskStepStatusEnum;
+import com.danuvius.platform.model.dto.operation.ManualTerminateTaskRequestDTO;
+import com.danuvius.platform.model.dto.operation.TaskResultReportDTO;
+import com.danuvius.platform.model.enums.operation.ExecutorOperationTypeEnum;
+import com.danuvius.platform.model.enums.operation.OperationTaskStepStatusEnum;
 import org.apache.commons.lang3.StringUtils;
 
 /**

@@ -2,7 +2,7 @@ package com.danuvius.platform.util.validate;
 
 import com.danuvius.platform.common.exception.ParameterCode;
 import com.danuvius.platform.common.exception.ParameterException;
-import com.danuvius.platform.model.dto.FaultRecoveryRequestDTO;
+import com.danuvius.platform.model.dto.operation.FaultRecoveryRequestDTO;
 
 /**
  * 故障恢复请求参数校验。

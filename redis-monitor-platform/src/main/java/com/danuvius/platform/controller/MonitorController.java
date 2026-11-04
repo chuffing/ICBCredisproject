@@ -1,13 +1,13 @@
 package com.danuvius.platform.controller;
 
 import com.danuvius.platform.common.constant.CommonConstant;
+import com.danuvius.platform.common.constant.ReportConstants;
 import com.danuvius.platform.common.core.ResultBean;
 import com.danuvius.platform.common.exception.ErrorCodeInfo;
 import com.danuvius.platform.common.exception.validator.IdValidator;
 import com.danuvius.platform.common.exception.validator.StringValidator;
 import com.danuvius.platform.model.dto.monitor.*;
-import com.danuvius.platform.service.RedisInstanceService;
-import com.danuvius.platform.service.SentinelNodeInfoService;
+import com.danuvius.platform.service.*;
 import com.danuvius.platform.util.validate.ReportQueryRequestValidator;
 import com.danuvius.platform.util.validate.TrendRequestValidator;
 import lombok.extern.slf4j.Slf4j;
@@ -30,12 +30,24 @@ public class MonitorController {
 
 
 
-    private final RedisInstanceService redisInstanceService;
+    private final RealtimeMetricQueryService realtimeMetricQueryService;
+    private final ReportQueryService reportQueryService;
     private final SentinelNodeInfoService sentinelNodeInfoService;
+    /* 拓扑与节点状态查询 */
+    private final TopologyQueryService topologyQueryService;
+    /* 报告导出任务编排 */
+    private final ReportExportService reportExportService;
 
-    public MonitorController(RedisInstanceService redisInstanceService, SentinelNodeInfoService sentinelNodeInfoService) {
-        this.redisInstanceService = redisInstanceService;
+    public MonitorController(RealtimeMetricQueryService realtimeMetricQueryService,
+                             ReportQueryService reportQueryService,
+                             SentinelNodeInfoService sentinelNodeInfoService,
+                             TopologyQueryService topologyQueryService,
+                             ReportExportService reportExportService) {
+        this.realtimeMetricQueryService = realtimeMetricQueryService;
+        this.reportQueryService = reportQueryService;
         this.sentinelNodeInfoService = sentinelNodeInfoService;
+        this.topologyQueryService = topologyQueryService;
+        this.reportExportService = reportExportService;
     }
 
     /**
@@ -49,7 +61,7 @@ public class MonitorController {
 
         StringValidator.isEnumValue(managementStatus, CommonConstant.MANAGEMENT_STATUS, "managementStatus");
 
-        return ResultBean.restResult(redisInstanceService.getInstanceList(managementStatus), ErrorCodeInfo.OK);
+        return ResultBean.restResult(realtimeMetricQueryService.getInstanceList(managementStatus), ErrorCodeInfo.OK);
     }
 
     /**
@@ -59,10 +71,10 @@ public class MonitorController {
      */
     @GetMapping("/realtime/current-values")
     public ResultBean<MetricCurrentValueResponse> currentValues(
-            @RequestParam @NotBlank(message = "instanceId不能为空") String instanceId) {
+            @RequestParam String instanceId) {
         IdValidator.snowflake(instanceId, "instanceId");
 
-        return ResultBean.restResult(redisInstanceService.getCurrentValues(instanceId), ErrorCodeInfo.OK);
+        return ResultBean.restResult(realtimeMetricQueryService.getCurrentValues(instanceId), ErrorCodeInfo.OK);
     }
 
     /**
@@ -74,7 +86,7 @@ public class MonitorController {
     public ResultBean<TrendResponse> trend(TrendRequest req) {
         TrendRequestValidator.validate(req);
         log.info("多节点指标趋势接口：{}", req.toString());
-        return ResultBean.restResult(redisInstanceService.getTrend(req), ErrorCodeInfo.OK);
+        return ResultBean.restResult(realtimeMetricQueryService.getTrend(req), ErrorCodeInfo.OK);
     }
 
     /**
@@ -96,7 +108,7 @@ public class MonitorController {
      */
     @GetMapping("/sentinel/topology")
     public ResultBean<TopologyResponse> topology() {
-        return ResultBean.restResult(redisInstanceService.getTopology(), ErrorCodeInfo.OK);
+        return ResultBean.restResult(topologyQueryService.getTopology(), ErrorCodeInfo.OK);
     }
 
     /**
@@ -105,7 +117,7 @@ public class MonitorController {
      */
     @GetMapping("/sentinel/nodes-status")
     public ResultBean<List<NodeStatusResponse>> nodesStatus() {
-        return ResultBean.restResult(redisInstanceService.getNodesStatus(), ErrorCodeInfo.OK);
+        return ResultBean.restResult(topologyQueryService.getNodesStatus(), ErrorCodeInfo.OK);
     }
 
     /**
@@ -117,26 +129,21 @@ public class MonitorController {
     public ResultBean<ReportQueryResponse> reportQuery(@RequestBody ReportQueryRequest req) {
         ReportQueryRequestValidator.validate(req);
 
-        return ResultBean.restResult(redisInstanceService.queryReport(req), ErrorCodeInfo.OK);
+        return ResultBean.restResult(reportQueryService.queryReport(req), ErrorCodeInfo.OK);
     }
-
 
 
     /**
      * 报告导出接口
-     * @param instanceId
-     * @param reportType
+     * @param req
      * @return
      */
     @GetMapping("/report/export")
-    public ResultBean<ReportExportResponse> reportExport(
-            @RequestParam @NotBlank(message = "instanceId不能为空") String instanceId,
-            @RequestParam @NotBlank(message = "reportType不能为空") String reportType) {
-        IdValidator.snowflake(instanceId, "instanceId");
-        StringValidator.isEnumValue(reportType, CommonConstant.REPORT_TYPES, "reportType");
+    public ResultBean<ReportExportResponse> reportExport(@RequestBody ReportQueryRequest req) {
+        ReportQueryRequestValidator.validate(req);
 
         return ResultBean.restResult(
-                redisInstanceService.exportReport(instanceId, reportType), ErrorCodeInfo.OK);
+                reportExportService.exportReport(req), ErrorCodeInfo.OK);
     }
 
     /**
@@ -144,11 +151,12 @@ public class MonitorController {
      */
     @GetMapping("/report/export/status")
     public ResultBean<ReportExportResponse> exportStatus(
-            @RequestParam @NotBlank(message = "taskId不能为空") String taskId) {
+            @RequestParam String taskId) {
         // 导出任务 id 由 exportReport 生成，格式为 EP_ + 雪花id
-        IdValidator.check(taskId, "EP_", 32, "taskId");
+        IdValidator.check(taskId, ReportConstants.EXPORT_TASK_ID_PREFIX,
+                ReportConstants.EXPORT_TASK_ID_MAX_LEN, "taskId");
 
-        return ResultBean.restResult(redisInstanceService.queryExportTask(taskId), ErrorCodeInfo.OK);
+        return ResultBean.restResult(reportExportService.queryExportTask(taskId), ErrorCodeInfo.OK);
     }
 
 
@@ -157,20 +165,19 @@ public class MonitorController {
      * 导出文件下载接口,任务成功后返回临时文件，30分钟有效
      */
     @GetMapping("/report/export/download")
-    public void exportDownload(
-            @RequestParam @NotBlank(message = "taskId不能为空") String taskId,
-            HttpServletResponse response) throws IOException {
+    public void exportDownload(@RequestParam String taskId, HttpServletResponse response) throws IOException {
 
-        IdValidator.check(taskId, "EP_", 32, "taskId");
+        IdValidator.check(taskId, ReportConstants.EXPORT_TASK_ID_PREFIX,
+                ReportConstants.EXPORT_TASK_ID_MAX_LEN, "taskId");
 
-        File file = redisInstanceService.getExportFile(taskId);
-        String fileName = URLEncoder.encode(file.getName(), StandardCharsets.UTF_8.name())
+        ExportFileDescriptor descriptor = reportExportService.getExportFile(taskId);
+        String fileName = URLEncoder.encode(descriptor.getFileName(), StandardCharsets.UTF_8.name())
                 .replace("+", "%20");
 
-        response.setContentType("application/pdf");
+        response.setContentType(descriptor.getContentType());
         response.setHeader("Content-Disposition", "attachment; filename*=UTF-8''" + fileName);
 
         // Files.copy 内部会打开/关闭输入流，且不会关闭 OutputStream
-        Files.copy(file.toPath(), response.getOutputStream());
+        Files.copy(descriptor.getFile().toPath(), response.getOutputStream());
     }
 }

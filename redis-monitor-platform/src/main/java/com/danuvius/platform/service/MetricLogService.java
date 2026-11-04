@@ -9,5 +9,4 @@ public interface MetricLogService extends IService<MetricLog> {
     void reportMetric(MetricReportItemDTO metric);
     /*查询某实例最新一条指标*/
     MetricLog getLatestByInstanceId(String agentId);
-    void cleanExpiredData();
 }

@@ -1,6 +1,6 @@
 package com.danuvius.platform.service;
 
-import com.danuvius.platform.model.dto.TaskResultReportDTO;
+import com.danuvius.platform.model.dto.operation.TaskResultReportDTO;
 
 /**
  * 运维任务执行结果处理服务。

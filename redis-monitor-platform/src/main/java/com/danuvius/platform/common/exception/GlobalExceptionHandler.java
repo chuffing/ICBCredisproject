@@ -6,6 +6,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -88,6 +89,18 @@ public class GlobalExceptionHandler {
         return ResultBean.error(
                 ParameterCode.PARAM_NULL.getCode(),
                 "字段[" + exception.getParameterName() + "]不能为空"
+        );
+    }
+
+    /**
+     * 处理必填请求头缺失。
+     */
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResultBean<Void> handleMissingRequestHeaderException(
+            MissingRequestHeaderException exception) {
+        return ResultBean.error(
+                ParameterCode.PARAM_NULL.getCode(),
+                "字段[" + exception.getHeaderName() + "]不能为空"
         );
     }
 

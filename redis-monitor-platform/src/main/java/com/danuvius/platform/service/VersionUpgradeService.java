@@ -1,6 +1,6 @@
 package com.danuvius.platform.service;
 
-import com.danuvius.platform.model.dto.VersionUpgradeRequestDTO;
+import com.danuvius.platform.model.dto.operation.VersionUpgradeRequestDTO;
 import com.danuvius.platform.model.vo.VersionUpgradeResponseVO;
 
 /**

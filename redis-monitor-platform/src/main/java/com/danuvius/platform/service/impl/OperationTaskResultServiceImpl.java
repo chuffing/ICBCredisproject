@@ -1,7 +1,7 @@
 package com.danuvius.platform.service.impl;
 
-import com.danuvius.platform.model.dto.TaskResultReportDTO;
-import com.danuvius.platform.service.OperationTaskDispatchExecutor;
+import com.danuvius.platform.model.dto.operation.TaskResultReportDTO;
+import com.danuvius.platform.executor.OperationTaskDispatchExecutor;
 import com.danuvius.platform.service.OperationTaskResultService;
 import com.danuvius.platform.service.OperationTaskService;
 import lombok.RequiredArgsConstructor;

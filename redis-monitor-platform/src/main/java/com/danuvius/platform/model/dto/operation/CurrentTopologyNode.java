@@ -1,4 +1,4 @@
-package com.danuvius.platform.model.dto;
+package com.danuvius.platform.model.dto.operation;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

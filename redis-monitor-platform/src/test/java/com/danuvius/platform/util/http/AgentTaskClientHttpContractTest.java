@@ -2,7 +2,7 @@ package com.danuvius.platform.util.http;
 
 import com.danuvius.platform.common.exception.AgentTaskDispatchUnknownException;
 import com.danuvius.platform.common.exception.AgentTaskRejectedException;
-import com.danuvius.platform.model.dto.AgentTaskRequestDTO;
+import com.danuvius.platform.model.dto.operation.AgentTaskRequestDTO;
 import com.danuvius.platform.model.entity.ExecutorInfo;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;

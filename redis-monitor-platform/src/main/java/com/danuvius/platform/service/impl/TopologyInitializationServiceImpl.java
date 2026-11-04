@@ -1,14 +1,16 @@
 package com.danuvius.platform.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.danuvius.platform.common.constant.CommonConstant;
 import com.danuvius.platform.common.constant.TopologyInitializationConstants;
 import com.danuvius.platform.common.exception.BusinessCode;
 import com.danuvius.platform.common.exception.BusinessException;
-import com.danuvius.platform.model.dto.TopologyInitializationRequestDTO;
+import com.danuvius.platform.model.dto.operation.TopologyInitializationRequestDTO;
 import com.danuvius.platform.model.entity.ExecutorInfo;
 import com.danuvius.platform.model.entity.RedisInstance;
 import com.danuvius.platform.model.entity.SentinelNodeInfo;
-import com.danuvius.platform.model.enums.StatusEnum;
+import com.danuvius.platform.model.enums.instance.ManagementStatusEnum;
+import com.danuvius.platform.model.enums.instance.RunStatusEnum;
 import com.danuvius.platform.model.vo.TopologyInitializationCandidateVO;
 import com.danuvius.platform.model.vo.TopologyInitializationResponseVO;
 import com.danuvius.platform.service.ExecutorInfoService;
@@ -60,22 +62,22 @@ public class TopologyInitializationServiceImpl
         List<ExecutorInfo> executors = executorInfoService.list(
                 new LambdaQueryWrapper<ExecutorInfo>()
                         .eq(ExecutorInfo::getManagementStatus,
-                                StatusEnum.INACTIVE.getCode())
+                                ManagementStatusEnum.INACTIVE.getCode())
                         .eq(ExecutorInfo::getExecutorStatus,
-                                StatusEnum.ONLINE.getCode())
+                                CommonConstant.ONLINE)
         );
 
         // 2. 查询注册阶段已经采集到的Redis和Sentinel记录。
         List<RedisInstance> redisInstances = redisInstanceService.list(
                 new LambdaQueryWrapper<RedisInstance>().eq(
                         RedisInstance::getManagementStatus,
-                        StatusEnum.INACTIVE.getCode()
+                        ManagementStatusEnum.INACTIVE.getCode()
                 )
         );
         List<SentinelNodeInfo> sentinelNodes = sentinelNodeInfoService.list(
                 new LambdaQueryWrapper<SentinelNodeInfo>().eq(
                         SentinelNodeInfo::getManagementStatus,
-                        StatusEnum.INACTIVE.getCode()
+                        ManagementStatusEnum.INACTIVE.getCode()
                 )
         );
 
@@ -113,9 +115,9 @@ public class TopologyInitializationServiceImpl
                     || redisInstance == null
                     || sentinelNode == null
                     || !hostIp.equals(redisInstance.getHostIp())
-                    || !StatusEnum.RUN_NORMAL.getCode().equals(
+                    || !RunStatusEnum.RUN_NORMAL.getCode().equals(
                     redisInstance.getRunStatus())
-                    || !StatusEnum.ONLINE.getCode().equals(
+                    || !CommonConstant.ONLINE.equals(
                     sentinelNode.getSentinelStatus())
                     || !addedHostIps.add(hostIp)) {
                 continue;
@@ -150,9 +152,9 @@ public class TopologyInitializationServiceImpl
         List<ExecutorInfo> executors = executorInfoService.list(
                 new LambdaQueryWrapper<ExecutorInfo>()
                         .eq(ExecutorInfo::getManagementStatus,
-                                StatusEnum.INACTIVE.getCode())
+                                ManagementStatusEnum.INACTIVE.getCode())
                         .eq(ExecutorInfo::getExecutorStatus,
-                                StatusEnum.ONLINE.getCode())
+                                CommonConstant.ONLINE)
                         .in(ExecutorInfo::getHostIp, hostIps)
         );
         if (executors.size()
@@ -184,7 +186,7 @@ public class TopologyInitializationServiceImpl
         List<RedisInstance> redisInstances = redisInstanceService.list(
                 new LambdaQueryWrapper<RedisInstance>()
                         .eq(RedisInstance::getManagementStatus,
-                                StatusEnum.INACTIVE.getCode())
+                                ManagementStatusEnum.INACTIVE.getCode())
                         .in(RedisInstance::getInstanceId, instanceIds)
         );
         if (redisInstances.size()
@@ -214,7 +216,7 @@ public class TopologyInitializationServiceImpl
         List<SentinelNodeInfo> sentinelNodes = sentinelNodeInfoService.list(
                 new LambdaQueryWrapper<SentinelNodeInfo>()
                         .eq(SentinelNodeInfo::getManagementStatus,
-                                StatusEnum.INACTIVE.getCode())
+                                ManagementStatusEnum.INACTIVE.getCode())
                         .in(SentinelNodeInfo::getNodeIp, hostIps)
         );
         if (sentinelNodes.size()
@@ -250,9 +252,9 @@ public class TopologyInitializationServiceImpl
                     || redisInstance == null
                     || sentinelNode == null
                     || !hostIp.equals(redisInstance.getHostIp())
-                    || !StatusEnum.RUN_NORMAL.getCode().equals(
+                    || !RunStatusEnum.RUN_NORMAL.getCode().equals(
                     redisInstance.getRunStatus())
-                    || !StatusEnum.ONLINE.getCode().equals(
+                    || !CommonConstant.ONLINE.equals(
                     sentinelNode.getSentinelStatus())) {
                 throw new BusinessException(
                         BusinessCode.OPERATION_ERROR.getCode(),
@@ -279,7 +281,7 @@ public class TopologyInitializationServiceImpl
                     hostIp + "服务器的Redis"
             );
             redisInstance.setConfigSha256(redisConfigSha256);
-            redisInstance.setManagementStatus(StatusEnum.ACTIVE.getCode());
+            redisInstance.setManagementStatus(ManagementStatusEnum.ACTIVE.getCode());
             redisInstance.setUpdatedTime(now);
             if (!redisInstanceService.updateById(redisInstance)) {
                 throw new BusinessException(
@@ -295,7 +297,7 @@ public class TopologyInitializationServiceImpl
                     hostIp + "服务器的Sentinel"
             );
             sentinelNode.setConfigSha256(sentinelConfigSha256);
-            sentinelNode.setManagementStatus(StatusEnum.ACTIVE.getCode());
+            sentinelNode.setManagementStatus(ManagementStatusEnum.ACTIVE.getCode());
             sentinelNode.setUpdatedTime(now);
             if (!sentinelNodeInfoService.updateById(sentinelNode)) {
                 throw new BusinessException(
@@ -304,7 +306,7 @@ public class TopologyInitializationServiceImpl
                 );
             }
 
-            executor.setManagementStatus(StatusEnum.ACTIVE.getCode());
+            executor.setManagementStatus(ManagementStatusEnum.ACTIVE.getCode());
             executor.setUpdatedTime(now);
             if (!executorInfoService.updateById(executor)) {
                 throw new BusinessException(
@@ -330,19 +332,19 @@ public class TopologyInitializationServiceImpl
         long redisCount = redisInstanceService.count(
                 new LambdaQueryWrapper<RedisInstance>().eq(
                         RedisInstance::getManagementStatus,
-                        StatusEnum.ACTIVE.getCode()
+                        ManagementStatusEnum.ACTIVE.getCode()
                 )
         );
         long sentinelCount = sentinelNodeInfoService.count(
                 new LambdaQueryWrapper<SentinelNodeInfo>().eq(
                         SentinelNodeInfo::getManagementStatus,
-                        StatusEnum.ACTIVE.getCode()
+                        ManagementStatusEnum.ACTIVE.getCode()
                 )
         );
         long executorCount = executorInfoService.count(
                 new LambdaQueryWrapper<ExecutorInfo>().eq(
                         ExecutorInfo::getManagementStatus,
-                        StatusEnum.ACTIVE.getCode()
+                        ManagementStatusEnum.ACTIVE.getCode()
                 )
         );
         if (redisCount > 0 || sentinelCount > 0 || executorCount > 0) {
@@ -363,9 +365,9 @@ public class TopologyInitializationServiceImpl
                 && StringUtils.trimToNull(executor.getHostIp()) != null
                 && StringUtils.trimToNull(executor.getExecutorPort()) != null
                 && StringUtils.trimToNull(executor.getExecutorToken()) != null
-                && StatusEnum.ONLINE.getCode().equals(
+                && CommonConstant.ONLINE.equals(
                 executor.getExecutorStatus())
-                && StatusEnum.INACTIVE.getCode().equals(
+                && ManagementStatusEnum.INACTIVE.getCode().equals(
                 executor.getManagementStatus());
     }
 
@@ -374,16 +376,16 @@ public class TopologyInitializationServiceImpl
      */
     private void clearTopologyCache() {
         caffeineCache.invalidate(CacheKeyUtil.instanceList(
-                StatusEnum.ACTIVE.getCode()
+                ManagementStatusEnum.ACTIVE.getCode()
         ));
         caffeineCache.invalidate(CacheKeyUtil.instanceList(
-                StatusEnum.INACTIVE.getCode()
+                ManagementStatusEnum.INACTIVE.getCode()
         ));
         caffeineCache.invalidate(CacheKeyUtil.sentinelList(
-                StatusEnum.ACTIVE.getCode()
+                ManagementStatusEnum.ACTIVE.getCode()
         ));
         caffeineCache.invalidate(CacheKeyUtil.sentinelList(
-                StatusEnum.INACTIVE.getCode()
+                ManagementStatusEnum.INACTIVE.getCode()
         ));
         caffeineCache.invalidate(CacheKeyUtil.TOPOLOGY);
         caffeineCache.invalidate(CacheKeyUtil.NODES);

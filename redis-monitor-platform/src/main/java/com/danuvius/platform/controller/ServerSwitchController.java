@@ -2,7 +2,7 @@ package com.danuvius.platform.controller;
 
 import com.danuvius.platform.common.core.ResultBean;
 import com.danuvius.platform.common.exception.ErrorCodeInfo;
-import com.danuvius.platform.model.dto.ServerSwitchRequestDTO;
+import com.danuvius.platform.model.dto.operation.ServerSwitchRequestDTO;
 import com.danuvius.platform.model.vo.ServerSwitchResponseVO;
 import com.danuvius.platform.service.ServerSwitchService;
 import com.danuvius.platform.util.validate.OperationCommonValidator;

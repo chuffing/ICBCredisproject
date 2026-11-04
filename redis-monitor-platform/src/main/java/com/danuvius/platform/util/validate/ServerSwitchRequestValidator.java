@@ -7,7 +7,7 @@ import com.danuvius.platform.common.exception.ParameterException;
 import com.danuvius.platform.common.exception.validator.ListValidator;
 import com.danuvius.platform.common.exception.validator.NumberValidator;
 import com.danuvius.platform.common.exception.validator.StringValidator;
-import com.danuvius.platform.model.dto.ServerSwitchRequestDTO;
+import com.danuvius.platform.model.dto.operation.ServerSwitchRequestDTO;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.HashSet;

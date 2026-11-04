@@ -10,17 +10,17 @@ import com.danuvius.platform.common.exception.BusinessException;
 import com.danuvius.platform.mapper.OperationTaskMapper;
 import com.danuvius.platform.mapper.OperationTaskStepMapper;
 import com.danuvius.platform.mapper.RedisVersionPackageMapper;
-import com.danuvius.platform.model.dto.OperationResultDTO;
-import com.danuvius.platform.model.dto.TaskResultReportDTO;
-import com.danuvius.platform.model.dto.VersionUpgradeRequestDTO;
+import com.danuvius.platform.model.dto.operation.OperationResultDTO;
+import com.danuvius.platform.model.dto.operation.TaskResultReportDTO;
+import com.danuvius.platform.model.dto.operation.VersionUpgradeRequestDTO;
 import com.danuvius.platform.model.entity.OperationTask;
 import com.danuvius.platform.model.entity.OperationTaskStep;
 import com.danuvius.platform.model.entity.RedisInstance;
 import com.danuvius.platform.model.entity.RedisVersionPackage;
-import com.danuvius.platform.model.enums.OperationTaskStatusEnum;
-import com.danuvius.platform.model.enums.OperationTaskStepStatusEnum;
-import com.danuvius.platform.model.enums.OperationTaskTypeEnum;
-import com.danuvius.platform.model.enums.StatusEnum;
+import com.danuvius.platform.model.enums.operation.OperationTaskStatusEnum;
+import com.danuvius.platform.model.enums.operation.OperationTaskStepStatusEnum;
+import com.danuvius.platform.model.enums.operation.OperationTaskTypeEnum;
+import com.danuvius.platform.model.enums.instance.ManagementStatusEnum;
 import com.danuvius.platform.service.AuditLogService;
 import com.danuvius.platform.service.OperationTaskService;
 import com.danuvius.platform.service.RedisInstanceService;
@@ -718,7 +718,7 @@ public class OperationTaskServiceImpl
         List<RedisInstance> redisInstances = redisInstanceService.list(
                 new LambdaQueryWrapper<RedisInstance>()
                         .eq(RedisInstance::getManagementStatus,
-                                StatusEnum.ACTIVE.getCode())
+                                ManagementStatusEnum.ACTIVE.getCode())
         );
         if (redisInstances.size()
                 != OperationTaskConstants.CURRENT_TOPOLOGY_NODE_COUNT) {
@@ -764,7 +764,7 @@ public class OperationTaskServiceImpl
      */
     private void clearVersionCache() {
         caffeineCache.invalidate(CacheKeyUtil.instanceList(
-                StatusEnum.ACTIVE.getCode()
+                ManagementStatusEnum.ACTIVE.getCode()
         ));
         caffeineCache.invalidate(CacheKeyUtil.TOPOLOGY);
         caffeineCache.invalidate(CacheKeyUtil.NODES);

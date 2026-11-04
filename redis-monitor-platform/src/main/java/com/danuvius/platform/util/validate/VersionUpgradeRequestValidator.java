@@ -3,7 +3,7 @@ package com.danuvius.platform.util.validate;
 import com.danuvius.platform.common.exception.ParameterCode;
 import com.danuvius.platform.common.exception.ParameterException;
 import com.danuvius.platform.common.exception.validator.NumberValidator;
-import com.danuvius.platform.model.dto.VersionUpgradeRequestDTO;
+import com.danuvius.platform.model.dto.operation.VersionUpgradeRequestDTO;
 
 /**
  * Redis版本升级请求参数校验。

@@ -22,8 +22,6 @@ public enum MetricTypeEnum {
     NET_OUTPUT_BANDWIDTH("netOutputBandwidth", "网络输出带宽", "KB/s"),
 
     /*其余监控指标*/
-    NODE_RUN_STATUS("nodeRunStatus","节点存活状态",""),
-    SENTINEL_STATUS("sentinelStatus","哨兵状态",""),
     REPL_DELAY("replDelay","主从复制延迟","s"),
     PING_LATENCY("pingLatency","连通性延迟","ms");
 
@@ -61,7 +59,7 @@ public enum MetricTypeEnum {
     /**
      * 根据 metricKey 查找枚举
      */
-    public static MetricTypeEnum of(String key) {
+    public static MetricTypeEnum keyToName(String key) {
         for (MetricTypeEnum item : values()) {
             if (item.key.equals(key)) {
                 return item;
@@ -74,7 +72,7 @@ public enum MetricTypeEnum {
      * 根据 metricKey 查找“可作为告警规则指标”的枚举；非规则指标返回 null
      */
     public static MetricTypeEnum ruleOf(String key) {
-        MetricTypeEnum item = of(key);
+        MetricTypeEnum item = keyToName(key);
         return item != null && RULE_METRICS.contains(item) ? item : null;
     }
 }

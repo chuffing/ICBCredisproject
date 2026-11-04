@@ -1,5 +1,8 @@
 package com.danuvius.platform.model.enums.instance;
 
+import lombok.Getter;
+
+@Getter
 public enum ManagementStatusEnum {
     /*managementStatus*/
     INACTIVE("0","未纳管"),

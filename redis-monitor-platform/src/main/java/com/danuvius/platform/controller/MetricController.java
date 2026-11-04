@@ -37,8 +37,7 @@ public class MetricController {
      * 查询某个 Agent 最新一条指标。
      */
     @GetMapping("/latest/{instanceId}")
-    public ResultBean<MetricLog> latest(
-            @PathVariable @NotBlank(message = "instanceId不能为空") String instanceId) {
+    public ResultBean<MetricLog> latest(@PathVariable String instanceId) {
         IdValidator.snowflake(instanceId, "instanceId");
 
         return ResultBean.restResult(metricLogService.getLatestByInstanceId(instanceId), ErrorCodeInfo.OK);

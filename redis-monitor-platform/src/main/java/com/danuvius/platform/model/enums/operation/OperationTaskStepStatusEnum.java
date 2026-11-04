@@ -1,4 +1,4 @@
-package com.danuvius.platform.model.enums;
+package com.danuvius.platform.model.enums.operation;
 
 /**
  * 运维任务步骤状态。

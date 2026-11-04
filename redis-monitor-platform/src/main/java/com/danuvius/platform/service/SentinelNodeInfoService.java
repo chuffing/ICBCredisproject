@@ -19,7 +19,7 @@ public interface SentinelNodeInfoService extends IService<SentinelNodeInfo> {
 
 
     /**
-     * 处理随指标一起上报的 Sentinel 节点：按 nodeIp + nodePort upsert。
+     * 处理随指标一起上报的 Sentinel 节点：按 nodeIp + nodePort
      * @param executor 已通过 token 校验的执行器
      * @param nodes    哨兵节点列表，可为空
      * @return 本次处理的节点数

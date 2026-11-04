@@ -1,4 +1,4 @@
-package com.danuvius.platform.model.dto;
+package com.danuvius.platform.model.dto.operation;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;

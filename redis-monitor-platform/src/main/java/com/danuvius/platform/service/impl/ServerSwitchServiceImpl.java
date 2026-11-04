@@ -2,27 +2,24 @@ package com.danuvius.platform.service.impl;
 
 import com.alibaba.fastjson.JSON;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.danuvius.platform.common.constant.AgentTaskParamConstants;
-import com.danuvius.platform.common.constant.OperationTaskConstants;
-import com.danuvius.platform.common.constant.ServerSwitchConstants;
-import com.danuvius.platform.common.constant.VersionPackageConstants;
+import com.danuvius.platform.common.constant.*;
 import com.danuvius.platform.common.exception.BusinessCode;
 import com.danuvius.platform.common.exception.BusinessException;
 import com.danuvius.platform.mapper.RedisVersionPackageMapper;
-import com.danuvius.platform.model.dto.ServerSwitchRequestDTO;
+import com.danuvius.platform.model.dto.operation.ServerSwitchRequestDTO;
 import com.danuvius.platform.model.entity.ExecutorInfo;
 import com.danuvius.platform.model.entity.OperationTask;
 import com.danuvius.platform.model.entity.OperationTaskStep;
 import com.danuvius.platform.model.entity.RedisInstance;
 import com.danuvius.platform.model.entity.RedisVersionPackage;
-import com.danuvius.platform.model.enums.ExecutorOperationTypeEnum;
-import com.danuvius.platform.model.enums.OperationTaskStatusEnum;
-import com.danuvius.platform.model.enums.OperationTaskStepStatusEnum;
-import com.danuvius.platform.model.enums.OperationTaskTypeEnum;
-import com.danuvius.platform.model.enums.StatusEnum;
+import com.danuvius.platform.model.enums.operation.ExecutorOperationTypeEnum;
+import com.danuvius.platform.model.enums.operation.OperationTaskStatusEnum;
+import com.danuvius.platform.model.enums.operation.OperationTaskStepStatusEnum;
+import com.danuvius.platform.model.enums.operation.OperationTaskTypeEnum;
+import com.danuvius.platform.model.enums.instance.ManagementStatusEnum;
 import com.danuvius.platform.model.vo.ServerSwitchResponseVO;
 import com.danuvius.platform.service.ExecutorInfoService;
-import com.danuvius.platform.service.OperationTaskDispatchExecutor;
+import com.danuvius.platform.executor.OperationTaskDispatchExecutor;
 import com.danuvius.platform.service.OperationTaskService;
 import com.danuvius.platform.service.RedisInstanceService;
 import com.danuvius.platform.service.NodeConfigFileService;
@@ -269,7 +266,8 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
         List<RedisInstance> redisInstances = redisInstanceService.list(
                 new LambdaQueryWrapper<RedisInstance>().eq(
                         RedisInstance::getManagementStatus,
-                        StatusEnum.ACTIVE.getCode()
+                        ManagementStatusEnum.ACTIVE.getCode()
+
                 )
         );
         if (redisInstances.size()
@@ -289,7 +287,7 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
         List<ExecutorInfo> executors = executorInfoService.list(
                 new LambdaQueryWrapper<ExecutorInfo>()
                         .eq(ExecutorInfo::getManagementStatus,
-                                StatusEnum.ACTIVE.getCode())
+                                ManagementStatusEnum.ACTIVE.getCode())
                         .in(ExecutorInfo::getInstanceId,
                                 sourceInstanceIds)
         );
@@ -363,7 +361,7 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
         List<ExecutorInfo> targetExecutors = executorInfoService.list(
                 new LambdaQueryWrapper<ExecutorInfo>()
                         .eq(ExecutorInfo::getManagementStatus,
-                                StatusEnum.INACTIVE.getCode())
+                                ManagementStatusEnum.INACTIVE.getCode())
                         .in(ExecutorInfo::getHostIp, targetHostIps)
         );
         Map<String, ExecutorInfo> executorByHost = new HashMap<>();
@@ -585,7 +583,7 @@ public class ServerSwitchServiceImpl implements ServerSwitchService {
         if (StringUtils.trimToNull(executor.getId()) == null
                 || StringUtils.trimToNull(executor.getExecutorPort()) == null
                 || StringUtils.trimToNull(executor.getExecutorToken()) == null
-                || !StatusEnum.ONLINE.getCode()
+                || !CommonConstant.ONLINE
                 .equals(executor.getExecutorStatus())) {
             throw new BusinessException(
                     BusinessCode.OPERATION_ERROR.getCode(),

@@ -1,6 +1,6 @@
 package com.danuvius.platform.service;
 
-import com.danuvius.platform.model.dto.FaultRecoveryRequestDTO;
+import com.danuvius.platform.model.dto.operation.FaultRecoveryRequestDTO;
 import com.danuvius.platform.model.vo.FaultRecoveryResponseVO;
 
 /**

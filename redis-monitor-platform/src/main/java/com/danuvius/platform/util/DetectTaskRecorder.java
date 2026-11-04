@@ -7,10 +7,10 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 告警检测任务状态记录器。
+ * 告警检测任务状态记录器
  * 告警监控页概览返回"告警检测任务状态（运行正常/运行异常）"，
- * 读取最近1次检测任务的执行时间与执行结果。
- * 手动检测（单规则/全量）与后续自动检测任务完成后调用 record 记录。
+ * 读取最近1次检测任务的执行时间与执行结果
+ * 手动检测（单规则/全量）与后续自动检测任务完成后调用 record 记录
  */
 @Component
 public class DetectTaskRecorder {
@@ -19,7 +19,7 @@ public class DetectTaskRecorder {
     private final Map<String, TaskRecord> records = new ConcurrentHashMap<>();
 
     /**
-     * 记录一次检测任务执行结果。
+     * 记录一次检测任务执行结果
      *
      * @param taskType 任务类型，如 single-rule / all-rule
      * @param success  是否执行成功
@@ -29,8 +29,8 @@ public class DetectTaskRecorder {
     }
 
     /**
-     * 获取最近一次检测任务状态。
-     * 优先取全部规则检测，无则取单规则检测；均无记录时返回"运行异常"。
+     * 获取最近一次检测任务状态
+     * 优先取全部规则检测，无则取单规则检测；均无记录时返回"运行异常"
      */
     public String currentStatus() {
         TaskRecord record = records.get("all-rule");

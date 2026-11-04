@@ -1,6 +1,8 @@
 package com.danuvius.platform.model.enums.metric;
 
+import lombok.Getter;
 
+@Getter
 public enum CollectTypeEnum {
     /**
      * rms_metric_log表

@@ -2,7 +2,7 @@ package com.danuvius.platform.controller;
 
 import com.danuvius.platform.common.core.ResultBean;
 import com.danuvius.platform.common.exception.ErrorCodeInfo;
-import com.danuvius.platform.model.dto.FaultRecoveryRequestDTO;
+import com.danuvius.platform.model.dto.operation.FaultRecoveryRequestDTO;
 import com.danuvius.platform.model.vo.FaultRecoveryResponseVO;
 import com.danuvius.platform.service.FaultRecoveryService;
 import com.danuvius.platform.util.validate.FaultRecoveryRequestValidator;

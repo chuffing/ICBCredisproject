@@ -5,6 +5,8 @@ import com.danuvius.platform.common.constant.CommonConstant;
 import com.danuvius.platform.mapper.RedisInstanceMapper;
 import com.danuvius.platform.model.entity.AlarmRule;
 import com.danuvius.platform.model.entity.RedisInstance;
+import com.danuvius.platform.model.enums.instance.ManagementStatusEnum;
+import com.danuvius.platform.model.enums.rule.ScopeTypeEnum;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -26,18 +28,18 @@ public class RuleMatchHelper {
      */
     public List<String> resolveRuleInstanceIds(AlarmRule rule) {
         List<String> result = new ArrayList<>();
-        if (CommonConstant.ALL_INSTANCE_IDS.equals(rule.getScopeType())) {
+        if (ScopeTypeEnum.ALL_INSTANCE_IDS.getCode().equals(rule.getScopeType())) {
 
             List<RedisInstance> activeList = redisInstanceMapper.selectList(
                     new LambdaQueryWrapper<RedisInstance>()
-                            .eq(RedisInstance::getManagementStatus, CommonConstant.MANAGE_ACTIVE));
+                            .eq(RedisInstance::getManagementStatus, ManagementStatusEnum.ACTIVE.getCode()));
 
             if (activeList != null) {
                 for (RedisInstance i : activeList) {
                     result.add(i.getInstanceId());
                 }
             }
-        } else if (CommonConstant.SPECIFIED_INSTNACE_ID.equals(rule.getScopeType())) {
+        } else if (ScopeTypeEnum.SPECIFIED_INSTNACE_ID.getCode().equals(rule.getScopeType())) {
             String ids = rule.getScopeInstanceId();
             if (ids != null && !ids.isEmpty()) {
                 String[] arr = ids.split(",");
@@ -60,10 +62,10 @@ public class RuleMatchHelper {
             return false;
         }
         String scopeType = rule.getScopeType();
-        if (CommonConstant.ALL_INSTANCE_IDS.equals(scopeType)) {
+        if (ScopeTypeEnum.ALL_INSTANCE_IDS.getCode().equals(scopeType)) {
             return true;
         }
-        if (CommonConstant.SPECIFIED_INSTNACE_ID.equals(scopeType)) {
+        if (ScopeTypeEnum.SPECIFIED_INSTNACE_ID.getCode().equals(scopeType)) {
             String ids = rule.getScopeInstanceId();
             if (ids == null || ids.isEmpty()) {
                 return false;

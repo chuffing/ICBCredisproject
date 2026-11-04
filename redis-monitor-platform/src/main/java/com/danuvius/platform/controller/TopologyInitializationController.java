@@ -2,7 +2,7 @@ package com.danuvius.platform.controller;
 
 import com.danuvius.platform.common.core.ResultBean;
 import com.danuvius.platform.common.exception.ErrorCodeInfo;
-import com.danuvius.platform.model.dto.TopologyInitializationRequestDTO;
+import com.danuvius.platform.model.dto.operation.TopologyInitializationRequestDTO;
 import com.danuvius.platform.model.vo.TopologyInitializationCandidateVO;
 import com.danuvius.platform.model.vo.TopologyInitializationResponseVO;
 import com.danuvius.platform.service.TopologyInitializationService;

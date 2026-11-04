@@ -1,6 +1,6 @@
 package com.danuvius.platform.config;
 
-import com.danuvius.platform.model.enums.ExecutorOperationTypeEnum;
+import com.danuvius.platform.model.enums.operation.ExecutorOperationTypeEnum;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;

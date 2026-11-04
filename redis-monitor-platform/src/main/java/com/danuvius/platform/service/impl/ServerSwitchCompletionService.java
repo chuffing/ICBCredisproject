@@ -3,18 +3,20 @@ package com.danuvius.platform.service.impl;
 import cn.hutool.core.util.IdUtil;
 import com.alibaba.fastjson.JSON;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.danuvius.platform.common.constant.CommonConstant;
 import com.danuvius.platform.common.constant.ServerSwitchConstants;
 import com.danuvius.platform.common.exception.BusinessCode;
 import com.danuvius.platform.common.exception.BusinessException;
 import com.danuvius.platform.mapper.RedisVersionPackageMapper;
-import com.danuvius.platform.model.dto.ServerSwitchRequestDTO;
+import com.danuvius.platform.model.dto.operation.ServerSwitchRequestDTO;
 import com.danuvius.platform.model.entity.ExecutorInfo;
 import com.danuvius.platform.model.entity.OperationTask;
 import com.danuvius.platform.model.entity.RedisInstance;
 import com.danuvius.platform.model.entity.RedisVersionPackage;
 import com.danuvius.platform.model.entity.SentinelNodeInfo;
-import com.danuvius.platform.model.enums.OperationTaskTypeEnum;
-import com.danuvius.platform.model.enums.StatusEnum;
+import com.danuvius.platform.model.enums.operation.OperationTaskTypeEnum;
+import com.danuvius.platform.model.enums.instance.ManagementStatusEnum;
+import com.danuvius.platform.model.enums.instance.RunStatusEnum;
 import com.danuvius.platform.service.ExecutorInfoService;
 import com.danuvius.platform.service.NodeConfigFileService;
 import com.danuvius.platform.service.RedisInstanceService;
@@ -107,7 +109,7 @@ public class ServerSwitchCompletionService {
         List<RedisInstance> activeRedisInstances = redisInstanceService.list(
                 new LambdaQueryWrapper<RedisInstance>().eq(
                         RedisInstance::getManagementStatus,
-                        StatusEnum.ACTIVE.getCode()
+                        ManagementStatusEnum.ACTIVE.getCode()
                 )
         );
         if (activeRedisInstances.size()
@@ -127,7 +129,7 @@ public class ServerSwitchCompletionService {
         List<ExecutorInfo> sourceExecutors = executorInfoService.list(
                 new LambdaQueryWrapper<ExecutorInfo>()
                         .eq(ExecutorInfo::getManagementStatus,
-                                StatusEnum.ACTIVE.getCode())
+                                ManagementStatusEnum.ACTIVE.getCode())
                         .in(ExecutorInfo::getInstanceId,
                                 sourceInstanceIds)
         );
@@ -144,7 +146,7 @@ public class ServerSwitchCompletionService {
                 sentinelNodeInfoService.list(
                         new LambdaQueryWrapper<SentinelNodeInfo>().eq(
                                 SentinelNodeInfo::getManagementStatus,
-                                StatusEnum.ACTIVE.getCode()
+                                ManagementStatusEnum.ACTIVE.getCode()
                         )
                 );
         if (activeSentinelNodes.size()
@@ -163,7 +165,7 @@ public class ServerSwitchCompletionService {
         List<ExecutorInfo> targetExecutors = executorInfoService.list(
                 new LambdaQueryWrapper<ExecutorInfo>()
                         .eq(ExecutorInfo::getManagementStatus,
-                                StatusEnum.INACTIVE.getCode())
+                                ManagementStatusEnum.INACTIVE.getCode())
                         .in(ExecutorInfo::getHostIp, targetHostIps)
         );
         if (targetExecutors.size()
@@ -222,8 +224,8 @@ public class ServerSwitchCompletionService {
 
         // 9. 将当前三台生产Redis、Sentinel和执行器退出纳管。
         for (RedisInstance redisInstance : activeRedisInstances) {
-            redisInstance.setManagementStatus(StatusEnum.INACTIVE.getCode());
-            redisInstance.setRunStatus(StatusEnum.RUN_OFFLINE.getCode());
+            redisInstance.setManagementStatus(ManagementStatusEnum.INACTIVE.getCode());
+            redisInstance.setRunStatus(RunStatusEnum.RUN_OFFLINE.getCode());
             redisInstance.setUpdatedTime(now);
             if (!redisInstanceService.updateById(redisInstance)) {
                 throw new BusinessException(
@@ -235,8 +237,8 @@ public class ServerSwitchCompletionService {
         }
 
         for (SentinelNodeInfo sentinelNode : activeSentinelNodes) {
-            sentinelNode.setManagementStatus(StatusEnum.INACTIVE.getCode());
-            sentinelNode.setSentinelStatus(StatusEnum.OFFLINE.getCode());
+            sentinelNode.setManagementStatus(ManagementStatusEnum.INACTIVE.getCode());
+            sentinelNode.setSentinelStatus(CommonConstant.OFFLINE);
             sentinelNode.setUpdatedTime(now);
             if (!sentinelNodeInfoService.updateById(sentinelNode)) {
                 throw new BusinessException(
@@ -248,7 +250,7 @@ public class ServerSwitchCompletionService {
         }
 
         for (ExecutorInfo executor : sourceExecutors) {
-            executor.setManagementStatus(StatusEnum.INACTIVE.getCode());
+            executor.setManagementStatus(ManagementStatusEnum.INACTIVE.getCode());
             executor.setUpdatedTime(now);
             if (!executorInfoService.updateById(executor)) {
                 throw new BusinessException(
@@ -288,7 +290,7 @@ public class ServerSwitchCompletionService {
             redisInstance.setRedisPort(REDIS_PORT);
             redisInstance.setRole(role);
             redisInstance.setRedisVersion(targetVersion);
-            redisInstance.setRunStatus(StatusEnum.RUN_NORMAL.getCode());
+            redisInstance.setRunStatus(RunStatusEnum.RUN_NORMAL.getCode());
             redisInstance.setMasterHostIp(
                     ServerSwitchConstants.MASTER_ROLE.equals(role)
                             ? "" : masterHostIp
@@ -298,7 +300,7 @@ public class ServerSwitchCompletionService {
                             ? "" : REDIS_PORT
             );
             redisInstance.setConfigSha256(redisConfigSha256);
-            redisInstance.setManagementStatus(StatusEnum.ACTIVE.getCode());
+            redisInstance.setManagementStatus(ManagementStatusEnum.ACTIVE.getCode());
             redisInstance.setLastHeartbeatTime(now);
             redisInstance.setUpdatedTime(now);
 
@@ -328,9 +330,9 @@ public class ServerSwitchCompletionService {
             // sentinelNode.setInstanceId(redisInstance.getInstanceId());
             sentinelNode.setNodeIp(hostIp);
             sentinelNode.setNodePort(SENTINEL_PORT);
-            sentinelNode.setSentinelStatus(StatusEnum.ONLINE.getCode());
+            sentinelNode.setSentinelStatus(CommonConstant.ONLINE);
             sentinelNode.setConfigSha256(sentinelConfigSha256);
-            sentinelNode.setManagementStatus(StatusEnum.ACTIVE.getCode());
+            sentinelNode.setManagementStatus(ManagementStatusEnum.ACTIVE.getCode());
             sentinelNode.setLastHeartbeatTime(now);
             sentinelNode.setUpdatedTime(now);
 
@@ -351,7 +353,7 @@ public class ServerSwitchCompletionService {
             // 将目标执行器绑定到当前服务器的Redis实例并正式纳管。
             ExecutorInfo executor = executorByHost.get(hostIp);
             executor.setInstanceId(redisInstance.getInstanceId());
-            executor.setManagementStatus(StatusEnum.ACTIVE.getCode());
+            executor.setManagementStatus(ManagementStatusEnum.ACTIVE.getCode());
             executor.setUpdatedTime(now);
 
             if (!executorInfoService.updateById(executor)) {
@@ -390,16 +392,16 @@ public class ServerSwitchCompletionService {
      */
     private void clearTopologyCache() {
         caffeineCache.invalidate(CacheKeyUtil.instanceList(
-                StatusEnum.ACTIVE.getCode()
+                ManagementStatusEnum.ACTIVE.getCode()
         ));
         caffeineCache.invalidate(CacheKeyUtil.instanceList(
-                StatusEnum.INACTIVE.getCode()
+                ManagementStatusEnum.INACTIVE.getCode()
         ));
         caffeineCache.invalidate(CacheKeyUtil.sentinelList(
-                StatusEnum.ACTIVE.getCode()
+                ManagementStatusEnum.ACTIVE.getCode()
         ));
         caffeineCache.invalidate(CacheKeyUtil.sentinelList(
-                StatusEnum.INACTIVE.getCode()
+                ManagementStatusEnum.INACTIVE.getCode()
         ));
         caffeineCache.invalidate(CacheKeyUtil.TOPOLOGY);
         caffeineCache.invalidate(CacheKeyUtil.NODES);

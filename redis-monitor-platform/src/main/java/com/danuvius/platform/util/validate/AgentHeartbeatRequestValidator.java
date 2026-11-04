@@ -1,9 +1,8 @@
 package com.danuvius.platform.util.validate;
 
-import com.danuvius.platform.common.constant.CommonConstant;
 import com.danuvius.platform.common.exception.validator.StringValidator;
 import com.danuvius.platform.model.dto.agent.AgentHeartbeatRequest;
-import org.apache.commons.lang3.StringUtils;
+import com.danuvius.platform.util.AuthTokenUtil;
 
 
 public class AgentHeartbeatRequestValidator {
@@ -16,6 +15,6 @@ public class AgentHeartbeatRequestValidator {
         StringValidator.numeric(req.getExecutorPort(), "executorPort");
 
 
-        StringValidator.notBlank(auth.replace("Bearer ", ""), "token");
+        StringValidator.notBlank(AuthTokenUtil.stripBearer(auth), "token");
     }
 }

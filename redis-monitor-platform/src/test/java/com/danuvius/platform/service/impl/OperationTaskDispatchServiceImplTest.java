@@ -1,9 +1,10 @@
 package com.danuvius.platform.service.impl;
 
+import com.danuvius.platform.common.constant.CommonConstant;
 import com.danuvius.platform.common.exception.AgentTaskDispatchUnknownException;
 import com.danuvius.platform.common.exception.AgentTaskRejectedException;
 import com.danuvius.platform.mapper.RedisVersionPackageMapper;
-import com.danuvius.platform.model.dto.AgentTaskRequestDTO;
+import com.danuvius.platform.model.dto.operation.AgentTaskRequestDTO;
 import com.danuvius.platform.model.entity.ExecutorInfo;
 import com.danuvius.platform.model.entity.OperationTaskStep;
 import com.danuvius.platform.model.enums.StatusEnum;
@@ -42,9 +43,9 @@ class OperationTaskDispatchServiceImplTest {
         List<OperationTaskStep> steps = Arrays.asList(
                 step("executor-a"), step("executor-b"), step("executor-c"));
         List<ExecutorInfo> executors = Arrays.asList(
-                executor("executor-a", StatusEnum.ONLINE.getCode()),
-                executor("executor-b", StatusEnum.ONLINE.getCode()),
-                executor("executor-c", StatusEnum.ONLINE.getCode()));
+                executor("executor-a", CommonConstant.ONLINE),
+                executor("executor-b", CommonConstant.ONLINE),
+                executor("executor-c", CommonConstant.ONLINE));
 
         when(taskService.getStageSteps("TASK202610260001", 1)).thenReturn(steps);
         when(taskService.startStageDispatch("TASK202610260001", 1, steps))
@@ -88,9 +89,9 @@ class OperationTaskDispatchServiceImplTest {
 
         when(taskService.getStageSteps("TASK202610260001", 1)).thenReturn(steps);
         when(executorService.list(any())).thenReturn(Arrays.asList(
-                executor("executor-a", StatusEnum.ONLINE.getCode()),
-                executor("executor-b", StatusEnum.OFFLINE.getCode()),
-                executor("executor-c", StatusEnum.ONLINE.getCode())));
+                executor("executor-a", CommonConstant.OFFLINE),
+                executor("executor-b", CommonConstant.OFFLINE),
+                executor("executor-c", CommonConstant.OFFLINE)));
 
         OperationTaskDispatchServiceImpl service = new OperationTaskDispatchServiceImpl(
                 taskService, executorService, client,

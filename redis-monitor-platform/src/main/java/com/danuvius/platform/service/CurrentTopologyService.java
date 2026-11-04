@@ -1,15 +1,16 @@
 package com.danuvius.platform.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.danuvius.platform.common.constant.CommonConstant;
 import com.danuvius.platform.common.constant.OperationTaskConstants;
 import com.danuvius.platform.common.constant.ValidationConstants;
 import com.danuvius.platform.common.exception.BusinessCode;
 import com.danuvius.platform.common.exception.BusinessException;
-import com.danuvius.platform.model.dto.CurrentTopologyNode;
+import com.danuvius.platform.model.dto.operation.CurrentTopologyNode;
 import com.danuvius.platform.model.entity.ExecutorInfo;
 import com.danuvius.platform.model.entity.RedisInstance;
 import com.danuvius.platform.model.entity.SentinelNodeInfo;
-import com.danuvius.platform.model.enums.StatusEnum;
+import com.danuvius.platform.model.enums.instance.ManagementStatusEnum;
 import com.danuvius.platform.util.StringUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -43,7 +44,7 @@ public class CurrentTopologyService {
         List<RedisInstance> redisInstances = redisInstanceService.list(
                 new LambdaQueryWrapper<RedisInstance>().eq(
                         RedisInstance::getManagementStatus,
-                        StatusEnum.ACTIVE.getCode()
+                        ManagementStatusEnum.ACTIVE.getCode()
                 )
         );
         if (redisInstances.size()
@@ -58,7 +59,7 @@ public class CurrentTopologyService {
         List<SentinelNodeInfo> sentinelNodes = sentinelNodeInfoService.list(
                 new LambdaQueryWrapper<SentinelNodeInfo>().eq(
                         SentinelNodeInfo::getManagementStatus,
-                        StatusEnum.ACTIVE.getCode()
+                        ManagementStatusEnum.ACTIVE.getCode()
                 )
         );
         if (sentinelNodes.size()
@@ -78,7 +79,7 @@ public class CurrentTopologyService {
         List<ExecutorInfo> executors = executorInfoService.list(
                 new LambdaQueryWrapper<ExecutorInfo>()
                         .eq(ExecutorInfo::getManagementStatus,
-                                StatusEnum.ACTIVE.getCode())
+                                ManagementStatusEnum.ACTIVE.getCode())
                         .in(ExecutorInfo::getInstanceId, instanceIds)
         );
         if (executors.size()
@@ -165,7 +166,7 @@ public class CurrentTopologyService {
      */
     private void validateExecutor(ExecutorInfo executor, String hostIp) {
         if (StringUtils.trimToNull(executor.getId()) == null
-                || !StatusEnum.ONLINE.getCode()
+                || !CommonConstant.ONLINE
                 .equals(executor.getExecutorStatus())) {
             throw new BusinessException(
                     BusinessCode.OPERATION_ERROR.getCode(),

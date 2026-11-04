@@ -1,4 +1,4 @@
-package com.danuvius.platform.model.enums;
+package com.danuvius.platform.model.enums.agent;
 
 /**
  * 平台与执行器之间的任务接收业务响应码。

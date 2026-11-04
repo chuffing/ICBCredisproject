@@ -10,6 +10,7 @@ import com.danuvius.platform.model.dto.agent.SentinelNodeReportDTO;
 import com.danuvius.platform.model.dto.monitor.SentinelItemResponse;
 import com.danuvius.platform.model.entity.ExecutorInfo;
 import com.danuvius.platform.model.entity.SentinelNodeInfo;
+import com.danuvius.platform.model.enums.instance.ManagementStatusEnum;
 import com.danuvius.platform.service.SentinelNodeInfoService;
 import com.danuvius.platform.util.CacheKeyUtil;
 import com.danuvius.platform.util.validate.SentinelNodeReportDTOValidator;
@@ -104,7 +105,7 @@ public class SentinelNodeInfoServiceImpl extends ServiceImpl<SentinelNodeInfoMap
         // 手动检测路径不经过Controller校验
         SentinelNodeReportDTOValidator.validate(nodes);
         boolean executorManaged = executor != null
-                && CommonConstant.MANAGE_ACTIVE.equals(executor.getManagementStatus());
+                && ManagementStatusEnum.ACTIVE.getCode().equals(executor.getManagementStatus());
 
         LocalDateTime now = LocalDateTime.now();
         int handled = 0;
@@ -130,7 +131,7 @@ public class SentinelNodeInfoServiceImpl extends ServiceImpl<SentinelNodeInfoMap
                 node.setLastHeartbeatTime(now);
                 // 新哨兵跟随执行器纳管状态，避免未纳管执行器的哨兵提前出现在前端
                 node.setManagementStatus(executorManaged
-                        ? CommonConstant.MANAGE_ACTIVE : CommonConstant.MANAGE_INACTIVE);
+                        ? ManagementStatusEnum.ACTIVE.getCode() : ManagementStatusEnum.INACTIVE.getCode());
                 node.setCreatedTime(now);
                 node.setUpdatedTime(now);
                 sentinelMapper.insert(node);
@@ -142,7 +143,7 @@ public class SentinelNodeInfoServiceImpl extends ServiceImpl<SentinelNodeInfoMap
                         .set(SentinelNodeInfo::getUpdatedTime, now)
                         .eq(SentinelNodeInfo::getId, exist.getId());
                 if (executorManaged) {
-                    update.set(SentinelNodeInfo::getManagementStatus, CommonConstant.MANAGE_ACTIVE);
+                    update.set(SentinelNodeInfo::getManagementStatus, ManagementStatusEnum.ACTIVE.getCode());
                 }
                 sentinelMapper.update(null, update);
             }
@@ -150,8 +151,8 @@ public class SentinelNodeInfoServiceImpl extends ServiceImpl<SentinelNodeInfoMap
         }
 
         // Sentinel 列表与拓扑缓存失效
-        caffeineCache.invalidate(CacheKeyUtil.sentinelList(CommonConstant.MANAGE_ACTIVE));
-        caffeineCache.invalidate(CacheKeyUtil.sentinelList(CommonConstant.MANAGE_INACTIVE));
+        caffeineCache.invalidate(CacheKeyUtil.sentinelList(ManagementStatusEnum.ACTIVE.getCode()));
+        caffeineCache.invalidate(CacheKeyUtil.sentinelList(ManagementStatusEnum.INACTIVE.getCode()));
         log.info("执行器 {} 随指标上报 Sentinel 节点 {} 个", executor == null ? "-" : executor.getId(), handled);
         log.info("SentinelNodeReportDTO:{}",nodes);
         return handled;
